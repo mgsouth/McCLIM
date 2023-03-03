@@ -112,9 +112,12 @@
 
 (defmethod (setf gadget-value) (new-value (sheet text-editing-gadget) &rest args)
   (declare (ignore args))
-  (ie-clear-input-buffer sheet (input-editor-buffer sheet) nil 1)
-  (loop for ch across new-value do
-    (handle-editor-event sheet ch))
+  (loop with buffer = (input-editor-buffer sheet)
+        with cursor = (edit-cursor sheet)
+          initially
+             (ie-clear-input-buffer sheet buffer nil 1)
+        for ch across new-value do
+          (smooth-insert-item cursor ch))
   (change-space-requirements sheet)
   (dispatch-repaint sheet (sheet-region sheet)))
 
@@ -136,12 +139,12 @@
     (scroll-extent* sheet edit)))
 
 (defmethod handle-event ((sheet text-editing-gadget) (event key-press-event))
-  (if (handle-editor-event sheet event)
+  (if (handle-input-editor-event sheet event)
       (update-gadget sheet)
       (call-next-method)))
 
 (defmethod handle-event ((sheet text-editing-gadget) (event pointer-event))
-  (if (handle-editor-event sheet event)
+  (if (handle-input-editor-event sheet event)
       (update-gadget sheet)
       (call-next-method)))
 
