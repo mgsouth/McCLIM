@@ -392,9 +392,9 @@ y2."
     (labels ((sort-points (left right)
                (sort
                 (append (mapcar (lambda (p) (list p :l))
-                                (clean-up-polygon-points left))
+                                (clean-up-polyline-points left nil))
                         (mapcar (lambda (p) (list p :r))
-                                (clean-up-polygon-points right)))
+                                (clean-up-polyline-points right nil)))
                 #'point-lessp :key #'car))
              (valid-triangle-p (chain n n-1 n-2)
                (multiple-value-bind (x y) (point-position n)
@@ -507,9 +507,11 @@ y2."
              (let ((before-next-p (point-lessp* cx cy nx ny))
                    (before-prev-p (point-lessp* cx cy px py)))
                (when before-next-p
-                 (results (make-pg-edge* cx cy nx ny (or extra (signum (- ny cy))))))
+                 (results (make-pg-edge* cx cy nx ny (or extra
+                                                         (round (signum (- ny cy)))))))
                (when before-prev-p
-                 (results (make-pg-edge* cx cy px py (or extra (signum (- cy py))))))
+                 (results (make-pg-edge* cx cy px py (or extra
+                                                         (round (signum (- cy py)))))))
                ;; When the current point is after both its adjacent points
                ;; we add a dummy edge of the length 0. Otherwise we would
                ;; miss a scanline anchored to this vertice because scanlines
