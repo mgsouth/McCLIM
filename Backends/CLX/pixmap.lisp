@@ -17,9 +17,10 @@
     pixmap))
 
 (defun %deallocate-pixmap (drawable)
-  (when-let ((picture (find-if (alexandria:of-type 'xlib::picture)
-                               (xlib:pixmap-plist drawable))))
+  (when-let ((picture (getf (xlib:drawable-plist drawable) :picture)))
     (xlib:render-free-picture picture))
+  (when-let ((gcontext (getf (xlib:drawable-plist drawable) :gcontext)))
+    (xlib:free-gcontext gcontext))
   (xlib:free-pixmap drawable))
 
 (defmethod allocate-pixmap ((medium clx-medium) width height)

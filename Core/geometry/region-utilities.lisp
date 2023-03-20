@@ -1285,7 +1285,7 @@ y2."
             (incf n)))
         res))))
 
-(defvar *polygonalize-precision* 0.5)
+(defvar *polygonalize-precision* 10)
 
 (defun polygonalize-ellipse (cx cy rdx1 rdy1 rdx2 rdy2
                              start-angle end-angle
