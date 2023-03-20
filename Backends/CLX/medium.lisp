@@ -502,165 +502,82 @@ translated, so they begin at different position than [0,0])."))
 (defmacro with-clx-graphics ((&optional (mirror 'mirror)
                                         (line-style 'line-style)
                                         (ink 'ink)
-                                        (gcontext 'gc))
+                                        (gcontext 'gc)
+                                        (tr 'tr))
                                 medium &body body)
   (let ((medium-var (gensym)))
     `(let* ((,medium-var ,medium)
             (,mirror (clx-drawable ,medium-var))
             (^cleanup nil))
        (when ,mirror
-         (unwind-protect (let* ((,line-style (medium-line-style ,medium-var))
+         (unwind-protect (let* ((,tr (medium-device-transformation ,medium-var))
+                                (,line-style (medium-line-style ,medium-var))
                                 (,ink (medium-ink ,medium-var))
                                 (,gcontext (medium-gcontext ,medium-var ,ink)))
-                           (declare (ignorable ,line-style ,gcontext))
+                           (declare (ignorable ,tr ,line-style ,gcontext))
                            (unless (eql ,ink +transparent-ink+)
                              ,@body))
            (mapc #'funcall ^cleanup))))))
-
 
 
 ;;; Medium-specific Drawing Functions
 
 (defmethod medium-draw-point* ((medium clx-medium) x y)
-  (with-transformed-position ((medium-device-transformation medium) x y)
-    (with-clx-graphics () medium
-      (let ((diameter (line-style-effective-thickness line-style medium)))
-        (if (< diameter 2)
-            (let ((x (round-coordinate x))
-                  (y (round-coordinate y)))
-              (when (and (typep x '(signed-byte 16))
-                         (typep y '(signed-byte 16)))
-                (xlib:draw-point mirror gc x y)))
-            (let* ((radius   (round diameter 2))
-                   (diameter (round diameter))
-                   (min-x    (round-coordinate (- x radius)))
-                   (min-y    (round-coordinate (- y radius))))
-              (when (and (typep min-x '(signed-byte 16))
-                         (typep min-y '(signed-byte 16)))
-                (flet ((draw-circle ()
-                         (xlib:draw-arc mirror gc min-x min-y
-                                        diameter diameter
-                                        0 (* 2 pi) t))
-                       (draw-square ()
-                         (xlib:draw-rectangle mirror gc min-x min-y
-                                              diameter diameter t)))
-                  (if (eq (line-style-cap-shape line-style) :round)
-                      (draw-circle)
-                      (draw-square))))))))))
-
+  (with-clx-graphics () medium
+    (let ((radius (/ (line-style-effective-thickness line-style medium) 2)))
+      (if (< radius 1)
+          (clx-draw-point mirror gc tr x y)
+          (clx-draw-circle mirror gc tr x y radius t)))))
 
 (defmethod medium-draw-points* ((medium clx-medium) coord-seq)
-  (with-transformed-positions
-      ((medium-device-transformation medium) coord-seq)
-    (with-clx-graphics () medium
-      (let ((diameter (line-style-effective-thickness line-style medium)))
-        (if (< diameter 2)
-            (do-sequence ((x y) coord-seq)
-              (let ((x (round-coordinate x))
-                    (y (round-coordinate y)))
-                (when (and (typep x '(signed-byte 16))
-                           (typep y '(signed-byte 16)))
-                  (xlib:draw-point mirror gc x y))))
-            (let ((radius   (round diameter 2))
-                  (diameter (round diameter)))
-              (do-sequence ((x y) coord-seq)
-                (let ((min-x (round-coordinate (- x radius)))
-                      (min-y (round-coordinate (- y radius))))
-                  (when (and (typep min-x '(signed-byte 16))
-                             (typep min-y '(signed-byte 16)))
-                    (xlib:draw-arc mirror gc min-x min-y
-                                   diameter diameter
-                                   0 (* 2 pi) t))))))))))
+  (with-clx-graphics () medium
+    (let ((radius (/ (line-style-effective-thickness line-style medium) 2)))
+      (if (< radius 1)
+          (do-sequence ((x y) coord-seq)
+            (clx-draw-point mirror gc tr x y))
+          (do-sequence ((x y) coord-seq)
+            (clx-draw-circle mirror gc tr x y radius t))))))
 
 (defmethod medium-draw-line* ((medium clx-medium) x1 y1 x2 y2)
-  (multiple-value-bind (x1 y1 x2 y2)
-      (clipped-line (medium-device-transformation medium) x1 y1 x2 y2)
-    (when x1
-      (with-clx-graphics () medium
-        (xlib:draw-line mirror gc x1 y1 x2 y2)))))
+  (with-clx-graphics () medium
+    (clx-draw-line mirror gc tr x1 y1 x2 y2)))
 
 (defmethod medium-draw-polygon* ((medium clx-medium) coord-seq closed filled)
   (assert (evenp (length coord-seq)))
-  (let ((tr (medium-device-transformation medium)))
-    (multiple-value-bind (coords unionp)
-        (clipped-poly tr coord-seq closed)
-      (when coords
-        (with-clx-graphics () medium
-          (flet ((draw-it (coords)
-                   (xlib:draw-lines mirror gc coords :fill-p filled)))
-            (if unionp
-                (mapcar #'draw-it coords)
-                (draw-it coords))))))))
+  (with-clx-graphics () medium
+    (clx-draw-polygon mirror gc tr coord-seq closed filled)))
 
-(defmethod medium-draw-rectangle* :around
-    ((medium clx-medium) left top right bottom filled
-     &aux (ink (medium-ink medium)))
-  (declare (ignore left top right bottom filled))
-  (if (clime:indirect-ink-p ink)
-      (with-drawing-options (medium :ink (clime:indirect-ink-ink ink))
-        (call-next-method))
-      (call-next-method)))
-
-(defmethod medium-draw-rectangle* ((medium clx-medium) left top right bottom filled)
-  (let ((tr (medium-device-transformation medium)))
+(defmethod medium-draw-rectangle* ((medium clx-medium) x1 y1 x2 y2 filled)
+  (with-clx-graphics () medium
     (if (rectilinear-transformation-p tr)
-        (multiple-value-bind (left top width height)
-            (clipped-rect tr left top right bottom)
-          (when (and width height)
-            (with-clx-graphics () medium
-              (xlib:draw-rectangle mirror gc left top width height filled))))
-        (let* ((vector (vector left top right top right bottom left bottom
-                               left top))
-               (coords (clipped-poly tr vector nil)))
-          (with-clx-graphics () medium
-            (xlib:draw-lines mirror gc coords :fill-p filled))))))
+        (clx-draw-rectangle mirror gc tr x1 y1 x2 y2 filled)
+        (let ((coords (vector x1 y1 x2 y1 x2 y2 x1 y2 x1 y1)))
+          (clx-draw-polygon mirror gc tr coords nil filled)))))
 
 (defmethod medium-draw-rectangles* ((medium clx-medium) position-seq filled)
-  (let ((length (length position-seq)))
-    (assert (zerop (mod length 4)))
-    (let ((points (make-array length))
-          (index  0))
-      (do-sequence ((left top right bottom) position-seq)
-        (multiple-value-bind (min-x min-y width height)
-            (clipped-rect (medium-device-transformation medium)
-                          left top right bottom)
-          (setf (aref points (+ index 0)) min-x)
-          (setf (aref points (+ index 1)) min-y)
-          (setf (aref points (+ index 2)) width)
-          (setf (aref points (+ index 3)) height))
-        (incf index 4))
-      (with-clx-graphics () medium
-        (xlib:draw-rectangles mirror gc points filled)))))
-
+  (assert (zerop (mod (length position-seq) 4)))
+  (with-clx-graphics () medium
+    (if (rectilinear-transformation-p tr)
+        (do-sequence ((x1 y1 x2 y2) position-seq)
+          (clx-draw-rectangle mirror gc tr x1 y1 x2 y2 filled))
+        (do-sequence ((x1 y1 x2 y2) position-seq)
+          (let ((coords (vector x1 y1 x2 y1 x2 y2 x1 y2 x1 y1)))
+            (clx-draw-polygon mirror gc tr coords nil filled))))))
 
 ;; A default method polygonizes the ellipse - this is much more precise, works
 ;; with rotations and with clipping.
-(defmethod medium-draw-ellipse* ((medium clx-medium) center-x center-y
+(defmethod medium-draw-ellipse* ((medium clx-medium) cx cy
                                  rdx1 rdy1 rdx2 rdy2
-                                 start-angle end-angle filled)
-  ;;; Round the parameters of the ellipse so that it occupies the expected pixels
-  (let ((tr (medium-device-transformation medium)))
-    (with-transformed-position (tr center-x center-y)
-      (climi::with-transformed-distance (tr rdx2 rdy2)
-        (climi::with-transformed-distance (tr rdx1 rdy1)
-          (if (or (= rdx2 rdy1 0) (= rdx1 rdy2 0))
-              (let* ((arc-angle (- end-angle start-angle))
-                     (arc-angle (if (< arc-angle 0)
-                                    (+ (* pi 2) arc-angle)
-                                    arc-angle)))
-                (with-clx-graphics () medium
-                  (let* ((radius-dx (abs (+ rdx1 rdx2)))
-                         (radius-dy (abs (+ rdy1 rdy2)))
-                         (min-x (round-coordinate (- center-x radius-dx)))
-                         (min-y (round-coordinate (- center-y radius-dy)))
-                         (max-x (round-coordinate (+ center-x radius-dx)))
-                         (max-y (round-coordinate (+ center-y radius-dy))))
-                    (xlib:draw-arc mirror gc
-                                   min-x min-y (- max-x min-x) (- max-y min-y)
-                                   (mod start-angle (* 2 pi)) arc-angle
-                                   filled))))
-              (call-next-method)))))))
-
+                                 eta1 eta2 filled)
+  (with-clx-graphics () medium
+    (with-transformed-distance (tr rdx1 rdy1)
+      (with-transformed-distance (tr rdx2 rdy2)
+        (if (or (= rdx2 rdy1 0) (= rdx1 rdy2 0))
+            (with-transformed-position (tr cx cy)
+              (clx-draw-aligned-ellipse mirror gc
+                                        cx cy rdx1 rdy1 rdx2 rdy2
+                                        eta1 eta2 filled))
+            (call-next-method))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
