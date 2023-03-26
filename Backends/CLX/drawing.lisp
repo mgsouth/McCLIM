@@ -13,6 +13,40 @@
 
 (in-package #:clim-clx)
 
+(defun clx-fill-composite (op src clp dst tr x1 y1 x2 y2)
+  (with-round-positions (tr x1 y1 x2 y2)
+    (let ((x (min x1 x2))
+          (y (min y1 y2))
+          (w (abs (- x2 x1)))
+          (h (abs (- y2 y1))))
+      (xlib:render-composite op src clp dst x y x y x y w h))))
+
+(defun clx-fill-triangles (op src dst tr coord-seq)
+  (with-round-coordinates (tr coord-seq)
+    (xlib:render-triangles dst op src 0 0 :none coord-seq)))
+
+(defun make-clx-render-color (r g b a)
+  ;; Hmm, XRender uses pre-multiplied alpha, how useful!
+  (list (clamp (round (* #xffff a r)) 0 #xffff)
+        (clamp (round (* #xffff a g)) 0 #xffff)
+        (clamp (round (* #xffff a b)) 0 #xffff)
+        (clamp (round (* #xffff a)) 0 #xffff)))
+
+;;; Quick routine to fill a rectangle with an uniform ink. SRC is a color
+;;; (that is a list of four elements).
+(defun clx-fill-rectangle (op src dst tr x1 y1 x2 y2)
+  (with-round-positions (tr x1 y1 x2 y2)
+    (let ((x (clamp (min x1 x2) #x-8000 #x7FFF))
+          (y (clamp (min y1 y2) #x-8000 #x7FFF))
+          (w (clamp (abs (- x2 x1)) 0 #xffff))
+          (h (clamp (abs (- y2 y1)) 0 #xffff)))
+      (xlib:render-fill-rectangle dst op src x y w h))))
+
+(defun clx-fill-polygon (op src dst tr coord-seq)
+  (let ((coords (climi::expand-point-seq
+                 (climi::triangulate-polygon (make-polygon* coord-seq)))))
+    (clx-fill-triangles op src dst tr coords)))
+
 (defun clx-draw-point (mi gc tr x y)
   (with-round-positions (tr x y)
     (when (and (typep x 'clx-coordinate)

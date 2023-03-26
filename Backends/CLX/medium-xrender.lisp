@@ -19,14 +19,6 @@
     :accessor clx-render-medium-%buffer%
     :type (simple-array (unsigned-byte 32)))))
 
-(defun make-clx-render-color (r g b a)
-  ;; Hmm, XRender uses pre-multiplied alpha, how useful!
-  (setf r (min #xffff (max 0 (round (* #xffff a r))))
-        g (min #xffff (max 0 (round (* #xffff a g))))
-        b (min #xffff (max 0 (round (* #xffff a b))))
-        a (min #xffff (max 0 (round (* #xffff a)))))
-  (list r g b a))
-
 (defun medium-target-picture (medium)
   (when-let ((drawable (medium-drawable medium)))
     (clx-drawable-picture (clx-drawable drawable))))
@@ -51,26 +43,6 @@
         (let ((color (make-clx-render-color r g b a)))
           (xlib:render-fill-rectangle picture :src color 0 0 1 1)))
       picture)))
-
-(defun medium-fill-rectangle (medium x1 y1 x2 y2)
-  ;; If there is no picture that means that sheet does not have a
-  ;; registered mirror. Happens with DREI panes during the startup..
-  (when-let ((picture (medium-target-picture medium)))
-    (let ((tr (medium-device-transformation medium))
-          (color (multiple-value-call #'make-clx-render-color
-                   (clime:color-rgba (medium-ink medium)))))
-      (setf (xlib:picture-clip-mask picture)
-            (clipping-region->rect-seq
-             (or (last-medium-device-region medium)
-                 (medium-device-region medium))))
-      (with-round-positions (tr x1 y1 x2 y2)
-        (xlib:render-fill-rectangle picture :over color
-                                    (max #x-8000 (min #x7FFF x1))
-                                    (max #x-8000 (min #x7FFF y1))
-                                    (max 0 (min #xFFFF (- x2 x1)))
-                                    (max 0 (min #xFFFF (- y2 y1))))))))
-
-
 (defmethod medium-buffering-output-p ((medium clx-render-medium))
   (call-next-method))
 
