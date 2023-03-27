@@ -20,7 +20,7 @@
 
 (defclass clx-frame-manager (standard-frame-manager)
   ((mirroring :initarg :mirroring
-              :initform :full
+              :initform :single
               :reader mirroring)
    (class-gensym :initarg :class-gensym
                  :initform (gensym "CLX-")
