@@ -62,9 +62,11 @@
                            (sheet-native-region* parent)))
       (sheet-region sheet)))
   (:method ((sheet basic-sheet))
-    (region-intersection
-     (transform-region (sheet-native-transformation sheet) (sheet-region sheet))
-     (sheet-native-region* (sheet-parent sheet)))))
+    (if-let ((parent (sheet-parent sheet)))
+      (region-intersection
+       (transform-region (sheet-native-transformation sheet) (sheet-region sheet))
+       (sheet-native-region* (sheet-parent sheet)))
+      (sheet-region sheet))))
 
 (defun sheet-visible-region (sheet)
   (if (sheet-direct-mirror sheet)
