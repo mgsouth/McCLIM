@@ -16,12 +16,11 @@
 (defconstant +x11-pixmap-dimension-limit+ 2048)
 
 (defun X-pixel (port color)
-  (alexandria:ensure-gethash
-   color (slot-value port 'color-table)
-   (multiple-value-bind (r g b) (color-rgb color)
-     (xlib:alloc-color (xlib:screen-default-colormap
-                        (clx-port-screen port))
-                       (xlib:make-color :red r :green g :blue b)))))
+  (ensure-gethash color (slot-value port 'color-table)
+    (multiple-value-bind (r g b) (color-rgb color)
+      (xlib:alloc-color (xlib:screen-default-colormap
+                         (clx-port-screen port))
+                        (xlib:make-color :red r :green g :blue b)))))
 
 ;;; Needed changes:
 
@@ -76,7 +75,7 @@
     (:no-end-point :not-last)
     (otherwise
      (prog1 :round
-       (warn "Unknown cap style ~S, using :round." clim-shape)))))
+       (warn "Unknown cap style ~S, using :ROUND." clim-shape)))))
 
 (defun translate-join-shape (clim-shape)
   (case clim-shape
@@ -499,82 +498,81 @@ translated, so they begin at different position than [0,0])."))
                                                        :normalize :y-banding)))
           nconcing (multiple-value-list (region->clipping-values region))))))
 
-(defmacro with-clx-graphics ((&optional (mirror 'mirror)
-                                        (line-style 'line-style)
-                                        (ink 'ink)
-                                        (gcontext 'gc)
-                                        (tr 'tr))
-                                medium &body body)
-  (let ((medium-var (gensym)))
-    `(let* ((,medium-var ,medium)
-            (,mirror (clx-drawable ,medium-var))
+(defgeneric invoke-with-clx-graphics (cont medium)
+  (:method (cont (medium clx-medium))
+    (when-let ((drawable (clx-drawable medium)))
+      (let ((tr (medium-device-transformation medium))
+            (gc (medium-gcontext medium (medium-ink medium)))
             (^cleanup nil))
-       (when ,mirror
-         (unwind-protect (let* ((,tr (medium-device-transformation ,medium-var))
-                                (,line-style (medium-line-style ,medium-var))
-                                (,ink (medium-ink ,medium-var))
-                                (,gcontext (medium-gcontext ,medium-var ,ink)))
-                           (declare (ignorable ,tr ,line-style ,gcontext))
-                           (unless (eql ,ink +transparent-ink+)
-                             ,@body))
-           (mapc #'funcall ^cleanup))))))
+        (unwind-protect (funcall cont drawable gc tr)
+          (mapc #'funcall ^cleanup))))))
+
+(defmacro with-clx-graphics ((mi gc tr) medium &body body)
+  (let ((cont (gensym)))
+    `(flet ((,cont (,mi ,gc ,tr)
+              (declare (ignorable ,mi ,gc ,tr))
+              ,@body))
+       (declare (dynamic-extent (function ,cont)))
+       (invoke-with-clx-graphics (function ,cont) ,medium))))
 
 
 ;;; Medium-specific Drawing Functions
 
 (defmethod medium-draw-point* ((medium clx-medium) x y)
-  (with-clx-graphics () medium
-    (let ((radius (/ (line-style-effective-thickness line-style medium) 2)))
+  (with-clx-graphics (mi gc tr) medium
+    (let* ((line-style (medium-line-style medium))
+           (radius (/ (line-style-effective-thickness line-style medium) 2)))
       (if (< radius 1)
-          (clx-draw-point mirror gc tr x y)
-          (clx-draw-circle mirror gc tr x y radius t)))))
+          (clx-draw-point  mi gc tr x y)
+          (clx-draw-circle mi gc tr x y radius t)))))
 
 (defmethod medium-draw-points* ((medium clx-medium) coord-seq)
-  (with-clx-graphics () medium
-    (let ((radius (/ (line-style-effective-thickness line-style medium) 2)))
+  (with-clx-graphics (mi gc tr) medium
+    (let* ((line-style (medium-line-style medium))
+           (radius (/ (line-style-effective-thickness line-style medium) 2)))
       (if (< radius 1)
           (do-sequence ((x y) coord-seq)
-            (clx-draw-point mirror gc tr x y))
+            (clx-draw-point mi gc tr x y))
           (do-sequence ((x y) coord-seq)
-            (clx-draw-circle mirror gc tr x y radius t))))))
+            (clx-draw-circle mi gc tr x y radius t))))))
 
 (defmethod medium-draw-line* ((medium clx-medium) x1 y1 x2 y2)
-  (with-clx-graphics () medium
-    (clx-draw-line mirror gc tr x1 y1 x2 y2)))
+  (with-clx-graphics (mi gc tr) medium
+    (clx-draw-line mi gc tr x1 y1 x2 y2)))
 
 (defmethod medium-draw-polygon* ((medium clx-medium) coord-seq closed filled)
   (assert (evenp (length coord-seq)))
-  (with-clx-graphics () medium
-    (clx-draw-polygon mirror gc tr coord-seq closed filled)))
+  (with-clx-graphics (mi gc tr) medium
+    (clx-draw-polygon mi gc tr coord-seq closed filled)))
 
 (defmethod medium-draw-rectangle* ((medium clx-medium) x1 y1 x2 y2 filled)
-  (with-clx-graphics () medium
+  (with-clx-graphics (mi gc tr) medium
     (if (rectilinear-transformation-p tr)
-        (clx-draw-rectangle mirror gc tr x1 y1 x2 y2 filled)
+        (clx-draw-rectangle mi gc tr x1 y1 x2 y2 filled)
         (let ((coords (vector x1 y1 x2 y1 x2 y2 x1 y2 x1 y1)))
-          (clx-draw-polygon mirror gc tr coords nil filled)))))
+          (clx-draw-polygon mi gc tr coords nil filled)))))
 
 (defmethod medium-draw-rectangles* ((medium clx-medium) position-seq filled)
   (assert (zerop (mod (length position-seq) 4)))
-  (with-clx-graphics () medium
+  (with-clx-graphics (mi gc tr) medium
     (if (rectilinear-transformation-p tr)
         (do-sequence ((x1 y1 x2 y2) position-seq)
-          (clx-draw-rectangle mirror gc tr x1 y1 x2 y2 filled))
+          (clx-draw-rectangle mi gc tr x1 y1 x2 y2 filled))
         (do-sequence ((x1 y1 x2 y2) position-seq)
           (let ((coords (vector x1 y1 x2 y1 x2 y2 x1 y2 x1 y1)))
-            (clx-draw-polygon mirror gc tr coords nil filled))))))
+            (clx-draw-polygon mi gc tr coords nil filled))))))
 
 ;; A default method polygonizes the ellipse - this is much more precise, works
 ;; with rotations and with clipping.
 (defmethod medium-draw-ellipse* ((medium clx-medium) cx cy
                                  rdx1 rdy1 rdx2 rdy2
                                  eta1 eta2 filled)
-  (with-clx-graphics () medium
+  (with-clx-graphics (mi gc tr) medium
     (with-transformed-distance (tr rdx1 rdy1)
       (with-transformed-distance (tr rdx2 rdy2)
         (if (or (= rdx2 rdy1 0) (= rdx1 rdy2 0))
             (with-transformed-position (tr cx cy)
-              (clx-draw-aligned-ellipse mirror gc
+              (clx-draw-aligned-ellipse mi gc
                                         cx cy rdx1 rdy1 rdx2 rdy2
                                         eta1 eta2 filled))
             (call-next-method))))))
@@ -640,7 +638,7 @@ translated, so they begin at different position than [0,0])."))
                               toward-x toward-y transform-glyphs)
   (declare (ignore toward-x toward-y transform-glyphs))
   (let ((merged-transform (medium-device-transformation medium)))
-    (with-clx-graphics () medium
+    (with-clx-graphics (mi gc tr) medium
       (when (characterp string)
         (setq string (make-string 1 :initial-element string)))
       (if (null end)
@@ -662,7 +660,7 @@ translated, so they begin at different position than [0,0])."))
                     (:bottom (+ y baseline (- text-height)))))))       ; change
       (multiple-value-bind (x y)
           (transform-position merged-transform x y)
-        (xlib:draw-glyphs mirror gc (truncate (+ x 0.5)) (truncate (+ y 0.5)) string
+        (xlib:draw-glyphs mi gc (truncate (+ x 0.5)) (truncate (+ y 0.5)) string
                           :start start :end end :translate #'translate :size 16)))))
 
 

@@ -2,25 +2,14 @@
 
 ;;; Pixmap
 
-(defun %allocate-pixmap (drawable width height)
-  (let ((pixmap (xlib:create-pixmap :width width
-                                    :height height
-                                    :depth (xlib:drawable-depth drawable)
-                                    :drawable drawable)))
-    (let ((gcontext (xlib:create-gcontext :drawable pixmap)))
-      (unwind-protect
-           (progn
-             (setf (xlib:gcontext-function gcontext) boole-1)
-             (setf (xlib:gcontext-foreground gcontext) #x00000000)
-             (xlib:draw-rectangle pixmap gcontext 0 0 width height t))
-        (xlib:free-gcontext gcontext)))
-    pixmap))
+(defun %allocate-pixmap (drawable width height depth)
+  (xlib:create-pixmap :width width
+                      :height height
+                      :depth depth
+                      :drawable drawable))
 
 (defun %deallocate-pixmap (drawable)
-  (when-let ((picture (getf (xlib:drawable-plist drawable) :picture)))
-    (xlib:render-free-picture picture))
-  (when-let ((gcontext (getf (xlib:drawable-plist drawable) :gcontext)))
-    (xlib:free-gcontext gcontext))
+  (free-clx-drawable-resources drawable)
   (xlib:free-pixmap drawable))
 
 (defmethod allocate-pixmap ((medium clx-medium) width height)
@@ -28,7 +17,13 @@
     (let* ((window (window mirror))
            (width (ceiling width))
            (height (ceiling height))
-           (pixmap (%allocate-pixmap window width height)))
+           (depth (xlib:drawable-depth window))
+           (pixmap (%allocate-pixmap window width height depth)))
+      (let ((gcontext (xlib:create-gcontext :drawable pixmap)))
+        (setf (xlib:gcontext-function gcontext) boole-1)
+        (setf (xlib:gcontext-foreground gcontext) #x00000000)
+        (xlib:draw-rectangle pixmap gcontext 0 0 width height t)
+        (xlib:free-gcontext gcontext))
       (make-instance 'clx-mirror :window pixmap))))
 
 (defmethod deallocate-pixmap ((pixmap clx-mirror))
@@ -67,7 +62,8 @@
   (with-transformed-position
       ((medium-native-transformation from-drawable) from-x from-y)
     (let* ((to-drawable (clx-drawable to-drawable))
-           (gcontext (xlib:create-gcontext :drawable to-drawable)))
+           (gcontext (ensure-clx-drawable-object (to-drawable :copy-area)
+                       (xlib:create-gcontext :drawable to-drawable))))
       (xlib:copy-area (clx-drawable from-drawable)
                       gcontext
                       (round-coordinate from-x)
@@ -76,8 +72,7 @@
                       (round height)
                       to-drawable
                       (round-coordinate to-x)
-                      (round-coordinate to-y))
-      (xlib:free-gcontext gcontext))))
+                      (round-coordinate to-y)))))
 
 (defmethod medium-copy-area ((from-drawable clx-mirror) from-x from-y width height
                              (to-drawable clx-medium) to-x to-y)
@@ -90,9 +85,9 @@
                     (round-coordinate to-x) (round-coordinate to-y))))
 
 (defun %drawable-copy-area (from fx fy w h to tx ty)
-  (let ((gcontext (xlib:create-gcontext :drawable to)))
-    (unwind-protect (xlib:copy-area from gcontext fx fy w h to tx ty)
-      (xlib:free-gcontext gcontext))))
+  (let ((gcontext (ensure-clx-drawable-object (to :copy-area)
+                    (xlib:create-gcontext :drawable to))))
+    (xlib:copy-area from gcontext fx fy w h to tx ty)))
 
 (defmethod medium-copy-area ((from-drawable clx-mirror) from-x from-y width height
                              (to-drawable clx-mirror) to-x to-y)

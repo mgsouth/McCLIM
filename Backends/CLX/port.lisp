@@ -24,7 +24,8 @@
                     clx-selection-mixin
                     clx-basic-port)
   ((color-table :initform (make-hash-table :test #'eq))
-   (design-cache :initform (make-hash-table :test #'eq))))
+   (design-cache :initform (trivial-garbage:make-weak-hash-table :weakness :key :test #'eq)
+                 :reader port-design-cache)))
 
 (defclass clx-render-port (clx-port) ())
 

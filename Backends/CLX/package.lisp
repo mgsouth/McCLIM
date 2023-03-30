@@ -22,6 +22,7 @@
                 #:port-grafts
                 #:device-transformation
                 ;;
+                #:ensure-gethash
                 #:clamp
                 #:get-environment-variable
                 #:map-repeated-sequence

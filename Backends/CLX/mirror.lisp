@@ -18,18 +18,27 @@
                      :buffer nil
                      :buffering-p nil))
 
+(defun synchronize-pixmap (target pixmap &key depth)
+  (let ((width (xlib:drawable-width target))
+        (height (xlib:drawable-height target)))
+    (cond ((null pixmap)
+           (let ((depth (or depth (xlib:drawable-depth target))))
+             (%allocate-pixmap target width height depth)))
+          ((or (< (xlib:drawable-width pixmap) width)
+               (< (xlib:drawable-height pixmap) height))
+           (let ((depth (xlib:drawable-depth pixmap)))
+             (free-clx-drawable-resources pixmap)
+             (%allocate-pixmap target width height depth)))
+          (t
+           pixmap))))
+
 (defmethod (setf buffering-p) :before (new-value (mirror clx-mirror))
   (when (and new-value (null (buffering-p mirror)))
     (let* ((window (window mirror))
            (width (xlib:drawable-width window))
            (height (xlib:drawable-height window))
-           (buffer (buffer mirror)))
-      (when (or (null buffer)
-                (< (xlib:drawable-width buffer) width)
-                (< (xlib:drawable-height buffer) height))
-        (and buffer (%deallocate-pixmap buffer))
-        (setf buffer (%allocate-pixmap window width height)
-              (buffer mirror) buffer))
+           (buffer (synchronize-pixmap window (buffer mirror))))
+      (setf (buffer mirror) buffer)
       (%drawable-copy-area window 0 0 width height buffer 0 0))))
 
 (defun swap-buffers (mirror)
@@ -47,23 +56,17 @@
     (clx-mirror (if (buffering-p object)
                     (buffer object)
                     (window object)))
+    (xlib::picture (xlib:picture-drawable object))
     (xlib:drawable object)
     (null nil)))
 
-(defun clx-drawable-format (drawable)
-  (let ((root (xlib:drawable-root drawable)))
-    (xlib:find-window-picture-format root)))
-
-(defun clx-drawable-picture (drawable)
-  (or (getf (xlib:drawable-plist drawable) :picture)
-      (setf (getf (xlib:drawable-plist drawable) :picture)
-            (xlib:render-create-picture
-             drawable :format (clx-drawable-format drawable)))))
-
-(defun clx-drawable-gcontext (drawable)
-  (or (getf (xlib:drawable-plist drawable) :gcontext)
-      (setf (getf (xlib:drawable-plist drawable) :gcontext)
-            (xlib:create-gcontext :drawable drawable))))
+(defmacro ensure-clx-drawable-object ((drawable name) &body body)
+  (check-type name symbol)
+  (let ((var (gensym)))
+    `(when-let ((,var (clx-drawable ,drawable)))
+       (or (getf (xlib:drawable-plist ,drawable) ,name)
+           (setf (getf (xlib:drawable-plist ,drawable) ,name)
+                 (progn ,@body))))))
 
 ;;; Return a string in which every non-STANDARD-CHAR in STRING has
 ;;; been replaced with #\_. The result is guaranteed to be an ASCII
@@ -145,13 +148,17 @@
                   (xlib:drawable-height window) (round-coordinate h)))))
       (values x1 y1 x2 y2))))
 
+(defun free-clx-drawable-resources (drawable)
+  (loop for (key val) on (xlib:drawable-plist drawable) by #'cddr
+        do (case val
+             (xlib::picture (xlib:render-free-picture val))
+             (xlib:gcontext (xlib:free-gcontext val))
+             (xlib:pixmap   (%deallocate-pixmap val)))))
+
 (defmethod destroy-mirror ((port clx-basic-port) (sheet mirrored-sheet-mixin))
   (when-let ((mirror (sheet-direct-mirror sheet)))
     (let ((window (window mirror)))
-      (when-let ((picture (getf (xlib:drawable-plist window) :picture)))
-        (xlib:render-free-picture picture))
-      (when-let ((gcontext (getf (xlib:drawable-plist window) :gcontext)))
-        (xlib:free-gcontext gcontext))
+      (free-clx-drawable-resources window)
       (remf (xlib:window-plist window) 'sheet)
       (xlib:destroy-window window)
       (xlib:display-force-output (clx-port-display port)))

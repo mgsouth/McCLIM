@@ -13,6 +13,25 @@
 
 (in-package #:clim-clx)
 
+(defun make-clx-render-color (r g b a)
+  ;; Hmm, XRender uses pre-multiplied alpha, how useful!
+  (list (clamp (round (* #xffff a r)) 0 #xffff)
+        (clamp (round (* #xffff a g)) 0 #xffff)
+        (clamp (round (* #xffff a b)) 0 #xffff)
+        (clamp (round (* #xffff a)) 0 #xffff)))
+
+(defparameter +transparent-black+
+  (make-clx-render-color 0 0 0 0))
+
+;;; Quick routine to fill a rectangle with an uniform ink.
+(defun clx-fill-rectangle (op clx-render-color dst tr x1 y1 x2 y2)
+  (with-round-positions (tr x1 y1 x2 y2)
+    (let ((x (clamp (min x1 x2) #x-8000 #x7FFF))
+          (y (clamp (min y1 y2) #x-8000 #x7FFF))
+          (w (clamp (abs (- x2 x1)) 0 #xffff))
+          (h (clamp (abs (- y2 y1)) 0 #xffff)))
+      (xlib:render-fill-rectangle dst op clx-render-color x y w h))))
+
 (defun clx-fill-composite (op src clp dst tr x1 y1 x2 y2)
   (with-round-positions (tr x1 y1 x2 y2)
     (let ((x (min x1 x2))
@@ -21,31 +40,27 @@
           (h (abs (- y2 y1))))
       (xlib:render-composite op src clp dst x y x y x y w h))))
 
-(defun clx-fill-triangles (op src dst tr coord-seq)
+;;; Note that if the format is :NONE or does not have the alpha component, then
+;;; all figures will be rendered as if they were specified separately.
+
+(defun clx-fill-triangles (op src dst format tr coord-seq)
   (with-round-coordinates (tr coord-seq)
-    (xlib:render-triangles dst op src 0 0 :none coord-seq)))
+    (xlib:render-triangles dst op src 0 0 format coord-seq)))
 
-(defun make-clx-render-color (r g b a)
-  ;; Hmm, XRender uses pre-multiplied alpha, how useful!
-  (list (clamp (round (* #xffff a r)) 0 #xffff)
-        (clamp (round (* #xffff a g)) 0 #xffff)
-        (clamp (round (* #xffff a b)) 0 #xffff)
-        (clamp (round (* #xffff a)) 0 #xffff)))
+(defun clx-fill-trifan (op src dst format tr coord-seq)
+  (with-round-coordinates (tr coord-seq)
+    (xlib:render-triangle-fan dst op src 0 0 format coord-seq)))
 
-;;; Quick routine to fill a rectangle with an uniform ink. SRC is a color
-;;; (that is a list of four elements).
-(defun clx-fill-rectangle (op src dst tr x1 y1 x2 y2)
-  (with-round-positions (tr x1 y1 x2 y2)
-    (let ((x (clamp (min x1 x2) #x-8000 #x7FFF))
-          (y (clamp (min y1 y2) #x-8000 #x7FFF))
-          (w (clamp (abs (- x2 x1)) 0 #xffff))
-          (h (clamp (abs (- y2 y1)) 0 #xffff)))
-      (xlib:render-fill-rectangle dst op src x y w h))))
+(defun clx-fill-tristrip (op src dst tr format coord-seq)
+  (with-round-coordinates (tr coord-seq)
+    (xlib:render-triangle-strip dst op src 0 0 format coord-seq)))
 
-(defun clx-fill-polygon (op src dst tr coord-seq)
+(defun clx-fill-polygon (op src dst format tr coord-seq)
   (let ((coords (climi::expand-point-seq
                  (climi::triangulate-polygon (make-polygon* coord-seq)))))
-    (clx-fill-triangles op src dst tr coords)))
+    (clx-fill-triangles op src dst format tr coords)))
+
+;;; Legacy drawing routines.
 
 (defun clx-draw-point (mi gc tr x y)
   (with-round-positions (tr x y)

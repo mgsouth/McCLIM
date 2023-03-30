@@ -19,10 +19,6 @@
     :accessor clx-render-medium-%buffer%
     :type (simple-array (unsigned-byte 32)))))
 
-(defun medium-target-picture (medium)
-  (when-let ((drawable (medium-drawable medium)))
-    (clx-drawable-picture (clx-drawable drawable))))
-
 (defun medium-source-picture (medium)
   (let ((design (medium-ink medium)))
     (when (clime:indirect-ink-p design)
@@ -83,6 +79,12 @@
 
 (defmethod medium-draw-polygon* ((medium clx-render-medium) coord-seq closed filled)
   (call-next-method medium coord-seq closed filled))
+(defun medium-target-picture (medium)
+  (when-let ((drawable (clx-drawable medium)))
+    (ensure-clx-drawable-object (drawable :target)
+      (let ((format (xlib:find-window-picture-format
+                     (xlib:drawable-root drawable))))
+        (xlib:render-create-picture drawable :format format)))))
 
 (defmethod medium-draw-rectangle* ((medium clx-render-medium)
                                    left top right bottom filled)
@@ -109,16 +111,14 @@
   (declare (ignore toward-x toward-y))
   (when (or (alexandria:emptyp string) (>= start end))
     (return-from medium-draw-text*))
-  (with-clx-graphics () medium
+  (with-clx-graphics (mi gc tr) medium
     (clim-sys:with-lock-held (*draw-font-lock*)
-      (draw-glyphs medium mirror gc x y string
+      (draw-glyphs medium mi gc x y string
                    :start start :end end
                    :align-x align-x :align-y align-y
                    :translate #'translate
-                   :transformation (medium-device-transformation medium)
+                   :transformation tr
                    :transform-glyphs transform-glyphs))))
-
-
 
 
 
