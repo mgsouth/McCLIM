@@ -50,8 +50,8 @@ a font implementing the protocol defined below."))
       (return-from text-size
         (multiple-value-bind (xmin ymin xmax ymax origin-x origin-y)
             (line-bbox font string start end :left)
-          (declare (ignore xmin ymin))
-          (values xmax (+ ymax line-height)
+          (declare (ignore xmin ymin xmax ymax))
+          (values origin-x (+ origin-y line-height)
                   origin-x origin-y
                   ascent))))
     (let* ((text (subseq (string string) start end))
