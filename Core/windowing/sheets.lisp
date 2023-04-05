@@ -173,7 +173,7 @@
     (if enabled-p
         (note-sheet-enabled sheet)
         (note-sheet-disabled sheet))
-    (let ((mirrored-ancestor (sheet-mirrored-ancestor sheet)))
+    (when-let ((mirrored-ancestor (sheet-mirrored-ancestor sheet)))
       (dispatch-repaint mirrored-ancestor
                         (transform-region (sheet-native-transformation sheet)
                                           (sheet-region sheet))))))
