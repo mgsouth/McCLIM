@@ -24,7 +24,7 @@
     frame))
 
 (defun show (number)
-  (setf (gadget-value (slot-value *application-frame* 'text-field))
+  (setf (gadget-value (find-pane-named *application-frame* 'screen))
         (princ-to-string number)))
 
 (defun queue-number (number)
@@ -92,8 +92,7 @@
              :max-height max-height :min-height min-height))
 
 (define-application-frame calculator-app ()
-  ((text-field :initform nil)
-   (calc-state :initform (list 0)))
+  ((calc-state :initform (list 0)))
   (:menu-bar nil)
   (:panes
    (plus     (make-button "+" (queue-operator #'+)))
@@ -117,14 +116,13 @@
 
   (:layouts
    (default
-       (with-slots (text-field) *application-frame*
-         (vertically (:width 150 :max-width 500)
-           (setf text-field screen)
-           (horizontally (:height 50) ac ce)
-           (tabling (:grid t)
-             (list one two plus)
-             (list three four dash)
-             (list five six multiply)
-             (list seven eight divide)
-             (list nine zero result))))))
+       (vertically (:width 150 :max-width 500)
+         screen
+         (horizontally (:height 50) ac ce)
+         (tabling (:grid t)
+           (list one two plus)
+           (list three four dash)
+           (list five six multiply)
+           (list seven eight divide)
+           (list nine zero result)))))
   (:top-level (calculator-frame-top-level . nil)))
