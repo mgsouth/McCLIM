@@ -15,10 +15,10 @@
 
 (defun make-clx-render-color (r g b a)
   ;; Hmm, XRender uses pre-multiplied alpha, how useful!
-  (list (clamp (round (* #xffff a r)) 0 #xffff)
-        (clamp (round (* #xffff a g)) 0 #xffff)
-        (clamp (round (* #xffff a b)) 0 #xffff)
-        (clamp (round (* #xffff a)) 0 #xffff)))
+  (vector (clamp (truncate (* #xffff a r)) 0 #xffff)
+          (clamp (truncate (* #xffff a g)) 0 #xffff)
+          (clamp (truncate (* #xffff a b)) 0 #xffff)
+          (clamp (truncate (* #xffff a)) 0 #xffff)))
 
 (defparameter +transparent-black+
   (make-clx-render-color 0 0 0 0))
@@ -31,6 +31,12 @@
           (w (clamp (abs (- x2 x1)) 0 #xffff))
           (h (clamp (abs (- y2 y1)) 0 #xffff)))
       (xlib:render-fill-rectangle dst op clx-render-color x y w h))))
+
+(defun clx-wipe-picture (picture &optional (color +transparent-black+))
+  (let* ((mirror (clx-drawable picture))
+         (w (xlib:drawable-width mirror))
+         (h (xlib:drawable-height mirror)))
+    (xlib:render-fill-rectangle picture :src color 0 0 w h)))
 
 (defun clx-fill-composite (op src clp dst tr x1 y1 x2 y2)
   (with-round-positions (tr x1 y1 x2 y2)
@@ -60,6 +66,7 @@
                  (climi::triangulate-polygon (make-polygon* coord-seq)))))
     (clx-fill-triangles op src dst format tr coords)))
 
+
 ;;; Legacy drawing routines.
 
 (defun clx-draw-point (mi gc tr x y)

@@ -24,20 +24,25 @@
 
 ;;; Needed changes:
 
-;; The gc slot in clx-medium must be either thread local, or [preferred] we
-;; should have a unified drawing options -> gcontext cache.
-;; --GB
+;;; The gc slot in clx-medium must be either thread local, or [preferred] we
+;;; should have a unified drawing options -> gcontext cache.  --GB
+;;;
+;;; It is not enough for gc to be thread local because MEDIUM-INK and co are
+;;; _not_ thread local. -- jd 2023-04-04
 
 ;;; CLX-MEDIUM class
 
 (defclass clx-medium (multiline-text-medium-mixin
                       basic-medium)
-  ((gc :initform nil)
-   (last-medium-device-region :initform nil
+  ((last-medium-device-region :initform nil
                               :accessor last-medium-device-region)
    ;; CLIPPING-REGION-TMP is reused to avoid consing in the most common case
    ;; when configuring the clipping region.
    (clipping-region-tmp :initform (vector 0 0 0 0))))
+
+(defun ensure-gcontext (drawable)
+  (ensure-clx-drawable-object (drawable :gcontext)
+    (xlib:create-gcontext :drawable drawable :fill-style :solid)))
 
 (defmethod medium-buffering-output-p ((medium clx-medium))
   (if-let ((drawable (medium-drawable medium)))
@@ -49,6 +54,25 @@
     (setf (buffering-p drawable) new-value)
     (call-next-method)))
 
+;;; Other Medium-specific Output Functions
+
+(defmethod medium-finish-output ((medium clx-medium))
+  (when (medium-buffering-output-p medium)
+    (when-let ((mirror (medium-drawable medium)))
+      (swap-buffers mirror)))
+  (xlib:display-finish-output (clx-port-display (port medium))))
+
+(defmethod medium-force-output ((medium clx-medium))
+  (unless (medium-buffering-output-p medium)
+    (xlib:display-force-output (clx-port-display (port medium)))))
+
+
+(defmethod medium-beep ((medium clx-medium))
+  (xlib:bell (clx-port-display (port medium))))
+
+(defmethod medium-miter-limit ((medium clx-medium))
+  #.(* pi (/ 11 180)))
+
 ;; Variable is used to deallocate lingering resources after the operation.
 (defvar ^cleanup)
 
@@ -56,15 +80,14 @@
 ;;; secondary methods for changing text styles and line styles
 
 (defmethod (setf medium-text-style) :before (text-style (medium clx-medium))
-  (with-slots (gc) medium
-    (when gc
-      (let ((old-text-style (medium-text-style medium)))
-        (unless (eq text-style old-text-style)
-          (let ((fn (text-style-mapping (port medium) (medium-text-style medium))))
-            ;;  This hack is really ugly. There really should be a better way to
-            ;;  handle this.
-            (when (typep fn 'xlib:font)
-              (setf (xlib:gcontext-font gc) fn))))))))
+  (when-let ((gc (ensure-gcontext medium)))
+    (let ((old-text-style (medium-text-style medium)))
+      (unless (eq text-style old-text-style)
+        (let ((fn (text-style-mapping (port medium) (medium-text-style medium))))
+          ;;  This hack is really ugly. There really should be a better way to
+          ;;  handle this.
+          (when (typep fn 'xlib:font)
+            (setf (xlib:gcontext-font gc) fn)))))))
 
 ;;; Translate from CLIM styles to CLX styles.
 (defun translate-cap-shape (clim-shape)
@@ -99,7 +122,7 @@
           (clamp-to-255 dashes)
           (map 'list #'clamp-to-255 dashes)))))
 
-(defun update-dash-pattern (gc line-style medium)
+(defun update-dash-pattern (gc medium line-style)
   (if-let ((dash-pattern (line-style-effective-dashes line-style medium)))
     (setf (xlib:gcontext-line-style gc) :dash
           (xlib:gcontext-dashes gc) (if (atom dash-pattern)
@@ -107,44 +130,14 @@
                                         (mapcar #'round dash-pattern)))
     (setf (xlib:gcontext-line-style gc) :solid)))
 
-(defmethod (setf medium-line-style) :before (new-value (medium clx-medium))
-  (when-let ((gc (slot-value medium 'gc)))
-    (let* ((old-line-style (medium-line-style medium))
-           (old-unit (line-style-unit old-line-style))
-           (new-unit (line-style-unit new-value))
-           (new-cap-shape (line-style-cap-shape new-value))
-           (new-joint-shape (line-style-joint-shape new-value)))
-      (unless (and (eq new-unit old-unit)
-                   (eql (line-style-thickness new-value)
-                        (line-style-thickness old-line-style)))
-        (setf (xlib:gcontext-line-width gc)
-              (round (line-style-effective-thickness new-value medium))))
-      (unless (eq new-cap-shape (line-style-cap-shape old-line-style))
-        (setf (xlib:gcontext-cap-style gc)
-              (translate-cap-shape new-cap-shape)))
-      (unless (eq new-joint-shape (line-style-joint-shape old-line-style))
-        (setf (xlib:gcontext-join-style gc)
-              (translate-join-shape new-joint-shape)))
-      ;; we could do better here by comparing elements of the vector
-      ;; -RS 2001-08-24
-      (unless (and new-unit old-unit
-                   (eq (line-style-dashes new-value)
-                       (line-style-dashes old-line-style)))
-        (update-dash-pattern gc new-value medium)))))
-
-(defmethod (setf medium-transformation) :around (new-value (medium clx-medium))
-  (let ((old-value (medium-transformation medium))
-        (new-value (call-next-method)))
-    (when-let ((gc (slot-value medium 'gc)))
-      (unless (transformation-equal old-value new-value)
-        (let ((line-style (medium-line-style medium)))
-          (when (eq :coordinate (line-style-unit line-style))
-            ;; The following code uses the medium transformation of MEDIUM and
-            ;; must there be called after the CALL-NEXT-METHOD call.
-            (setf (xlib:gcontext-line-width gc)
-                  (round (line-style-effective-thickness line-style medium)))
-            (update-dash-pattern gc line-style medium)))))
-    new-value))
+(defun update-line-style (gc medium line-style)
+  (let* ((cs (line-style-cap-shape line-style))
+         (js (line-style-joint-shape line-style))
+         (lw (line-style-effective-thickness line-style medium)))
+    (setf (xlib:gcontext-line-width gc) (round lw))
+    (setf (xlib:gcontext-cap-style gc)  (translate-cap-shape cs))
+    (setf (xlib:gcontext-join-style gc) (translate-join-shape js))
+    (update-dash-pattern gc medium line-style)))
 
 (defun %clip-region-pixmap (medium mask mask-gc clipping-region x1 y1 width height)
   (typecase clipping-region
@@ -258,27 +251,12 @@ for foreground drawing. It sets properties like a line-style, sets ink etc. Inks
 which are not uniform should be delegated to DESIGN-GCONTEXT which is
 responsible for setting graphical context mask."))
 
-(defgeneric design-gcontext (medium ink)
-  (:documentation "DESIGN-GCONTEXT is called from MEDIUM-GCONTEXT as means to
-set up appropriate mask in order to draw with non-uniform ink. It may be a
-pattern, rectangular tile etc. If someone plans to add new kinds of not uniform
-inks this is the method to specialize. Note, that MEDIUM-GCONTEXT must be
-specialized on class too. Keep in mind, that inks may be transformed (i.e
-translated, so they begin at different position than [0,0])."))
-
-(defmethod medium-gcontext :before ((medium clx-medium) ink)
-  (declare (ignore ink))
-  (let ((mirror (clx-drawable medium)))
-    (with-slots (gc) medium
-      (unless gc
-        (setf gc (xlib:create-gcontext :drawable mirror)
-              (xlib:gcontext-fill-style gc) :solid)))))
-
 (defmethod medium-gcontext ((medium clx-medium) (ink color))
   (let* ((port (port medium))
          (bg.ink (medium-background medium))
-         (bg.ink (if (colorp bg.ink) bg.ink +deep-pink+)))
-    (with-slots (gc last-medium-device-region) medium
+         (bg.ink (if (colorp bg.ink) bg.ink +deep-pink+))
+         (gc (ensure-gcontext medium)))
+    (with-slots (last-medium-device-region) medium
       (setf (xlib:gcontext-function gc) boole-1)
       (setf (xlib:gcontext-foreground gc) (X-pixel port ink)
             (xlib:gcontext-background gc) (X-pixel port bg.ink))
@@ -291,19 +269,19 @@ translated, so they begin at different position than [0,0])."))
           (%set-gc-clipping-region medium gc)))
       gc)))
 
-(defmethod medium-gcontext ((medium clx-medium) (ink climi::uniform-compositum))
+(defmethod medium-gcontext ((medium clx-medium) (ink uniform-compositum))
   (let ((opacity (climi::compositum-mask ink))
         (ink (climi::compositum-ink ink)))
     (if (< (opacity-value opacity) 0.5)
-        (slot-value medium 'gc)
+        (ensure-gcontext medium)
         (medium-gcontext medium ink))))
 
-(defmethod medium-gcontext ((medium clx-medium) (ink climi::over-compositum))
+(defmethod medium-gcontext ((medium clx-medium) (ink over-compositum))
   (medium-gcontext medium (climi::compositum-foreground ink)))
 
-(defmethod medium-gcontext ((medium clx-medium) (ink climi::opacity))
+(defmethod medium-gcontext ((medium clx-medium) (ink standard-opacity))
   (if (< (opacity-value ink) 0.5)
-      (slot-value medium 'gc)
+      (ensure-gcontext medium)
       (medium-gcontext medium +background-ink+)))
 
 (defmethod medium-gcontext ((medium clx-medium) (ink clime:indirect-ink))
@@ -316,22 +294,10 @@ translated, so they begin at different position than [0,0])."))
     (otherwise (medium-gcontext medium (clime:indirect-ink-ink ink))))
   (medium-gcontext medium (clime:indirect-ink-ink ink)))
 
-(defmethod medium-gcontext ((medium clx-medium) (ink (eql +flipping-ink+)))
-  (let* ((gc (medium-gcontext medium (medium-background medium)))
-         (port (port medium))
-         (flipper (logxor (X-pixel port (medium-foreground medium))
-                          (X-pixel port (medium-background medium)))))
-    ;; Now, (logxor flipper foreground) => background
-    ;; (logxor flipper background) => foreground
-    (setf (xlib:gcontext-function gc) boole-xor)
-    (setf (xlib:gcontext-foreground gc) flipper)
-    (setf (xlib:gcontext-background gc) flipper)
-    gc))
-
 ;;; From Tagore Smith <tagore@tagoresmith.com>
 
 (defmethod medium-gcontext ((medium clx-medium)
-                            (ink climi::standard-flipping-ink))
+                            (ink standard-flipping-ink))
   (let* ((gc (medium-gcontext medium (medium-background medium)))
          (port (port medium))
          (color1 (flipping-ink-design1 ink))
@@ -415,19 +381,10 @@ translated, so they begin at different position than [0,0])."))
     (push (lambda () (xlib:free-pixmap mm)) ^cleanup)
     mm))
 
-
-;;; The purpose of this is to reduce local network traffic for the case of many
-;;; calls to compute-rgb-image, for example when drawing a pattern.
-;;; For more details, see also: https://github.com/sharplispers/clx/pull/146
-(defun cached-drawable-depth (drawable)
-  (or (getf (xlib:drawable-plist drawable) :clim-cache)
-      (setf (getf (xlib:drawable-plist drawable) :clim-cache)
-            (xlib:drawable-depth drawable))))
-
 (defun compute-rgb-image (drawable image)
   (let* ((width (pattern-width image))
          (height (pattern-height image))
-         (depth (cached-drawable-depth drawable))
+         (depth (clx-drawable-depth drawable))
          (idata (clime:pattern-array image))
          (pm (xlib:create-pixmap :drawable drawable
                                  :width width
@@ -443,6 +400,14 @@ translated, so they begin at different position than [0,0])."))
     (xlib:free-gcontext pm-gc)
     (push (lambda () (xlib:free-pixmap pm)) ^cleanup)
     pm))
+
+(defgeneric design-gcontext (medium ink)
+  (:documentation "DESIGN-GCONTEXT is called from MEDIUM-GCONTEXT as means to
+set up appropriate mask in order to draw with non-uniform ink. It may be a
+pattern, rectangular tile etc. If someone plans to add new kinds of not uniform
+inks this is the method to specialize. Note, that MEDIUM-GCONTEXT must be
+specialized on class too. Keep in mind, that inks may be transformed (i.e
+translated, so they begin at different position than [0,0])."))
 
 (defmethod design-gcontext ((medium clx-medium) (ink clime:pattern))
   (with-bounding-rectangle* (x y :width width :height height) ink
@@ -501,9 +466,10 @@ translated, so they begin at different position than [0,0])."))
 (defgeneric invoke-with-clx-graphics (cont medium)
   (:method (cont (medium clx-medium))
     (when-let ((drawable (clx-drawable medium)))
-      (let ((tr (medium-device-transformation medium))
-            (gc (medium-gcontext medium (medium-ink medium)))
-            (^cleanup nil))
+      (let* ((^cleanup nil)
+             (gc (medium-gcontext medium (medium-ink medium)))
+             (tr (medium-device-transformation medium)))
+        (update-line-style gc medium (medium-line-style medium))
         (unwind-protect (funcall cont drawable gc tr)
           (mapc #'funcall ^cleanup))))))
 
@@ -576,6 +542,11 @@ translated, so they begin at different position than [0,0])."))
                                         cx cy rdx1 rdy1 rdx2 rdy2
                                         eta1 eta2 filled))
             (call-next-method))))))
+
+(defmethod medium-clear-area ((medium clx-medium) left top right bottom)
+  (climi::letf (((medium-ink medium) (medium-background medium)))
+    (with-clx-graphics (mirror gc tr) medium
+      (clx-draw-rectangle mirror gc tr left top right bottom t))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -663,43 +634,4 @@ translated, so they begin at different position than [0,0])."))
         (xlib:draw-glyphs mi gc (truncate (+ x 0.5)) (truncate (+ y 0.5)) string
                           :start start :end end :translate #'translate :size 16)))))
 
-
-;;; Other Medium-specific Output Functions
 
-(defmethod medium-finish-output ((medium clx-medium))
-  (when (medium-buffering-output-p medium)
-    (when-let ((mirror (medium-drawable medium)))
-      (swap-buffers mirror)))
-  (xlib:display-finish-output (clx-port-display (port medium))))
-
-(defmethod medium-force-output ((medium clx-medium))
-  (unless (medium-buffering-output-p medium)
-    (xlib:display-force-output (clx-port-display (port medium)))))
-
-(defmethod medium-clear-area ((medium clx-medium) left top right bottom)
-  (let ((tr (medium-device-transformation medium)))
-    (with-transformed-position (tr left top)
-      (with-transformed-position (tr right bottom)
-        (let ((min-x (round-coordinate (min left right)))
-              (min-y (round-coordinate (min top bottom)))
-              (max-x (round-coordinate (max left right)))
-              (max-y (round-coordinate (max top bottom))))
-          (let ((^cleanup nil))
-            (when-let* ((mirror (clx-drawable medium))
-                        (gc (medium-gcontext medium (medium-background medium))))
-              (unwind-protect
-                   (xlib:draw-rectangle mirror gc
-                                        (clamp min-x           #x-8000 #x7fff)
-                                        (clamp min-y           #x-8000 #x7fff)
-                                        (clamp (- max-x min-x) 0       #xffff)
-                                        (clamp (- max-y min-y) 0       #xffff)
-                                        t)
-                (mapc #'funcall ^cleanup)))))))))
-
-(defmethod medium-beep ((medium clx-medium))
-  (xlib:bell (clx-port-display (port medium))))
-
-;;;;
-
-(defmethod medium-miter-limit ((medium clx-medium))
-  #.(* pi (/ 11 180)))

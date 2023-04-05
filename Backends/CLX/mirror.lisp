@@ -61,12 +61,21 @@
     (null nil)))
 
 (defmacro ensure-clx-drawable-object ((drawable name) &body body)
-  (check-type name symbol)
-  (let ((var (gensym)))
-    `(when-let ((,var (clx-drawable ,drawable)))
-       (or (getf (xlib:drawable-plist ,drawable) ,name)
-           (setf (getf (xlib:drawable-plist ,drawable) ,name)
-                 (progn ,@body))))))
+  `(when-let ((,drawable (clx-drawable ,drawable)))
+     (or (getf (xlib:drawable-plist ,drawable) ,name)
+         (setf (getf (xlib:drawable-plist ,drawable) ,name)
+               (progn ,@body)))))
+
+;;; The purpose of this is to reduce local network traffic for the case of many
+;;; calls to compute-rgb-image, for example when drawing a pattern.
+;;; For more details, see also: https://github.com/sharplispers/clx/pull/146
+(defun clx-drawable-depth (drawable)
+  (ensure-clx-drawable-object (drawable 'clx-depth)
+    (xlib:drawable-depth drawable)))
+
+(defun clx-drawable-format (drawable)
+  (ensure-clx-drawable-object (drawable 'clx-format)
+    (xlib:find-window-picture-format (xlib:drawable-root drawable))))
 
 ;;; Return a string in which every non-STANDARD-CHAR in STRING has
 ;;; been replaced with #\_. The result is guaranteed to be an ASCII

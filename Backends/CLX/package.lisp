@@ -34,6 +34,11 @@
                 #:with-medium-options
                 #:line-style-effective-thickness
                 #:line-style-effective-dashes
+                ;; designs
+                #:standard-flipping-ink
+                #:standard-opacity
+                #:over-compositum
+                #:uniform-compositum
                 ;;
                 #:pixmap
                 #:top-level-sheet-mixin
