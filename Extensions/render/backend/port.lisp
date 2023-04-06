@@ -19,7 +19,7 @@
     ;; We need to update the mirror geometry to initialize the sheet native
     ;; region. Normally this is triggered by the WINDOW-CONFIGURATION-EVENT.
     ;; -- jd 2022-04-28
-    (setf (climi::%sheet-direct-mirror sheet) mirror)
+    (setf (sheet-direct-mirror sheet) mirror)
     (climi::update-mirror-geometry sheet)
     (dispatch-repaint sheet +everywhere+)
     mirror))

@@ -164,7 +164,7 @@
   ;;mirrored-sheet-mixin is always in the top of the Class Precedence List
   (let ((window (%realize-mirror port sheet)))
     (setf (getf (xlib:window-plist window) 'sheet) sheet)
-    (make-instance 'clx-mirror :window window)))
+    (make-instance 'clx-window  :mirror window :sheet sheet)))
 
 (defmethod %realize-mirror ((port clx-port) (sheet basic-sheet))
   (with-bounding-rectangle* (:width w :height h) sheet
