@@ -3,7 +3,7 @@
 ;;; ---------------------------------------------------------------------------
 ;;;
 ;;;  (c) copyright 2003 Gilbert Baumann <unk6@rz.uni-karlsruhe.de>
-;;;  (c) copyright 2018-2021 Daniel Kochmański <daniel@turtleware.eu>
+;;;  (c) copyright 2018-2023 Daniel Kochmański <daniel@turtleware.eu>
 ;;;
 ;;; ---------------------------------------------------------------------------
 ;;;
@@ -19,86 +19,46 @@
     :accessor clx-render-medium-%buffer%
     :type (simple-array (unsigned-byte 32)))))
 
+(defun medium-target-picture (medium)
+  (clx-drawable-picture medium))
+
 (defun medium-source-picture (medium)
   (let ((design (medium-ink medium)))
     (when (clime:indirect-ink-p design)
       (setf design (clime:indirect-ink-ink design)))
     (unless (typep design '(or climi::uniform-compositum color opacity))
       (setf design (compose-in +deep-pink+ (make-opacity .5))))
-    (let* ((drawable (clx-drawable (medium-drawable medium)))
-           (pixmap (xlib:create-pixmap
-                    :drawable drawable
-                    :depth (xlib:drawable-depth drawable)
-                    :width 1 :height 1))
-           (picture (xlib:render-create-picture
-                     pixmap
-                     :format (xlib:find-window-picture-format
-                              (xlib:drawable-root drawable))
-                     :repeat :on)))
+    (let* ((mirror (medium-drawable medium))
+           (pixmap (ensure-help-buffer mirror :uniform
+                     (create-pixmap mirror 1 1 32)))
+           (picture (ensure-clx-drawable-object (pixmap 'clx-picture)
+                      (let* ((display (xlib:drawable-display pixmap))
+                             (format (xlib:find-standard-picture-format display :argb32)))
+                        (xlib:render-create-picture pixmap :format format :repeat :on)))))
       (multiple-value-bind (r g b a) (clime:color-rgba design)
         (let ((color (make-clx-render-color r g b a)))
           (xlib:render-fill-rectangle picture :src color 0 0 1 1)))
       picture)))
-(defmethod medium-buffering-output-p ((medium clx-render-medium))
-  (call-next-method))
 
-(defmethod (setf medium-buffering-output-p) (buffer-p (medium clx-render-medium))
-  (call-next-method))
-
-(defmethod medium-finish-output ((medium clx-render-medium))
-  (call-next-method))
-
-(defmethod medium-force-output ((medium clx-render-medium))
-  (call-next-method))
-
-(defmethod medium-clear-area ((medium clx-render-medium) left top right bottom)
-  (call-next-method))
-
-(defmethod medium-beep ((medium clx-render-medium))
-  (call-next-method))
-
-(defmethod medium-miter-limit ((medium clx-render-medium))
-  (call-next-method))
-
-
-
-(defmethod medium-draw-point* ((medium clx-render-medium) x y)
-  (call-next-method))
-
-(defmethod medium-draw-points* ((medium clx-render-medium) coord-seq)
-  (call-next-method))
-
-;;; XXX: CLX decorates lines for us. When we do it ourself this should be
-;;; adjusted. For details see CLIM 2, Part 4, Section 12.4.1. -- jd 2019-01-31
-
-(defmethod medium-draw-line* ((medium clx-render-medium) x1 y1 x2 y2)
-  (call-next-method))
-
-(defmethod medium-draw-lines* ((medium clx-render-medium) coord-seq)
-  (call-next-method))
-
-(defmethod medium-draw-polygon* ((medium clx-render-medium) coord-seq closed filled)
-  (call-next-method medium coord-seq closed filled))
-(defun medium-target-picture (medium)
-  (when-let ((drawable (clx-drawable medium)))
-    (ensure-clx-drawable-object (drawable :target)
-      (let ((format (xlib:find-window-picture-format
-                     (xlib:drawable-root drawable))))
-        (xlib:render-create-picture drawable :format format)))))
-
-(defmethod medium-draw-rectangle* ((medium clx-render-medium)
-                                   left top right bottom filled)
-  (call-next-method))
-
-(defmethod medium-draw-rectangles* ((medium clx-render-medium) position-seq filled)
-  (call-next-method medium position-seq filled))
-
-(defmethod medium-draw-ellipse* ((medium clx-render-medium)
-                                 center-x center-y
-                                 radius-1-dx radius-1-dy
-                                 radius-2-dx radius-2-dy
-                                 start-angle end-angle filled)
-  (call-next-method))
+(defun medium-stencil-picture (medium)
+  (let* ((mirror (medium-drawable medium))
+         (width (mirror-width mirror))
+         (height (mirror-height mirror))
+         (pixmap (ensure-help-buffer mirror :stencil
+                   (create-pixmap mirror width height 8))))
+    (resize-pixmap pixmap width height)
+    (let ((picture (ensure-clx-drawable-object (pixmap 'clx-picture)
+                     (let* ((display (xlib:drawable-display pixmap))
+                            (format (xlib:find-standard-picture-format display :a8)))
+                       (xlib:render-create-picture pixmap :format format)))))
+      (ensure-clx-drawable-object (pixmap :gcontext)
+        (xlib:create-gcontext :drawable pixmap
+                              :function boole-1
+                              :foreground #xff
+                              :background #x00
+                              :fill-style :solid))
+      (clx-wipe-picture picture width height +transparent-black+)
+      picture)))
 
 (defvar *draw-font-lock* (clim-sys:make-lock "draw-font"))
 (defmethod medium-draw-text* ((medium clx-render-medium) string x y

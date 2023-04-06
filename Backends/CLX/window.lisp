@@ -131,8 +131,8 @@
 
 (defmethod destroy-mirror ((port clx-basic-port) (sheet mirrored-sheet-mixin))
   (when-let ((mirror (sheet-direct-mirror sheet)))
+    (release-mirror-resources mirror)
     (let ((window (window mirror)))
-      (free-clx-drawable-resources window)
       (remf (xlib:window-plist window) 'sheet)
       (xlib:destroy-window window)
       (xlib:display-force-output (clx-port-display port)))

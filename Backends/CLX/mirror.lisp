@@ -16,7 +16,10 @@
   ((mirror
     :initarg :mirror
     :accessor mirror
-    :reader clx-drawable))
+    :reader clx-drawable)
+   (help-buffers
+    :initform (make-hash-table)
+    :reader help-buffers))
   (:default-initargs :mirror (alexandria:required-argument :mirror)))
 
 (defgeneric mirror-width (mirror)
@@ -30,6 +33,23 @@
 (defgeneric mirror-depth (mirror)
   (:method ((mirror clx-mirror))
     (clx-drawable-depth (mirror mirror))))
+
+(defmacro ensure-help-buffer (window key &body body)
+  `(ensure-gethash ,key (help-buffers ,window) ,@body))
+
+(defun release-help-buffer (window key)
+  (let ((ht (help-buffers window)))
+    (when-let ((pixmap (gethash key ht)))
+      (remhash key ht)
+      (deallocate-pixmap pixmap))))
+
+(defun release-mirror-resources (mirror)
+  (free-clx-drawable-resources (clx-drawable mirror))
+  (let ((help-buffers (help-buffers mirror)))
+    (climi::dohash ((key val) help-buffers)
+      (declare (ignore key))
+      (deallocate-pixmap val))
+    (clrhash help-buffers)))
 
 (defmacro ensure-clx-drawable-object ((drawable name) &body body)
   `(when-let ((,drawable (clx-drawable ,drawable)))
@@ -47,6 +67,15 @@
 (defun clx-drawable-format (drawable)
   (ensure-clx-drawable-object (drawable 'clx-format)
     (xlib:find-window-picture-format (xlib:drawable-root drawable))))
+
+(defun clx-drawable-display (drawable)
+  (ensure-clx-drawable-object (drawable 'clx-display)
+    (xlib:drawable-display drawable)))
+
+;;; This function maintains the "primary" picture, there may be more.
+(defun clx-drawable-picture (drawable)
+  (ensure-clx-drawable-object (drawable 'clx-picture)
+    (xlib:render-create-picture drawable :format (clx-drawable-format drawable))))
 
 (defun free-clx-drawable-resources (drawable)
   (loop for (key val) on (xlib:drawable-plist drawable) by #'cddr

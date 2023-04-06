@@ -39,7 +39,7 @@
   (when-let ((mirror (clx-drawable medium)))
     (let* ((width (ceiling width))
            (height (ceiling height))
-           (depth (xlib:drawable-depth mirror))
+           (depth (clx-drawable-depth mirror))
            (pixmap (%allocate-pixmap mirror width height depth)))
       (%fill-pixmap pixmap #xff0000ff width height)
       (make-instance 'clx-pixmap :mirror pixmap
@@ -47,10 +47,10 @@
                                  :height height
                                  :depth depth))))
 
-(defmethod deallocate-pixmap ((pixmap clx-pixmap))
-  (let ((mirror (clx-drawable pixmap)))
-    (free-clx-drawable-resources mirror)
-    (%deallocate-pixmap mirror)))
+(defmethod deallocate-pixmap ((mirror clx-pixmap))
+  (release-mirror-resources mirror)
+  (let ((pixmap (clx-drawable mirror)))
+    (%deallocate-pixmap pixmap)))
 
 (defun create-pixmap (mirror width height depth)
   (let* ((target (clx-drawable mirror))

@@ -32,11 +32,8 @@
           (h (clamp (abs (- y2 y1)) 0 #xffff)))
       (xlib:render-fill-rectangle dst op clx-render-color x y w h))))
 
-(defun clx-wipe-picture (picture &optional (color +transparent-black+))
-  (let* ((mirror (clx-drawable picture))
-         (w (xlib:drawable-width mirror))
-         (h (xlib:drawable-height mirror)))
-    (xlib:render-fill-rectangle picture :src color 0 0 w h)))
+(defun clx-wipe-picture (picture width height color)
+  (xlib:render-fill-rectangle picture :src color 0 0 width height))
 
 (defun clx-fill-composite (op src clp dst tr x1 y1 x2 y2)
   (with-round-positions (tr x1 y1 x2 y2)
