@@ -22,24 +22,6 @@
 (defun medium-target-picture (medium)
   (clx-drawable-picture medium))
 
-(defun medium-source-picture (medium)
-  (let ((design (medium-ink medium)))
-    (when (clime:indirect-ink-p design)
-      (setf design (clime:indirect-ink-ink design)))
-    (unless (typep design '(or climi::uniform-compositum color opacity))
-      (setf design (compose-in +deep-pink+ (make-opacity .5))))
-    (let* ((mirror (medium-drawable medium))
-           (pixmap (ensure-help-buffer mirror :uniform
-                     (create-pixmap mirror 1 1 32)))
-           (picture (ensure-clx-drawable-object (pixmap 'clx-picture)
-                      (let* ((display (xlib:drawable-display pixmap))
-                             (format (xlib:find-standard-picture-format display :argb32)))
-                        (xlib:render-create-picture pixmap :format format :repeat :on)))))
-      (multiple-value-bind (r g b a) (clime:color-rgba design)
-        (let ((color (make-clx-render-color r g b a)))
-          (xlib:render-fill-rectangle picture :src color 0 0 1 1)))
-      picture)))
-
 (defun medium-stencil-picture (medium)
   (let* ((mirror (medium-drawable medium))
          (width (mirror-width mirror))
@@ -60,6 +42,182 @@
       (clx-wipe-picture picture width height +transparent-black+)
       picture)))
 
+(defun medium-stencil-brush (medium)
+  (let* ((pixmap (ensure-help-buffer (medium-drawable medium) :brush
+                   (create-pixmap medium 1 1 8)))
+         (picture
+           (ensure-clx-drawable-object (pixmap 'clx-picture)
+             (let* ((display (clx-drawable-display medium))
+                    (format (xlib:find-standard-picture-format display :a8)))
+               (xlib:render-create-picture pixmap :format format :repeat :on)))))
+    (clx-wipe-picture picture 1 1 +solid-black+)
+    picture))
+
+;;; FIXME this method is wrong because we collapse the pattern's designs along
+;;; with the pattern, while "14.2 Patterns and Stencils" says:
+;;;
+;;;  Applying a coordinate transformation to a pattern does not affect the
+;;;  designs that make up the pattern. It only changes the position, size, and
+;;;  shape of the cells' holes, allowing different portions of the designs in
+;;;  the cells to show through. Consequently, applying make-rectangular-tile
+;;;  to a pattern of nonuniform designs can produce a different appearance in
+;;;  each tile.
+;;;
+;;; The "right thing" could be achieved by composing each design over the
+;;; source pattern with masks for each array cell. -- jd 2021-01-25
+(defun make-clx-render-pixmap (medium pattern)
+  (let* ((drawable (clx-drawable medium))
+         (width  (ceiling (pattern-width pattern)))
+         (height (ceiling (pattern-height pattern)))
+         (idata  (climi::%collapse-pattern pattern 0 0 width height))
+         (pixmap (xlib:create-pixmap :drawable drawable
+                                     :width width
+                                     :height height
+                                     :depth 32))
+         (gcontext (xlib:create-gcontext :drawable pixmap))
+         (ximage   (xlib:create-image :width  width
+                                      :height height
+                                      :depth 32
+                                      :bits-per-pixel 32
+                                      :data (pattern-array idata))))
+    (put-image-recursively pixmap gcontext ximage width height 0 0)
+    (xlib:free-gcontext gcontext)
+    pixmap))
+
+(defun clx-render-pattern-picture (medium pattern transformation repeat)
+  (let* ((pixmap
+           (ensure-gethash pattern (port-design-cache (port medium))
+             (make-clx-render-pixmap medium pattern)))
+         (picture
+           (ensure-clx-drawable-object (pixmap 'clx-picture)
+             (let* ((display (clx-drawable-display pixmap))
+                    (format (xlib:find-standard-picture-format display :argb32)))
+               (xlib:render-create-picture pixmap :format format)))))
+    (setf (xlib:picture-repeat picture) repeat)
+    (let* ((ntr (medium-native-transformation medium))
+           (etr (compose-transformations ntr transformation)))
+      (transform-picture etr picture))
+    picture))
+
+;;; Porter-Duff XOR is _not_ a bitwise XOR. It works only on alpha values.  To
+;;; have a flipping ink we need to copy the target picture and do bitwise xor
+;;; manually.
+(defun clx-render-flipping-picture (medium design)
+  (flet ((make-pixmap (mirror)
+           (let* ((w (mirror-width mirror))
+                  (h (mirror-height mirror))
+                  (p (ensure-help-buffer mirror :flipper
+                       (create-pixmap mirror w h 32))))
+             (resize-pixmap p w h))))
+    (let* ((mirror (medium-drawable medium))
+           (pixmap (make-pixmap mirror))
+           (picture
+             (ensure-clx-drawable-object (pixmap 'clx-picture)
+               (let* ((display (clx-drawable-display medium))
+                      (format (xlib:find-standard-picture-format display :argb32)))
+                 (xlib:render-create-picture pixmap :format format)))))
+      (with-bounding-rectangle* (x1 y1 x2 y2) (medium-device-region medium)
+        (clx-fill-composite :src
+                            (clx-drawable-picture mirror)
+                            nil
+                            picture
+                            +identity-transformation+
+                            x1 y1 x2 y2)
+        (let* ((gcontext (ensure-clx-drawable-object (pixmap :flipper)
+                           (xlib:create-gcontext :drawable pixmap
+                                                 :function boole-xor
+                                                 :fill-style :solid)))
+               (design1 (flipping-ink-design1 design))
+               (design2 (flipping-ink-design2 design))
+               (flipper (logxor (climi::%rgba-value design1)
+                                (climi::%rgba-value design2))))
+          (setf (xlib:gcontext-foreground gcontext) flipper
+                (xlib:gcontext-background gcontext) flipper)
+          (clx-draw-rectangle (clx-drawable pixmap) gcontext
+                              +identity-transformation+ x1 y1 x2 y2 t)))
+      picture)))
+
+;;; We maintain only a single picture with color and fill it accordingly.
+(defun clx-render-uniform-picture (medium design)
+  (let* ((pixmap (ensure-help-buffer (medium-drawable medium) :uniform
+                   (create-pixmap medium 1 1 32)))
+         (picture
+           (ensure-clx-drawable-object (pixmap 'clx-picture)
+             (let* ((display (clx-drawable-display medium))
+                    (format (xlib:find-standard-picture-format display :argb32)))
+               (xlib:render-create-picture pixmap :format format :repeat :on)))))
+    (multiple-value-bind (r g b a) (clime:color-rgba design)
+      (let ((color (make-clx-render-color r g b a)))
+        (xlib:render-fill-rectangle picture :src color 0 0 1 1)))
+    picture))
+
+(defgeneric medium-source-picture (medium ink)
+  (:method ((medium clx-render-medium) (ink indirect-ink))
+    (medium-source-picture medium (indirect-ink-ink ink)))
+  (:method ((medium clx-render-medium) (design opacity))
+    (medium-source-picture medium (compose-in +foreground-ink+ design)))
+  (:method ((medium clx-render-medium) (design color))
+    (clx-render-uniform-picture medium design))
+  (:method ((medium clx-render-medium) (design uniform-compositum))
+    (clx-render-uniform-picture medium design))
+  (:method ((medium clx-render-medium) (design standard-flipping-ink))
+    (clx-render-flipping-picture medium design))
+  (:method ((medium clx-render-medium) (pattern transformed-pattern))
+    (let* ((design (transformed-design-design pattern))
+           (transf (transformed-design-transformation pattern))
+           (picture (if (typep design 'clime:rectangular-tile)
+                        (clx-render-pattern-picture medium design transf :on)
+                        (clx-render-pattern-picture medium design transf :off))))
+      picture))
+  (:method ((medium clx-render-medium) (design rectangular-tile))
+    (clx-render-pattern-picture medium design +identity-transformation+ :on))
+  (:method ((medium clx-render-medium) (design pattern))
+    (clx-render-pattern-picture medium design +identity-transformation+ :off))
+  (:method ((medium clx-render-medium) design)
+    (medium-source-picture medium (compose-in +deep-pink+ (make-opacity .75)))))
+
+(defmacro with-render-context ((source stencil target) medium &body body)
+  (let ((cont (gensym))
+        (svar (or stencil (gensym))))
+    `(flet ((,cont (,source ,svar ,target)
+              ,@(and (null stencil) `((declare (ignore ,svar))))
+              ,@body))
+       (declare (dynamic-extent (function ,cont)))
+       (invoke-with-render-context (function ,cont) ,medium ',stencil))))
+
+(defun invoke-with-render-context (cont medium stencilp)
+  (let ((target  (medium-target-picture medium))
+        (source  (medium-source-picture medium (medium-ink medium)))
+        (stencil (and stencilp (medium-stencil-picture medium))))
+    (let* (;; "legacy" clipping.
+           (^cleanup nil)
+           (drawable (clx-drawable medium))
+           (gcontext (ensure-clx-drawable-object (drawable :gcontext)
+                       (xlib:create-gcontext :drawable drawable))))
+      (unwind-protect
+           ;; FIXME write an optimized and antialiased equivalent of
+           ;; %set-gc-clipping-region for pictures.
+           (progn
+             (%set-gc-clipping-region medium gcontext)
+             (setf (xlib:picture-clip-mask target)
+                   (xlib:gcontext-clip-mask gcontext))
+             (funcall cont source stencil target))
+        (mapc #'funcall ^cleanup)))))
+
+(defmethod invoke-with-clx-graphics (cont (medium clx-render-medium))
+  (with-render-context (source stencil target) medium
+    (let* ((mi (clx-drawable stencil))
+           (gc (ensure-clx-drawable-object (mi :gcontext)))
+           (tr (medium-device-transformation medium)))
+      (update-line-style gc medium (medium-line-style medium))
+      (setf (xlib:picture-clip-mask stencil)
+            (xlib:picture-clip-mask target))
+      (funcall cont mi gc tr)
+      (with-bounding-rectangle* (x1 y1 x2 y2)
+          (medium-device-region medium)
+        (clx-fill-composite :over source stencil target
+                            +identity-transformation+ x1 y1 x2 y2)))))
+
 (defvar *draw-font-lock* (clim-sys:make-lock "draw-font"))
 (defmethod medium-draw-text* ((medium clx-render-medium) string x y
                               start end
@@ -71,14 +229,13 @@
   (declare (ignore toward-x toward-y))
   (when (or (alexandria:emptyp string) (>= start end))
     (return-from medium-draw-text*))
-  (with-clx-graphics (mi gc tr) medium
-    (clim-sys:with-lock-held (*draw-font-lock*)
-      (draw-glyphs medium mi gc x y string
-                   :start start :end end
-                   :align-x align-x :align-y align-y
-                   :translate #'translate
-                   :transformation tr
-                   :transform-glyphs transform-glyphs))))
+  (clim-sys:with-lock-held (*draw-font-lock*)
+    (draw-glyphs medium x y string
+                 :start start :end end
+                 :align-x align-x :align-y align-y
+                 :translate #'translate
+                 :transformation (medium-device-transformation medium)
+                 :transform-glyphs transform-glyphs)))
 
 
 
@@ -87,27 +244,20 @@
 ;;; kerning where the same glyph may have different advance-width values for
 ;;; different next elements. (byte 16 0) is the character code and (byte 16 16)
 ;;; is the next character code. For standalone glyphs (byte 16 16) is zero.
-(defun draw-glyphs (medium mirror gc x y string
+(defun draw-glyphs (medium x y string
                     &key start end
                       align-x align-y
                       translate direction
                       transformation transform-glyphs
                     &aux (text-style (medium-text-style medium))
                          (port (port medium))
-                         (font (text-style-mapping port text-style))
-                         (target-picture (medium-target-picture medium))
-                         (source-picture (medium-source-picture medium))
-                         (clip-mask (xlib:gcontext-clip-mask gc)))
+                         (font (text-style-mapping port text-style)))
   (declare (optimize (speed 3))
            (ignore translate direction)
            (type #-sbcl (integer 0 #.array-dimension-limit)
                  #+sbcl sb-int:index
                  start end)
            (type string string))
-
-  ;; Sync the picture-clip-mask with that of the gcontext.
-  (unless (eq (xlib:picture-clip-mask target-picture) clip-mask)
-    (setf (xlib:picture-clip-mask target-picture) clip-mask))
 
   (when (< (length (the (simple-array (unsigned-byte 32))
                         (clx-render-medium-%buffer% medium)))
@@ -142,8 +292,7 @@
        (decf y (font-descent font))))
     (return-from draw-glyphs
       (%render-transformed-glyphs
-       medium font string x y align-x align-y transformation mirror gc
-       target-picture source-picture)))
+       medium font string x y align-x align-y transformation)))
   (let ((glyph-ids (clx-render-medium-%buffer% medium))
         (glyph-set (ensure-glyph-set port))
         (origin-x 0))
@@ -192,12 +341,9 @@
                  (truncate (+ y (- (font-descent font)) 0.5)))))
       (when (and (typep x '(signed-byte 16))
                  (typep y '(signed-byte 16)))
-        (xlib:render-composite-glyphs target-picture
-                                      glyph-set
-                                      source-picture
-                                      x y
-                                      glyph-ids
-                                      :end (- end start))))))
+        (with-render-context (source nil target) medium
+          (xlib:render-composite-glyphs target glyph-set source
+                                        x y glyph-ids :end (- end start)))))))
 
 (defmethod font-generate-glyph :around
     ((port clx-ttf-port) font code &key glyph-set)
@@ -227,84 +373,76 @@
 
 ;;; Transforming glyphs is very inefficient because we don't cache them.
 (defun %render-transformed-glyphs (medium font string x y align-x align-y
-                                   tr mirror gc
-                                   target-picture source-picture
-                                   &aux (end (length string)))
-  (declare (ignore gc align-x align-y))
-  (loop
-    with glyph-tr = (multiple-value-bind (x0 y0)
-                        (transform-position tr 0 0)
-                      (compose-transformation-with-translation tr (- x0) (- y0)))
-    ;; for rendering one glyph at a time
-    with current-x = x
-    with current-y = y
-    ;; ~
-    with glyph-ids = (clx-render-medium-%buffer% medium)
-    with glyph-set = (make-glyph-set (xlib:drawable-display mirror))
-    with char = (char string 0)
-    with i* = 0
-    for i from 1 below end
-    as next-char = (char string i)
-    as next-char-code = (char-code next-char)
-    as code = (dpb next-char-code (byte #.(ceiling (log char-code-limit 2))
-                                        #.(ceiling (log char-code-limit 2)))
-                   (char-code char))
-    as glyph-info = (font-generate-glyph (port medium) font code
-                                         :transformation glyph-tr
-                                         :glyph-set glyph-set)
-    do
-       (setf (aref (the (simple-array (unsigned-byte 32))
-                        glyph-ids)
-                   i*)
-             (the (unsigned-byte 32)
-                  (glyph-info-id glyph-info)))
-    do ;; rendering one glyph at a time
-       (with-round-positions (tr current-x current-y)
-         (when (and (typep current-x '(signed-byte 16))
-                    (typep current-y '(signed-byte 16)))
-           (xlib:render-composite-glyphs target-picture glyph-set source-picture
-                                         current-x current-y
-                                         glyph-ids :start i* :end (1+ i*))))
-       ;; INV advance values are untransformed - see FONT-GENERATE-GLYPH.
-       (incf current-x (glyph-info-advance-width* glyph-info))
-       (incf current-y (glyph-info-advance-height* glyph-info))
-    do
-       (setf char next-char)
-       (incf i*)
-    finally
-       (setf (aref (the (simple-array (unsigned-byte 32)) glyph-ids) i*)
-             (the (unsigned-byte 32)
-                  (glyph-info-id
-                   (font-generate-glyph (port medium) font (char-code char)
-                                        :transformation glyph-tr
-                                        :glyph-set glyph-set))))
-    finally
-       ;; rendering one glyph at a time (last glyph)
-       (with-round-positions (tr current-x current-y)
-         (when (and (typep current-x '(signed-byte 16))
-                    (typep current-y '(signed-byte 16)))
-           (xlib:render-composite-glyphs target-picture glyph-set source-picture
-                                         current-x current-y
-                                         glyph-ids :start i* :end (1+ i*))))
-       (xlib:render-free-glyphs glyph-set (subseq glyph-ids 0 (1+ i*)))
-    #+ (or)
-    ;; rendering all glyphs at once
-    ;; This solution is correct in principle, but advance-width and
-    ;; advance-height are victims of rounding errors and they don't hold the
-    ;; line for longer text in case of rotations and other hairy
-    ;; transformations. That's why we take our time and render one glyph at a
-    ;; time. -- jd 2018-10-04
-       (destructuring-bind (source-picture source-pixmap)
-           (gcontext-picture mirror gc)
-         (declare (ignore source-pixmap))
-
+                                   tr &aux (end (length string)))
+  (declare (ignore align-x align-y))
+  (with-render-context (source nil target) medium
+    (loop
+      with glyph-tr = (multiple-value-bind (x0 y0)
+                          (transform-position tr 0 0)
+                        (compose-transformation-with-translation tr (- x0) (- y0)))
+      ;; for rendering one glyph at a time
+      with current-x = x
+      with current-y = y
+      ;; ~
+      with glyph-ids = (clx-render-medium-%buffer% medium)
+      with glyph-set = (make-glyph-set (clx-drawable-display medium))
+      with char = (char string 0)
+      with i* = 0
+      for i from 1 below end
+      as next-char = (char string i)
+      as next-char-code = (char-code next-char)
+      as code = (dpb next-char-code (byte #.(ceiling (log char-code-limit 2))
+                                          #.(ceiling (log char-code-limit 2)))
+                     (char-code char))
+      as glyph-info = (font-generate-glyph (port medium) font code
+                                           :transformation glyph-tr
+                                           :glyph-set glyph-set)
+      do
+         (setf (aref (the (simple-array (unsigned-byte 32))
+                          glyph-ids)
+                     i*)
+               (the (unsigned-byte 32)
+                    (glyph-info-id glyph-info)))
+      do ;; rendering one glyph at a time
+         (with-round-positions (tr current-x current-y)
+           (when (and (typep current-x '(signed-byte 16))
+                      (typep current-y '(signed-byte 16)))
+             (xlib:render-composite-glyphs target glyph-set source
+                                           current-x current-y
+                                           glyph-ids :start i* :end (1+ i*))))
+         ;; INV advance values are untransformed - see FONT-GENERATE-GLYPH.
+         (incf current-x (glyph-info-advance-width* glyph-info))
+         (incf current-y (glyph-info-advance-height* glyph-info))
+      do
+         (setf char next-char)
+         (incf i*)
+      finally
+         (setf (aref (the (simple-array (unsigned-byte 32)) glyph-ids) i*)
+               (the (unsigned-byte 32)
+                    (glyph-info-id
+                     (font-generate-glyph (port medium) font (char-code char)
+                                          :transformation glyph-tr
+                                          :glyph-set glyph-set))))
+      finally
+         ;; rendering one glyph at a time (last glyph)
+         (with-round-positions (tr current-x current-y)
+           (when (and (typep current-x '(signed-byte 16))
+                      (typep current-y '(signed-byte 16)))
+             (xlib:render-composite-glyphs target glyph-set source
+                                           current-x current-y
+                                           glyph-ids :start i* :end (1+ i*))))
+         (xlib:render-free-glyphs glyph-set (subseq glyph-ids 0 (1+ i*)))
+      #+ (or)
+      ;; rendering all glyphs at once
+      ;;
+      ;; This solution is correct in principle, but advance-width and
+      ;; advance-height are victims of rounding errors and they don't hold the
+      ;; line for longer text in case of rotations and other hairy transforms.
+      ;; That's why we render one glyph at a time. -- jd 2018-10-04
          (with-round-positions (tr x y)
            (when (and (typep x '(signed-byte 16))
                       (typep y '(signed-byte 16)))
-             (xlib:render-composite-glyphs (drawable-picture mirror)
-                                           glyph-set
-                                           source-picture
-                                           x y
-                                           glyph-ids :start 0 :end end))))
-    finally
-       (xlib:render-free-glyph-set glyph-set)))
+             (xlib:render-composite-glyphs target glyph-set source
+                                           x y glyph-ids :start 0 :end end)))
+      finally
+         (xlib:render-free-glyph-set glyph-set))))

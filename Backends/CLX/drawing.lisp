@@ -23,6 +23,32 @@
 (defparameter +transparent-black+
   (make-clx-render-color 0 0 0 0))
 
+(defparameter +solid-black+
+  (make-clx-render-color 0 0 1 1))
+
+(defun transform-picture (transformation picture)
+  ;; 1. XRender expects a transformation to the target's plane
+  ;;      (X SOURCE) -> TARGET
+  ;;
+  ;; 2. Ink transformation is specified for the source's plane
+  ;;      (Y DESIGN) -> SOURCE
+  ;;
+  ;; 3. Untransformed design has the same plane as the target
+  ;;      DESIGN = TARGET
+  ;;
+  ;; 4. Let's substitute the DESIGN with the TARGET in (2):
+  ;;      1: (X SOURCE) -> TARGET
+  ;;      2: (Y TARGET) -> SOURCE
+  ;;
+  ;; C: In other words Y is the inverse transformation of X -- jd 2021-01-22
+  (multiple-value-bind (rxx rxy ryx ryy dx dy)
+      (climi::get-transformation (invert-transformation transformation))
+    (flet ((clx-fixed (value)
+             ;; 32 bit value (top 16 integer, bottom 16 fraction)
+             (logand (truncate (* value #x10000)) #xFFFFFFFF)))
+      (apply #'xlib:render-set-picture-transform picture
+             (mapcar #'clx-fixed (list rxx rxy dx ryx ryy dy 0 0 1))))))
+
 ;;; Quick routine to fill a rectangle with an uniform ink.
 (defun clx-fill-rectangle (op clx-render-color dst tr x1 y1 x2 y2)
   (with-round-positions (tr x1 y1 x2 y2)
