@@ -487,9 +487,9 @@
                 (new-value
                   (min (gadget-max-value sb)
                        (max (gadget-min-value sb)
-                            (scroll-bar/map-coordinate-to-value sb y-new-thumb-top)))) )
-           (scroll-bar/update-display sb new-value)
-           (drag-callback sb (gadget-client sb) (gadget-id sb) new-value)) )))))
+                            (scroll-bar/map-coordinate-to-value sb y-new-thumb-top)))))
+           (setf (gadget-value sb :invoke-callback nil) new-value)
+           (drag-callback sb (gadget-client sb) (gadget-id sb) new-value)))))))
 
 (defmethod handle-event ((sb scroll-bar-pane) (event pointer-button-release-event))
   (with-slots (event-state) sb
