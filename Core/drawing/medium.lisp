@@ -348,8 +348,8 @@
         (progn
           (medium-finish-output medium)
           (letf (((medium-buffering-output-p medium) buffered-p))
-            (funcall continuation)
-            (medium-finish-output medium)))
+            (multiple-value-prog1 (funcall continuation)
+              (medium-finish-output medium))))
         (funcall continuation))))
 
 ;;; Default method.
