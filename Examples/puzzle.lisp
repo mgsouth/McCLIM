@@ -42,10 +42,12 @@
   :inherit-from '(integer 0 15))
 
 (define-presentation-method highlight-presentation ((type puzzle-cell) record stream state)
-  (with-bounding-rectangle* (left top right bottom) record
-    (draw-rectangle* stream
-                     left top right bottom
-                     :ink +flipping-ink+)))
+  (ecase state
+    (:highlight
+     (with-bounding-rectangle* (x1 y1 x2 y2) record
+       (draw-rectangle* stream x1 y1 x2 y2 :ink +flipping-ink+)))
+    (:unhighlight
+     (repaint-sheet stream record))))
 
 (defun encode-puzzle-cell (row column)
   (+ (* row 4) column))
