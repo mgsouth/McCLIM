@@ -61,6 +61,7 @@
 (defun clx-wipe-picture (picture width height color)
   (xlib:render-fill-rectangle picture :src color 0 0 width height))
 
+;;; PSA window pictures won't work as a source. Why? Who knows.. -- jd
 (defun clx-fill-composite (op src clp dst tr x1 y1 x2 y2)
   (with-round-positions (tr x1 y1 x2 y2)
     (let ((x (min x1 x2))

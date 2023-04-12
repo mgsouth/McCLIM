@@ -99,18 +99,67 @@
       (transform-picture etr picture))
     picture))
 
-;;; Porter-Duff XOR is _not_ a bitwise XOR. It works only on alpha values.  To
-;;; have a flipping ink we need to copy the target picture and do bitwise xor
-;;; manually.
+(defun invert-drawable (pixmap flipper w h)
+  (let ((gcontext (ensure-clx-drawable-object (pixmap :flipper)
+                    (xlib:create-gcontext :drawable pixmap
+                                          :function boole-xor
+                                          :fill-style :solid))))
+    (setf (xlib:gcontext-foreground gcontext) flipper)
+    (setf (xlib:gcontext-background gcontext) flipper)
+    (xlib:draw-rectangle pixmap gcontext 0 0 w h t)))
+
+;;; Porter-Duff XOR is _not_ a bitwise XOR. It works only on alpha values. To
+;;; have a flipping ink we need to copy the target picture and do the bitwise
+;;; xor manually. We use an intermediate pixmap because xlib:copy-area
+;;; requires the same depth between drawables, and XRender won't work with a
+;;; window as a source picture.
 (defun clx-render-flipping-picture (medium design)
-  (flet ((make-pixmap (mirror)
-           (let* ((w (mirror-width mirror))
-                  (h (mirror-height mirror))
-                  (p (ensure-help-buffer mirror :flipper
-                       (create-pixmap mirror w h 32))))
+  (flet ((make-pixmap (mirror name w h depth)
+           (let ((p (ensure-help-buffer mirror name
+                      (create-pixmap mirror w h depth))))
              (resize-pixmap p w h))))
     (let* ((mirror (medium-drawable medium))
-           (pixmap (make-pixmap mirror))
+           (w (mirror-width mirror))
+           (h (mirror-height mirror))
+           (pixmap-24 (make-pixmap mirror :flipper-24 w h 24))
+           (pixmap-32 (make-pixmap mirror :flipper-32 w h 32))
+           (%pixmap24 (clx-drawable pixmap-24))
+           (picture-24
+             (ensure-clx-drawable-object (pixmap-24 'clx-picture)
+               (let* ((display (clx-drawable-display medium))
+                      (format (xlib:find-standard-picture-format display :rgb24)))
+                 (xlib:render-create-picture pixmap-24 :format format))))
+           (picture-32
+             (ensure-clx-drawable-object (pixmap-32 'clx-picture)
+               (let* ((display (clx-drawable-display medium))
+                      (format (xlib:find-standard-picture-format display :argb32)))
+                 (xlib:render-create-picture pixmap-32 :format format))))
+           (flipper (ldb (byte 24 0)
+                         (logxor (climi::%rgba-value (flipping-ink-design1 design))
+                                 (climi::%rgba-value (flipping-ink-design2 design))))))
+      (%drawable-copy-area (clx-drawable mirror) 0 0 w h %pixmap24 0 0)
+      (invert-drawable %pixmap24 flipper w h)
+      (with-bounding-rectangle* (x1 y1 x2 y2) (medium-device-region medium)
+        (clx-fill-composite :src picture-24 nil picture-32
+                            +identity-transformation+ x1 y1 x2 y2))
+      picture-32)))
+
+;;; This version is a straightforward and reasonably fast implementation of
+;;; the flipping ink with an alpha channel. It is nice except for the fact
+;;; that it doesn't work. XRender accepts a picture associated with a window
+;;; as a source but instead of the contents of the window it contains noise.
+;;; This function may be viable when we switch to triple buffering and the
+;;; mirror is always a pixmap (not a window). -- jd 2023-04-12
+#+ (or)
+(defun clx-render-flipping-picture (medium design)
+  (flet ((make-pixmap (mirror w h)
+           (let ((p (ensure-help-buffer mirror :flipper
+                      (create-pixmap mirror w h 32))))
+             (resize-pixmap p w h))))
+    (let* ((mirror (medium-drawable medium))
+           (w (mirror-width mirror))
+           (h (mirror-height mirror))
+           (pixmap (make-pixmap mirror w h))
            (picture
              (ensure-clx-drawable-object (pixmap 'clx-picture)
                (let* ((display (clx-drawable-display medium))
@@ -123,18 +172,10 @@
                             picture
                             +identity-transformation+
                             x1 y1 x2 y2)
-        (let* ((gcontext (ensure-clx-drawable-object (pixmap :flipper)
-                           (xlib:create-gcontext :drawable pixmap
-                                                 :function boole-xor
-                                                 :fill-style :solid)))
-               (design1 (flipping-ink-design1 design))
-               (design2 (flipping-ink-design2 design))
-               (flipper (logxor (climi::%rgba-value design1)
-                                (climi::%rgba-value design2))))
-          (setf (xlib:gcontext-foreground gcontext) flipper
-                (xlib:gcontext-background gcontext) flipper)
-          (clx-draw-rectangle (clx-drawable pixmap) gcontext
-                              +identity-transformation+ x1 y1 x2 y2 t)))
+        (invert-drawable (clx-drawable pixmap)
+                         (logxor (climi::%rgba-value (flipping-ink-design1 design))
+                                 (climi::%rgba-value (flipping-ink-design2 design)))
+                         w h))
       picture)))
 
 ;;; We maintain only a single picture with color and fill it accordingly.
