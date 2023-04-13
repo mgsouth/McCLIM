@@ -299,7 +299,6 @@
                  #+sbcl sb-int:index
                  start end)
            (type string string))
-
   (when (< (length (the (simple-array (unsigned-byte 32))
                         (clx-render-medium-%buffer% medium)))
            (- end start))
@@ -307,84 +306,58 @@
           (make-array (* 256 (ceiling (- end start) 256))
                       :element-type '(unsigned-byte 32)
                       :adjustable nil :fill-pointer nil)))
-  (when (and transform-glyphs
-             (not (translation-transformation-p transformation)))
-    (setq string (subseq string start end))
-    (ecase align-x
-      (:left)
-      (:center
-       (let ((origin-x (text-size medium string :text-style text-style)))
-         (decf x (/ origin-x 2.0))))
-      (:right
-       (let ((origin-x (text-size medium string :text-style text-style)))
-         (decf x origin-x))))
-    (ecase align-y
-      (:top
-       (incf y (font-ascent font)))
-      (:baseline)
-      (:center
-       (let* ((ascent (font-ascent font))
-              (descent (font-descent font))
-              (height (+ ascent descent))
-              (middle (- ascent (/ height 2.0s0))))
-         (incf y middle)))
-      (:baseline*)
-      (:bottom
-       (decf y (font-descent font))))
-    (return-from draw-glyphs
-      (%render-transformed-glyphs
-       medium font string x y align-x align-y transformation)))
-  (let ((glyph-ids (clx-render-medium-%buffer% medium))
-        (glyph-set (ensure-glyph-set port))
-        (origin-x 0))
-    (loop
-      with char = (char string start)
-      with i* = 0
-      for i from (1+ start) below end
-      as next-char = (char string i)
-      as next-char-code = (char-code next-char)
-      as code = (dpb next-char-code (byte #.(ceiling (log char-code-limit 2))
-                                          #.(ceiling (log char-code-limit 2)))
-                     (char-code char))
-      do
-         (setf (aref (the (simple-array (unsigned-byte 32)) glyph-ids) i*)
-               (the (unsigned-byte 32) (font-glyph-id font code)))
-         (setf char next-char)
-         (incf i*)
-         (incf origin-x (font-glyph-dx font code))
-      finally
-         (setf (aref (the (simple-array (unsigned-byte 32)) glyph-ids) i*)
-               (the (unsigned-byte 32)
-                    (font-glyph-id font (char-code char))))
-         (incf origin-x (font-glyph-dx font (char-code char))))
-    (multiple-value-bind (x y) (transform-position transformation x y)
-      (setq x (ecase align-x
-                (:left
-                 (truncate (+ x 0.5)))
-                (:center
-                 (truncate (+ (- x (/ origin-x 2.0)) 0.5)))
-                (:right
-                 (truncate (+ (- x origin-x) 0.5)))))
-      (setq y (ecase align-y
-                (:top
-                 (truncate (+ y (font-ascent font) 0.5)))
-                (:baseline
-                 (truncate (+ y 0.5)))
-                (:center
-                 (let* ((ascent (font-ascent font))
-                        (descent (font-descent font))
-                        (height (+ ascent descent))
-                        (middle (- ascent (/ height 2.0s0))))
-                   (truncate (+ y middle 0.5))))
-                (:baseline*
-                 (truncate (+ y 0.5)))
-                (:bottom
-                 (truncate (+ y (- (font-descent font)) 0.5)))))
-      (when (and (typep x '(signed-byte 16))
-                 (typep y '(signed-byte 16)))
-        (with-render-context (source nil target) medium
-          (xlib:render-composite-glyphs target glyph-set source
-                                        x y glyph-ids :end (- end start)))))))
+  (macrolet ((fix-alignment ()
+               ;; This macro deliberely captures ORIGIN-X.
+               `(progn
+                  (ecase align-x
+                    (:left)
+                    (:center (decf x (/ origin-x 2.0)))
+                    (:right  (decf x origin-x)))
+                  (ecase align-y
+                    ((:baseline :baseline*))
+                    (:top    (incf y (font-ascent font)))
+                    (:center (incf y (/ (- (font-ascent font) (font-descent font)) 2.0)))
+                    (:bottom (decf y (font-descent font)))))))
+    (when (and transform-glyphs
+               (not (translation-transformation-p transformation)))
+      (setq string (subseq string start end))
+      (symbol-macrolet ((origin-x (text-size medium string :text-style text-style)))
+        (fix-alignment))
+      (return-from draw-glyphs
+        (%render-transformed-glyphs
+         medium font string x y align-x align-y transformation)))
+    (let ((glyph-ids (clx-render-medium-%buffer% medium))
+          (glyph-set (ensure-glyph-set port))
+          (origin-x 0))
+      (loop
+        with char = (char string start)
+        with i* = 0
+        for i from (1+ start) below end
+        as next-char = (char string i)
+        as next-char-code = (char-code next-char)
+        as code = (dpb next-char-code (byte #.(ceiling (log char-code-limit 2))
+                                            #.(ceiling (log char-code-limit 2)))
+                       (char-code char))
+        do
+           (setf (aref (the (simple-array (unsigned-byte 32)) glyph-ids) i*)
+                 (the (unsigned-byte 32) (font-glyph-id font code)))
+           (setf char next-char)
+           (incf i*)
+           (incf origin-x (font-glyph-dx font code))
+        finally
+           (setf (aref (the (simple-array (unsigned-byte 32)) glyph-ids) i*)
+                 (the (unsigned-byte 32)
+                      (font-glyph-id font (char-code char))))
+           (incf origin-x (font-glyph-dx font (char-code char))))
+      (with-transformed-position (transformation x y)
+        (fix-alignment)
+        (setf x (truncate (+ x .5)))
+        (setf y (truncate (+ y .5)))
+        (when (and (typep x 'clx-coordinate)
+                   (typep y 'clx-coordinate))
+          (with-render-context (source nil target) medium
+            (xlib:render-composite-glyphs target glyph-set source
+                                          x y glyph-ids :end (- end start))))))))
 
 (defmethod font-generate-glyph :around
     ((port clx-ttf-port) font code &key glyph-set)
@@ -472,7 +445,7 @@
              (xlib:render-composite-glyphs target glyph-set source
                                            current-x current-y
                                            glyph-ids :start i* :end (1+ i*))))
-         (xlib:render-free-glyphs glyph-set (subseq glyph-ids 0 (1+ i*)))
+         (xlib:render-free-glyphs glyph-set glyph-ids :start 0 :end (1+ i*))
       #+ (or)
       ;; rendering all glyphs at once
       ;;
