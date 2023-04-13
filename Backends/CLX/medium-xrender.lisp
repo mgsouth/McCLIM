@@ -194,9 +194,15 @@
                          w h))
       picture)))
 
-;;; We maintain only a single picture with color and fill it accordingly.
+;;; KLUDGE by default we maintain only a single picture for colors and fill it
+;;; on demand with the RGBA value. Sometimes though we need to hold two unique
+;;; pictures to blend them together (when necessary). That's why we allow to
+;;; overwrite the uniform picture key.
+(defvar *reuse-uniform-picture-p* nil)
+
 (defun clx-render-uniform-picture (medium design)
-  (let* ((pixmap (ensure-help-buffer (medium-drawable medium) :uniform
+  (let* ((pixmap (ensure-help-buffer (medium-drawable medium)
+                     (if *reuse-uniform-picture-p* :uniform design)
                    (create-pixmap medium 1 1 32)))
          (picture
            (ensure-clx-drawable-object (pixmap 'clx-picture)
@@ -208,11 +214,37 @@
         (xlib:render-fill-rectangle picture :src color 0 0 1 1)))
     picture))
 
+;;; FIXME this could be probably optimized further (drawable-width calls etc).
+(defun clx-render-over-compositum (medium design)
+  (let* ((*reuse-uniform-picture-p* nil)
+         (fg (medium-source-picture medium (compositum-foreground design)))
+         (bg (medium-source-picture medium (compositum-background design))))
+    (let ((w (max (xlib:drawable-width  (clx-drawable fg))
+                  (xlib:drawable-width  (clx-drawable bg))))
+          (h (max (xlib:drawable-height (clx-drawable fg))
+                  (xlib:drawable-height (clx-drawable bg))))
+          (repeat (if (or (eq (xlib:picture-repeat fg) :on)
+                          (eq (xlib:picture-repeat bg) :on))
+                      :on :off)))
+      (let ((pixmap (ensure-help-buffer (medium-drawable medium) :over
+                      (create-pixmap medium w h 32))))
+        (resize-pixmap pixmap w h)
+        (let ((picture
+                (ensure-clx-drawable-object (pixmap 'clx-picture)
+                  (let* ((display (clx-drawable-display medium))
+                         (format (xlib:find-standard-picture-format display :argb32)))
+                    (xlib:render-create-picture pixmap :format format :repeat repeat)))))
+          (clx-fill-composite :src  bg nil picture +identity-transformation+ 0 0 w h)
+          (clx-fill-composite :over fg nil picture +identity-transformation+ 0 0 w h)
+          picture)))))
+
 (defgeneric medium-source-picture (medium ink)
   (:method ((medium clx-render-medium) (ink indirect-ink))
     (medium-source-picture medium (indirect-ink-ink ink)))
   (:method ((medium clx-render-medium) (design opacity))
     (medium-source-picture medium (compose-in +foreground-ink+ design)))
+  (:method ((medium clx-render-medium) (design over-compositum))
+    (clx-render-over-compositum medium design))
   (:method ((medium clx-render-medium) (design color))
     (clx-render-uniform-picture medium design))
   (:method ((medium clx-render-medium) (design uniform-compositum))
