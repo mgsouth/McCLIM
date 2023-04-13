@@ -19,6 +19,14 @@
     :accessor clx-render-medium-%buffer%
     :type (simple-array (unsigned-byte 32)))))
 
+(defun uniform-ink-p (ink)
+  (typecase ink
+    (color t)
+    (uniform-compositum t)
+    (indirect-ink (uniform-ink-p (indirect-ink-ink ink)))
+    (opacity (uniform-ink-p (compose-in +foreground-ink+ ink)))
+    (otherwise nil)))
+
 (defun medium-target-picture (medium)
   (clx-drawable-picture medium))
 
@@ -242,6 +250,9 @@
              (%set-gc-clipping-region medium gcontext)
              (setf (xlib:picture-clip-mask target)
                    (xlib:gcontext-clip-mask gcontext))
+             (when stencilp
+               (setf (xlib:picture-clip-mask stencil)
+                     (xlib:picture-clip-mask target)))
              (funcall cont source stencil target))
         (mapc #'funcall ^cleanup)))))
 
@@ -251,8 +262,6 @@
            (gc (ensure-clx-drawable-object (mi :gcontext)))
            (tr (medium-device-transformation medium)))
       (update-line-style gc medium (medium-line-style medium))
-      (setf (xlib:picture-clip-mask stencil)
-            (xlib:picture-clip-mask target))
       (funcall cont mi gc tr)
       (with-bounding-rectangle* (x1 y1 x2 y2)
           (medium-device-region medium)
@@ -355,9 +364,20 @@
         (setf y (truncate (+ y .5)))
         (when (and (typep x 'clx-coordinate)
                    (typep y 'clx-coordinate))
-          (with-render-context (source nil target) medium
-            (xlib:render-composite-glyphs target glyph-set source
-                                          x y glyph-ids :end (- end start))))))))
+          ;; When the source is not uniform then render-compsite-glyphs is
+          ;; much slower than first drawing on a stencil and then filling the
+          ;; composite. Both paths are correct for any case. -- jd 2023-04-13
+          (if (uniform-ink-p (medium-ink medium))
+              (with-render-context (source nil target) medium
+                (xlib:render-composite-glyphs target glyph-set source
+                                              x y glyph-ids :end (- end start)))
+              (with-render-context (source stencil target) medium
+                (with-bounding-rectangle* (x1 y1 x2 y2) (medium-device-region medium)
+                  (let ((brush (medium-stencil-brush medium)))
+                    (xlib:render-composite-glyphs stencil glyph-set brush
+                                                  x y glyph-ids :end (- end start))
+                    (clx-fill-composite :over source stencil target
+                                        +identity-transformation+ x1 y1 x2 y2))))))))))
 
 (defmethod font-generate-glyph :around
     ((port clx-ttf-port) font code &key glyph-set)
