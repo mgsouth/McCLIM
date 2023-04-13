@@ -16,8 +16,11 @@
                      (asdf:system-source-directory :clim-examples)))
    100 100))
 
+(defvar *rotation*
+  (make-rotation-transformation (/ pi 4)))
+
 (defvar *transformed-glider*
-  (transform-region (make-rotation-transformation* (/ pi 4)) *glider*))
+  (transform-region *rotation* *glider*))
 
 (define-application-frame drawing-benchmark ()
   ()
@@ -33,7 +36,8 @@
       (make-pane 'toggle-button :label "polygon" :id :polygon)
       (make-pane 'toggle-button :label "ellipse" :id :ellipse)
       (make-pane 'toggle-button :label "text" :id :text)
-      (make-pane 'toggle-button :label "text*" :id :text*)))
+      (make-pane 'toggle-button :label "text*" :id :text*)
+      (make-pane 'toggle-button :label "text**" :id :text**)))
    (ink
     (with-radio-box ()
       (radio-box-current-selection
@@ -105,7 +109,16 @@
                           (* x 20)
                           :ink ink
                           :align-x :center
-                          :align-y :center)))))))
+                          :align-y :center)))
+           (:text**
+            (with-drawing-options (stream :transformation *rotation*)
+              (dotimes (x 10)
+                (draw-text* stream
+                            "Bla blub hastenichgesehen noch viel mehr Text so fuellen wir eine Zeile."
+                            0
+                            (* x 20)
+                            :ink ink
+                            :transform-glyphs t))))))))
     (finish-output stream)
     (medium-finish-output (sheet-medium stream))
     (climi::port-force-output (car climi::*all-ports*))
