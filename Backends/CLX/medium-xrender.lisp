@@ -279,6 +279,32 @@
         (clx-fill-composite :over source stencil target
                             +identity-transformation+ x1 y1 x2 y2)))))
 
+#+ (or)
+;;; These methods work althought drawing is noticeably slow. The culpirt is
+;;; CLX itself - sending coord-seq is 100s slower than "normal" drawing
+;;; routines even for dummy calls with hardcoded coordinates. -- jd 2023-04-13
+(progn
+  (defmethod medium-draw-polygon* ((medium clx-render-medium) coord-seq closed filled)
+    (if (not filled)
+        (call-next-method)
+        (with-render-context (source stencil target) medium
+          (clx-fill-polygon :over source target
+                            (xlib::picture-format stencil)
+                            (medium-device-transformation medium)
+                            coord-seq))))
+
+  (defmethod medium-draw-ellipse* ((medium clx-render-medium) cx cy
+                                   rdx1 rdy1 rdx2 rdy2
+                                   eta1 eta2 filled)
+    (if (not filled)
+        (call-next-method)
+        (with-render-context (source stencil target) medium
+          (clx-fill-trifan :over source target
+                           (xlib::picture-format stencil)
+                           (medium-device-transformation medium)
+                           (climi::polygonalize-ellipse cx cy rdx1 rdy1 rdx2 rdy2
+                                                        eta1 eta2 :filled t))))))
+
 (defvar *draw-font-lock* (clim-sys:make-lock "draw-font"))
 (defmethod medium-draw-text* ((medium clx-render-medium) string x y
                               start end
