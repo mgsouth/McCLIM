@@ -27,6 +27,14 @@
     (opacity (uniform-ink-p (compose-in +foreground-ink+ ink)))
     (otherwise nil)))
 
+(defun legacy-ink-p (ink)
+  (typecase ink
+    (color t)
+    (indirect-ink (legacy-ink-p (indirect-ink-ink ink)))
+    (opacity (legacy-ink-p (compose-in +foreground-ink+ ink)))
+    (standard-flipping-ink t)
+    (otherwise nil)))
+
 (defun medium-target-picture (medium)
   (clx-drawable-picture medium))
 
@@ -257,6 +265,9 @@
         (mapc #'funcall ^cleanup)))))
 
 (defmethod invoke-with-clx-graphics (cont (medium clx-render-medium))
+  (when (legacy-ink-p (medium-ink medium))
+    (return-from invoke-with-clx-graphics
+      (call-next-method)))
   (with-render-context (source stencil target) medium
     (let* ((mi (clx-drawable stencil))
            (gc (ensure-clx-drawable-object (mi :gcontext)))
