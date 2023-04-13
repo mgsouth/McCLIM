@@ -369,6 +369,14 @@
             :type design
             :reader flipping-ink-design2)))
 
+(defgeneric flipping-ink-p (design)
+  (:method ((design standard-flipping-ink))
+    t)
+  (:method (design)
+    nil)
+  (:method ((design indirect-ink))
+    (flipping-ink-p (indirect-ink-ink design))))
+
 (defmethod design-ink ((flipping-ink standard-flipping-ink) x y)
   (declare (ignore x y))
   flipping-ink)

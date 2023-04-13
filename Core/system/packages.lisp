@@ -1970,6 +1970,7 @@
    #:transformed-pattern
    #:effective-transformed-design       ; obsolete
    #:rectangular-tile-design
+   #:flipping-ink-p
    #:flipping-ink-design1
    #:flipping-ink-design2
    ;; readers
