@@ -55,7 +55,6 @@
                               :foreground #xff
                               :background #x00
                               :fill-style :solid))
-      (clx-wipe-picture picture width height +transparent-black+)
       picture)))
 
 (defun medium-stencil-brush (medium)
@@ -292,7 +291,11 @@
                    (xlib:gcontext-clip-mask gcontext))
              (when stencilp
                (setf (xlib:picture-clip-mask stencil)
-                     (xlib:picture-clip-mask target)))
+                     (xlib:picture-clip-mask target))
+               (with-bounding-rectangle* (x1 y1 x2 y2)
+                   (medium-device-region medium)
+                 (clx-fill-rectangle :src +transparent-black+ stencil
+                                     +identity-transformation+ x1 y1 x2 y2)))
              (funcall cont source stencil target))
         (mapc #'funcall ^cleanup)))))
 
