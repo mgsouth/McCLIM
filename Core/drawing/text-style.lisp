@@ -68,7 +68,8 @@
                :reader text-style-face)
      (size     :initarg :text-size
                :initform :normal
-               :reader text-style-size)))
+               :reader text-style-size))
+     (:default-initargs :text-family nil :text-face nil :text-size nil))
 
   (defmethod make-load-form ((obj standard-text-style) &optional env)
     (declare (ignore env))
