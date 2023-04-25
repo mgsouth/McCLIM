@@ -237,24 +237,23 @@
         (setf (slot-value new-event 'sheet) target-sheet)
         (dispatch-event target-sheet new-event))))
 
-;;; Synthesizing the pointer motion event (a portable method)
+;;; Synthesizing the pointer motion event (a portable method).
 (defmethod synthesize-pointer-motion-event ((port basic-port) (pointer pointer))
   (multiple-value-bind (screen-x screen-y) (pointer-position pointer)
-    (let* ((sheet (or (pointer-sheet pointer)
-                      (graft port)))
-           (graft (or (graft sheet)
-                      (setf sheet (graft port))))
+    (let* ((sheet (or (pointer-sheet pointer) (graft port)))
+           (graft (or (graft sheet) (setf sheet (graft port))))
+           (window (sheet-mirrored-ancestor sheet))
            (graft-transformation (sheet-native-transformation graft))
-           (sheet-transformation (sheet-delta-transformation sheet graft)))
+           (window-transformation (sheet-delta-transformation window graft)))
       (multiple-value-bind (graft-x graft-y)
           (untransform-position graft-transformation screen-x screen-y)
-        (multiple-value-bind (sheet-x sheet-y)
-            (untransform-position sheet-transformation graft-x graft-y)
+        (multiple-value-bind (x y)
+            (untransform-position window-transformation graft-x graft-y)
           (make-instance 'pointer-motion-event
                          :sheet sheet
                          :pointer pointer
                          :modifier-state (port-modifier-state port)
-                         :x sheet-x :y sheet-y))))))
+                         :x x :y y))))))
 
 ;;; Synthesizing and dispatching boundary events
 ;;;

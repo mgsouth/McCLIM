@@ -364,7 +364,7 @@
 ;;; 11 Text Styles
 
 ;;; 11.1 Text Style
-(define-protocol-class text-style nil nil (:default-initargs :text-family nil :text-face nil :text-size nil))
+(define-protocol-class text-style nil nil)
 (pledge :class standard-text-style (text-style))
 (defgeneric text-style-equalp (style1 style2))
 (declfun make-text-style (family face size))

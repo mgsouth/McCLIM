@@ -1970,8 +1970,13 @@
    #:transformed-pattern
    #:effective-transformed-design       ; obsolete
    #:rectangular-tile-design
+   #:flipping-ink-p
    #:flipping-ink-design1
    #:flipping-ink-design2
+   #:compositum-foreground
+   #:compositum-background
+   #:compositum-ink
+   #:compositum-mask
    ;; readers
    #:pattern-array
    #:transformed-design-design

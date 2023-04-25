@@ -369,6 +369,14 @@
             :type design
             :reader flipping-ink-design2)))
 
+(defgeneric flipping-ink-p (design)
+  (:method ((design standard-flipping-ink))
+    t)
+  (:method (design)
+    nil)
+  (:method ((design indirect-ink))
+    (flipping-ink-p (indirect-ink-ink design))))
+
 (defmethod design-ink ((flipping-ink standard-flipping-ink) x y)
   (declare (ignore x y))
   flipping-ink)
@@ -432,6 +440,12 @@
 (defmethod compose-in ((ink design) (mask design))
   (make-instance 'in-compositum :ink ink :mask mask))
 
+(defmethod compose-in ((ink indirect-ink) (mask design))
+  (compose-in (indirect-ink-ink ink) mask))
+
+(defmethod compose-in ((ink design) (mask indirect-ink))
+  (compose-in ink (indirect-ink-ink mask)))
+
 (defmethod design-ink ((design in-compositum) x y)
   (let ((ink  (design-ink* (compositum-ink  design) x y))
         (mask (design-ink* (compositum-mask design) x y)))
@@ -441,6 +455,12 @@
 
 (defmethod compose-out ((ink design) (mask design))
   (make-instance 'out-compositum :ink ink :mask mask))
+
+(defmethod compose-out ((ink indirect-ink) (mask design))
+  (compose-out (indirect-ink-ink ink) mask))
+
+(defmethod compose-out ((ink design) (mask indirect-ink))
+  (compose-out ink (indirect-ink-ink mask)))
 
 (defmethod design-ink ((design out-compositum) x y)
   (let ((ink  (design-ink* (compositum-ink  design) x y))
@@ -455,6 +475,12 @@
   (make-instance 'over-compositum
     :foreground foreground
     :background background))
+
+(defmethod compose-over ((fg indirect-ink) (bg design))
+  (compose-over (indirect-ink-ink fg) bg))
+
+(defmethod compose-over ((fg design) (bg indirect-ink))
+  (compose-over fg (indirect-ink-ink bg)))
 
 ;;; Inefficient fallback method.
 ;;; FIXME we forward-reference %rgba-value.
