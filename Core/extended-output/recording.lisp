@@ -2127,7 +2127,7 @@ according to the flags RECORD and DRAW."
   (region-contains-position-p (graphics-state-clip record) x y))
 
 (defmethod invoke-with-clipping-region
-    ((sheet output-recording-stream) continuation (region area))
+    ((sheet output-recording-stream) continuation region)
   (declare (ignore continuation))
   (if (stream-recording-p sheet)
       (with-sheet-medium (medium sheet)
