@@ -49,6 +49,11 @@
   (setf size (climb:normalize-font-size size))
   (with-slots (font-loader-cache font-family-cache font-direct-cache text-style-cache) port
     (multiple-value-bind (loader loader-foundp) (gethash filename font-loader-cache)
+      (unless loader-foundp
+        (setf source (open source
+                           :direction :input
+                           :element-type '(unsigned-byte 8)
+                           #+ccl :sharing #+ccl nil)))
       (let* ((loader (or loader (zpb-ttf:open-font-loader source)))
              (f1-name (zpb-ttf:family-name loader))
              (f2-name (zpb-ttf:subfamily-name loader))
