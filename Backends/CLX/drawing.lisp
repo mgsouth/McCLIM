@@ -141,3 +141,43 @@
       (when (and (typep x1 'clx-coordinate)
                  (typep y1 'clx-coordinate))
         (xlib:draw-arc mi gc x1 y1 (- x2 x1) (- y2 y1) 0 (* 2 pi) filled)))))
+
+;;; The underlying assumption is that the mirror has a rectangle clip and
+;;; parameters x1 y1 x2 y2 are supplied only for a guidance to deal with
+;;; unbounded regions and/or for optimization purposes.
+(defgeneric clx-draw-region (mi gc tr x1 y1 x2 y2 region)
+  (:method (mi gc tr x1 y1 x2 y2 (region nowhere-region)))
+  (:method (mi gc tr x1 y1 x2 y2 (region everywhere-region))
+    (clx-draw-rectangle mi gc tr x1 y1 x2 y2 t))
+  (:method (mi gc tr x1 y1 x2 y2 (region standard-rectangle))
+    (with-bounding-rectangle* (x1 y1 x2 y2) region
+      (clx-draw-rectangle mi gc tr x1 y1 x2 y2 t)))
+  (:method (mi gc tr x1 y1 x2 y2 (region standard-polygon))
+    (let ((coords (climi::expand-point-seq (polygon-points region))))
+      (clx-draw-polygon mi gc tr coords t t)))
+  (:method (mi gc tr x1 y1 x2 y2 (region standard-ellipse))
+    (multiple-value-bind (cx cy) (ellipse-center-point* region)
+      (multiple-value-bind (rdx1 rdy1 rdx2 rdy2) (ellipse-radii region)
+        (let ((eta1 (or (ellipse-start-angle region) 0.0))
+              (eta2 (or (ellipse-end-angle region) (* 2.0 pi))))
+          (clx-draw-ellipse mi gc tr cx cy rdx1 rdy1 rdx2 rdy2 eta1 eta2 t)))))
+  (:method (mi gc tr x1 y1 x2 y2 (region standard-region-complement))
+    (let ((fg (xlib:gcontext-foreground gc))
+          (bg (xlib:gcontext-background gc))
+          (r* (region-complement region)))
+      (clx-draw-rectangle mi gc tr x1 y1 x2 y2 t)
+      (setf (xlib:gcontext-foreground gc) bg
+            (xlib:gcontext-background gc) fg)
+      (clx-draw-region mi gc tr x1 y1 x2 y2 r*)
+      (setf (xlib:gcontext-foreground gc) fg
+            (xlib:gcontext-background gc) bg)))
+  (:method (mi gc tr x1 y1 x2 y2 (region standard-region-union))
+    (flet ((draw-it (region*)
+             (clx-draw-region mi gc tr x1 y1 x2 y2 region*)))
+      (map-over-region-set-regions #'draw-it region)))
+  (:method (mi gc tr x1 y1 x2 y2 region) ; falback
+    (warn "clx-draw-region: unoptimized path for ~s." (type-of region))
+    (loop for x from (floor x1) upto (ceiling x2) do
+      (loop for y from (floor y1) upto (ceiling y2) do
+        (when (region-contains-position-p region x y)
+          (xlib:draw-point mi gc x y))))))
