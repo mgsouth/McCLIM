@@ -2117,6 +2117,10 @@
    #:text-style-height
    #:text-style-mapping
    #:text-style-width
+   ;; regions and designs
+   #:nowhere-region
+   #:everywhere-region
+   #:standard-rectangle-set
    ;; transformations
    #:medium-device-transformation
    #:medium-device-region
