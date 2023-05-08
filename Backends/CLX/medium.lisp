@@ -468,20 +468,11 @@ translated, so they begin at different position than [0,0])."))
           (let ((coords (vector x1 y1 x2 y1 x2 y2 x1 y2 x1 y1)))
             (clx-draw-polygon mi gc tr coords nil filled))))))
 
-;; A default method polygonizes the ellipse - this is much more precise, works
-;; with rotations and with clipping.
 (defmethod medium-draw-ellipse* ((medium clx-medium) cx cy
                                  rdx1 rdy1 rdx2 rdy2
                                  eta1 eta2 filled)
   (with-clx-graphics (mi gc tr) medium
-    (with-transformed-distance (tr rdx1 rdy1)
-      (with-transformed-distance (tr rdx2 rdy2)
-        (if (or (= rdx2 rdy1 0) (= rdx1 rdy2 0))
-            (with-transformed-position (tr cx cy)
-              (clx-draw-aligned-ellipse mi gc
-                                        cx cy rdx1 rdy1 rdx2 rdy2
-                                        eta1 eta2 filled))
-            (call-next-method))))))
+    (clx-draw-ellipse mi gc tr cx cy rdx1 rdy1 rdx2 rdy2 eta1 eta2 filled)))
 
 (defmethod medium-clear-area ((medium clx-medium) left top right bottom)
   (climi::letf (((medium-ink medium) (medium-background medium)))
