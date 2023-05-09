@@ -1922,6 +1922,7 @@
    ;; medium
    #:medium-miter-limit
    ;; panes
+   #:border-pane #:bordering
    #:raised-pane #:raising
    #:lowered-pane #:lowering
    #:viewport-pane
