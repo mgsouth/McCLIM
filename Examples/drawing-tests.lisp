@@ -4,14 +4,14 @@
 ;;;
 ;;;  (c) copyright 2016-2017 Alessandro Serra <gas2serra@gmail.com>
 ;;;  (c) copyright 2017-2018 Cyrus Harmon <cyrus@bobobeach.com>
-;;;  (c) copyright 2017-2020 Daniel Kochmanski <daniel@turtleware.eu>
 ;;;  (c) copyright 2019 José Ronquillo Rivera <josrr@ymail.com>
 ;;;  (c) copyright 2019-2020 Jan Moringen <jmoringe@techfak.uni-bielefeld.de>
+;;;  (c) copyright 2017-2023 Daniel Kochmanski <daniel@turtleware.eu>
 ;;;
 ;;; ---------------------------------------------------------------------------
 ;;;
-;;; A collection of tests for various drawing functions with timing
-;;; and across multiple backends.
+;;; A collection of tests for various drawing functions with timing and across
+;;; multiple backends.
 
 (defpackage #:clim-demo.drawing-tests
   (:use #:clim-lisp #:clim)
@@ -20,7 +20,6 @@
                 #:with-gensyms
                 #:when-let
                 #:when-let*)
-
   (:export
    #:drawing-tests))
 
@@ -31,12 +30,18 @@
 
 (defparameter *width* 500)
 (defparameter *height* 700)
-(defparameter *border-width* 5)
+(defparameter *clip* (make-rectangle* 0 0 *width* *height*))
 
 (defstruct drawing-test category name description display-function)
 
 (defun drawing-test-keyname (category name)
   (symbolicate category "-" name))
+
+(defun lcurry (fun &rest args)
+  (lambda (&rest rest) (apply fun (append args rest))))
+
+(defun rcurry (fun &rest args)
+  (lambda (&rest rest) (apply fun (append rest args))))
 
 (defmacro define-drawing-test (category name (frame stream &rest arglist) description &body body)
   (check-type category string)
@@ -52,211 +57,200 @@
                                 :display-function (lambda (,frame ,stream ,@arglist) ,@body)))
        (pushnew ,g-category *drawing-tests-categories*))))
 
-(defun get-display (category name)
-  (when-let ((drawing-test (gethash (drawing-test-keyname category name)
-                                    *drawing-tests*)))
-    (drawing-test-display-function drawing-test)))
-
 (defclass drawing-app-pane (application-pane)
-  ())
+  ((draw-function :initarg :draw-function :reader draw-function))
+  (:default-initargs :min-width *width* :width *width* :max-width *width*
+                     :min-height *height* :height *height* :max-height *height*
+                     :display-time t
+                     :display-function 'display
+                     :end-of-line-action :allow
+                     :end-of-page-action :allow
+                     :draw-function '%draw-direct))
 
 (define-application-frame drawing-tests ()
   ((recording-p :initform t)
-   (signal-condition-p :initform nil)
+   (intercept-p :initform t)
    (current-selection :initform nil)
    (application-frame-backend :initform :clx-ttf)
    (frames :initform (make-hash-table)))
+  (:reinitialize-frames t)
   (:menu-bar nil)
   (:panes
    (category-test-pane
-    (horizontally (:equalize-height t)
-      (1/8 (labelling (:label "Category")
-             (clim-extensions:lowering ()
-               (scrolling (:scroll-bar :vertical)
-                 (make-pane 'list-pane
-                            :name 'category-selector
-                            :value nil
-                            :name-key #'identity
-                            :items (reverse *drawing-tests-categories*)
-                            :value-changed-callback #'%update-category-selection)))))
-      (1/4 (labelling (:label "Tests")
-             (clim-extensions:lowering ()
-               (scrolling (:scroll-bar :vertical)
-                 (make-pane 'list-pane
-                            :name 'test-selector
-                            :mode :exclusive
-                            :name-key #'drawing-test-name
-                            :items nil
-                            :value-changed-callback #'%update-selection)))))))
+    (vertically (:equalize-width t)
+      (labelling (:label "Category")
+        (scrolling (:scroll-bar :vertical)
+          (make-pane 'list-pane
+                     :name 'category-selector
+                     :value nil
+                     :name-key #'identity
+                     :items (reverse *drawing-tests-categories*)
+                     :value-changed-callback '%update-category-selection)))
+      (labelling (:label "Tests")
+        (scrolling (:scroll-bar :vertical)
+          (make-pane 'list-pane
+                     :name 'test-selector
+                     :mode :exclusive
+                     :name-key #'drawing-test-name
+                     :items nil
+                     :value-changed-callback '%update-selection)))))
    (options-pane
     (vertically ()
-      (horizontally ()
-        (labelling (:label "Recording")
-          (with-radio-box (:orientation :vertical
-                           :value-changed-callback #'%update-recording-option)
-            (radio-box-current-selection "yes")
-            "no"))
-        (labelling (:label "Condition")
-          (with-radio-box (:orientation :vertical
-                           :value-changed-callback #'%update-condition-option)
-            (radio-box-current-selection "message")
-            "break")))
-      (labelling (:label "Run in backend")
+      (labelling (:label "Options")
         (vertically ()
-          (horizontally ()
-            (make-pane 'option-pane
-                       :name 'backend-selector
-                       :value 'ps
-                       :name-key #'symbol-name
-                       :items '(ps pdf svg png))
-            (spacing (:thickness 6)
-              (make-pane 'push-button
-                         :label "Run"
-                         :activate-callback #'%run-in-backend)))
-          (spacing (:thickness 6)
-            (horizontally ()
-              (1/3 (make-pane 'label-pane
-                              :label "Filename"))
-              (2/3 (clim-extensions:lowering ()
-                     (make-pane 'text-field-pane
-                                :name 'backend-filename
-                                :value "")))))))
-      (labelling (:label "Benchmark")
+          (make-pane :toggle-button :label "Draw with the output recording"
+                                    :value t
+                                    :value-changed-callback '%update-recording-option)
+          (make-pane :toggle-button :label "Intercept conditions and print a message"
+                                    :value t
+                                    :value-changed-callback '%update-condition-option)
+          (make-pane :toggle-button :label "Side by side view with the renderer output"
+                                    :value-changed-callback '%update-side-by-side-view
+                                    :value t)))
+      +fill+
+      (labelling (:label "Run in a drawing stream")
         (horizontally ()
-          (spacing (:thickness 6)
-            (horizontally ()
-              (1/3 (make-pane 'label-pane
-                              :label "Times"))
-              (2/3 (clim-extensions:lowering ()
-                     (make-pane 'text-field-pane
-                                :name 'benchmark-times
-                                :value "1000")))))
-          (spacing (:thickness 6)
-            (make-pane 'push-button
-                       :label "Start"
-                       :activate-callback #'%start-benchmark))))
-      (labelling (:label "Application frame")
-        (vertically ()
+          (make-pane 'option-pane
+                     :name 'backend-selector
+                     :value :ps
+                     :name-key #'symbol-name
+                     :items '(:ps :pdf :svg :png))
           (make-pane 'push-button
-                     :label "Use separate application frame"
-                     :activate-callback #'%run-in-separate-application-frame)
-          (labelling (:label "Backend")
-            (vertically (:name 'server-port-vbox)
-              (make-pane 'option-pane
-                         :value :clx-ttf
-                         :name-key (lambda (name) (string-capitalize (symbol-name name)))
-                         :items '(:clx-ttf :clx-fb :custom)
-                         :value-changed-callback #'%update-application-frame-backend)))))
-      (spacing (:thickness 6)
-        (vertically ()
+                     :label "Run"
+                     :activate-callback '%run-in-backend)
           (make-pane 'push-button
-                     :label "Print All (/tmp/*.ps)"
-                     :activate-callback #'(lambda (x)
-                                            (declare (ignore x))
-                                            (print-all-postscript-tests)))
+                     :label "Run All (/tmp/*.*)"
+                     :activate-callback (lambda (x)
+                                          (declare (ignore x))
+                                          (with-application-frame (frame)
+                                            (loop for test being the hash-values of *drawing-tests*
+                                                  do (%call-1-test '%draw-output frame "tmp" test
+                                                                   (options-recording-p frame))))))))
+      (labelling (:label "Run in a separate application frame")
+        (horizontally (:name 'server-port-vbox)
+          (make-pane 'option-pane
+                     :value :clx-ttf
+                     :name-key (lambda (name) (string-capitalize (symbol-name name)))
+                     :items '(:clx-ttf :clx-fb :custom)
+                     :value-changed-callback '%update-application-frame-backend)
           (make-pane 'push-button
-                     :label "Print All (/tmp/*.pdf)"
-                     :activate-callback #'(lambda (x)
-                                            (declare (ignore x))
-                                            (print-all-pdf-tests)))
-          (make-pane 'push-button
-                     :label "Print All (/tmp/*.svg)"
-                     :activate-callback #'(lambda (x)
-                                            (declare (ignore x))
-                                            (print-all-svg-tests)))
-          (make-pane 'push-button
-                     :label "Print All (/tmp/*.png)"
-                     :activate-callback #'(lambda (x)
-                                            (declare (ignore x))
-                                            (print-all-raster-image-tests :png)))))
-      (labelling (:label "Layout")
-        (with-radio-box (:value-changed-callback #'%update-layout-option
-                         :type :some-of)
-          "side-by-side view with the renderer output"))))
+                     :label "Run"
+                     :activate-callback '%run-in-separate-application-frame)))))
    (backend-pane
     (labelling (:label "Backend")
-      (scrolling ()
-        (make-pane 'drawing-app-pane
-                   :name 'backend-output
-                   :min-width *width*
-                   :min-height *height*
-                   :display-time t
-                   :display-function #'display-backend-output
-                   :end-of-line-action :allow
-                   :end-of-page-action :allow))))
+      (make-pane 'drawing-app-pane
+                 :name 'backend-output)))
    (render-pane
     (labelling (:label "Render")
-      (scrolling ()
-        (make-pane 'application-pane
-                   :name 'render-output
-                   :min-width *width*
-                   :min-height *height*
-                   :display-time t
-                   :display-function #'display-render-output
-                   :end-of-line-action :allow
-                   :end-of-page-action :allow))))
-   (description-pane
-    (spacing (:thickness 3)
-      (clim-extensions:lowering ()
-        (scrolling (:scroll-bar :vertical)
-          (make-pane 'application-pane
-                     :name 'description
-                     :end-of-line-action :wrap*
-                     :end-of-page-action :scroll))))))
+      (make-pane 'drawing-app-pane
+                 :name 'render-output
+                 :draw-function '%draw-raster)))
+   (description
+    (make-clim-stream-pane :type :application
+                           :name 'description
+                           :display-time nil
+                           :scroll-bars :vertical
+                           :label "Description"
+                           :borders nil
+                           :end-of-line-action :wrap*
+                           :end-of-page-action :scroll)))
   (:layouts
    (default
-    (spacing (:thickness 3)
-      (vertically (:height (* 3/2 *height*))
-        (1/7 category-test-pane)
-        (:fill (horizontally (:min-width (* 15/8 *width*))
-                 (1/3 options-pane)
-                 (:fill (vertically ()
-                          (:fill (spacing (:thickness 3)
-                                   (clim-extensions:lowering ()
-                                     backend-pane)))))))
-        (1/7 description-pane))))
-   (side-by-side
-    (spacing (:thickness 3)
-      (vertically (:height (* 3/2 *height*))
-        (1/7 category-test-pane)
-        (:fill (horizontally (:min-width (* 3 *width*))
-                 (1/6 options-pane)
-                 (:fill (vertically ()
-                          (:fill (spacing (:thickness 3)
-                                   (clim-extensions:lowering ()
-                                     (horizontally ()
-                                       (1/2 backend-pane)
-                                       (1/2 render-pane)))))))))
-        (1/7 description-pane))))))
+    (vertically ()
+      (horizontally ()
+        (1/3 (vertically ()
+               (480 category-test-pane)
+               options-pane))
+        (1/3 backend-pane)
+        (1/3 render-pane))
+      (240 description)))))
 
 (define-application-frame drawing-app-frame ()
-  ((drawing-tests-frame :initform nil :initarg :drawing-tests-frame)
-   (backend :initform :clx-ttf :initarg :backend)
+  ((backend :initform :clx-ttf :initarg :backend)
    (current-selection :initform nil :initarg :current-selection))
-  (:panes
-   (backend-pane
-    (labelling (:label "Backend")
-      (scrolling (:min-width *width*)
-        (make-pane 'drawing-app-pane
-                   :name 'backend-output
-                   :min-width *width*
-                   :min-height *height*
-                   :display-time t
-                   :display-function #'display-backend-output
-                   :end-of-line-action :allow
-                   :end-of-page-action :allow))))
-   (description-pane
-    (spacing (:thickness 3)
-      (clim-extensions:lowering ()
-        (scrolling (:scroll-bar :vertical)
-          (make-pane 'application-pane
-                     :name 'description
-                     :end-of-line-action :wrap*
-                     :end-of-page-action :scroll))))))
-  (:layouts
-   (default (vertically (:min-height (* 4/3 *height*))
-              (:fill backend-pane)
-              (1/6 description-pane)))))
+  (:pane (make-pane 'drawing-app-pane :name 'backend-output)))
+
+(defgeneric options-recording-p (frame)
+  (:method ((frame drawing-tests))
+    (slot-value frame 'recording-p))
+  (:method ((frame drawing-app-frame))
+    (options-recording-p (frame-parent frame))))
+
+(defgeneric options-intercept-p (frame)
+  (:method ((frame drawing-tests))
+    (slot-value frame 'intercept-p))
+  (:method ((frame drawing-app-frame))
+    (options-intercept-p (frame-parent frame))))
+
+(defun %call-1-test (cont frame output item recording-p)
+  (restart-bind ((skip (lambda () (return-from %call-1-test))
+                       :report-function (lambda (stream)
+                                          (format stream "skip ~a-~a"
+                                                  (drawing-test-category item)
+                                                  (drawing-test-name item)))))
+    (handler-bind ((serious-condition
+                     (lambda (condition)
+                       (let ((description (get-frame-pane frame 'description))
+                             (name (class-name (class-of output))))
+                         (with-drawing-options (description :ink +red+)
+                           (format description "~&~a [~a]:~%~a~%" name (class-name (class-of condition)) condition)))
+                       (when (options-intercept-p frame)
+                         (return-from %call-1-test))))
+                   (warning
+                     (lambda (condition)
+                       (let ((description (get-frame-pane frame 'description)))
+                         (with-drawing-options (description :ink +dark-violet+)
+                           (format description "~&~a~%" condition)
+                           (muffle-warning condition))))))
+      (funcall cont frame output item recording-p))))
+
+(defun %draw-1-test (frame output item)
+  (with-drawing-options (output :clipping-region *clip*)
+    (draw-design output *clip* :filled t :ink +grey90+)
+    (funcall (drawing-test-display-function item) frame output)))
+
+(defun %draw-direct (frame output item recording-p)
+  (with-output-recording-options (output :record recording-p)
+    (%draw-1-test frame output item)))
+
+(defun %draw-raster (frame output item recording-p)
+  (let ((pattern (clime:with-output-to-drawing-stream
+                     (stream :raster :pattern :recording-p recording-p
+                             :width *width* :height *height*
+                             :end-of-line-action :allow
+                             :end-of-page-action :allow)
+                   (%draw-1-test frame stream item))))
+    (draw-design output pattern)))
+
+(defun %draw-output (frame directory item recording-p)
+  (let ((backend-symbol (gadget-value (find-pane-named frame 'backend-selector)))
+        (common-args (list :recording-p recording-p
+                           :width *width* :height *height*
+                           :end-of-line-action :allow
+                           :end-of-page-action :allow)))
+    (labels ((path (ext)
+               (make-pathname :directory directory
+                              :name (format nil "~a-~a"
+                                            (drawing-test-category item)
+                                            (drawing-test-name item))
+                              :type ext))
+             (drawing-test-properties ()
+               (ecase backend-symbol
+                 (:ps  (values :ps     (path "eps") (list* :device-type :eps common-args)))
+                 (:pdf (values :pdf    (path "pdf") (list* common-args)))
+                 (:svg (values :svg    (path "svg") (list* common-args)))
+                 (:png (values :raster (path "png") (list* :format :png common-args))))))
+      (multiple-value-bind (backend destination options) (drawing-test-properties)
+        (with-application-frame (frame)
+          (apply #'clime:invoke-with-output-to-drawing-stream
+                 (lambda (stream)
+                   (with-slots (category name description) item
+                     (drawing-test-print-log "~&Writing ~A... " destination)
+                     (%draw-1-test frame stream item)
+                     (drawing-test-print-log "DONE.~%")))
+                 backend destination options))))))
+
+(defvar *list-pane-up-kludge-p* nil)
 
 (defun list-pane-up (pane-name)
   (let* ((pane (find-pane-named *application-frame* pane-name))
@@ -284,7 +278,8 @@
 
 (define-drawing-tests-command (com-drawing-tests-change-test-up :keystroke :up) ()
   (unless (list-pane-up 'test-selector)
-    (list-pane-up 'category-selector)))
+    (let ((*list-pane-up-kludge-p* t))
+      (list-pane-up 'category-selector))))
 
 (define-drawing-tests-command (com-drawing-tests-change-test-down :keystroke :down) ()
   (unless (list-pane-down 'test-selector)
@@ -293,61 +288,15 @@
 (defmethod handle-event ((pane drawing-app-pane) (event keyboard-event))
   (case (keyboard-event-key-name event)
     ((:|r| :r) (let ((frame (pane-frame pane)))
-                 (window-clear (find-pane-named frame 'description))
-                 (redisplay-frame-pane (pane-frame pane) pane :force-p t)))
+                 (redisplay-frame-pane frame pane :force-p t)))
     (:| | (repaint-sheet pane +everywhere+))))
-
-(defun %start-benchmark (this-gadget)
-  (declare (ignore this-gadget))
-  (let ((test (slot-value *application-frame* 'current-selection))
-        (times (parse-integer (gadget-value (find-pane-named *application-frame*
-                                                             'benchmark-times))
-                              :junk-allowed t)))
-    (when (and test (> times 0))
-      (loop with stream = (find-pane-named *application-frame* 'description)
-            and itups = internal-time-units-per-second
-            and start = (get-internal-real-time)
-            and backend-pane = (find-pane-named *application-frame* 'backend-output)
-            repeat times
-            do (display-backend-output *application-frame* backend-pane t)
-            finally
-               (let ((score (float (/ times (/ (- (get-internal-real-time) start) itups)))))
-                 (with-slots (recording-p) *application-frame*
-                   (when recording-p
-                     (clear-output-record (stream-output-history backend-pane))
-                     (display-backend-output *application-frame* backend-pane t))
-                   (with-slots (category name) test
-                     (format stream "~&~a-~a score: ~a operations/s; recording: ~:[no~;yes~]~%"
-                             category name score recording-p)
-                     (format *debug-io* "~&~a~a score: ~a operations/s; recording: ~:[no~;yes~]~%"
-                             category name score recording-p))))))))
 
 (defun %run-in-backend (this-gadget)
   (declare (ignore this-gadget))
-  (when-let ((test (slot-value *application-frame* 'current-selection)))
-    (let* ((backend (gadget-value (find-pane-named *application-frame*
-                                                   'backend-selector)))
-           (filename (gadget-value (find-pane-named *application-frame*
-                                                    'backend-filename)))
-           (filename (when (> (length filename) 0) filename)))
-      (if (eq backend 'png)
-          (drawing-test-raster-image test :png filename)
-          (funcall (ecase backend
-                     (ps #'drawing-test-postscript)
-                     (pdf #'drawing-test-pdf)
-                     (svg #'drawing-test-svg))
-                   test
-                   filename)))))
-
-(defun change-layout (frame layout-name)
-  (when (member layout-name (frame-all-layouts frame))
-    (setf (frame-current-layout frame) layout-name)))
-
-(defun %update-layout-option (this-gadget value)
-  (declare (ignore this-gadget))
-  (change-layout *application-frame* (if value
-                                         'side-by-side
-                                         'default)))
+  (with-application-frame (frame)
+    (when-let ((test (slot-value frame 'current-selection)))
+      (let ((recording-p (slot-value frame 'recording-p)))
+        (%call-1-test '%draw-output frame "tmp" test recording-p)))))
 
 (defun %run-in-separate-application-frame (this-gadget)
   (declare (ignore this-gadget))
@@ -372,7 +321,7 @@
                                                        :frame-manager frame-manager
                                                        :current-selection current-selection
                                                        :backend application-frame-backend
-                                                       :drawing-tests-frame *application-frame*)))
+                                                       :calling-frame *application-frame*)))
           (setf (gethash current-selection frames) app-frame)
           (run-frame-top-level app-frame)
           (remhash current-selection frames))))))
@@ -397,196 +346,70 @@
           (when-let ((pane (find-pane-named *application-frame* 'server-port-pane)))
             (sheet-disown-child vbox pane))))))
 
-(defun %update-recording-option (this-gadget selected-gadget)
+(defun %update-recording-option (this-gadget value)
   (declare (ignore this-gadget))
   (with-slots (recording-p) *application-frame*
-    (setf recording-p
-          (string= (gadget-label selected-gadget) "yes"))))
+    (setf recording-p value)))
 
-(defun %update-condition-option (this-gadget selected-gadget)
+(defun %update-condition-option (this-gadget value)
   (declare (ignore this-gadget))
-  (with-slots (signal-condition-p) *application-frame*
-    (setf signal-condition-p
-          (string= (gadget-label selected-gadget) "break"))))
+  (with-slots (intercept-p) *application-frame*
+    (setf intercept-p value)))
+
+(defun %update-side-by-side-view (this-gadget value)
+  (declare (ignore this-gadget))
+  (let ((render (get-frame-pane *application-frame* 'render-output)))
+    (setf (sheet-enabled-p render) value)
+    (when value
+      (redisplay-frame-pane (pane-frame render) render :force-p t))))
+
+(defun print-description (description item)
+  (with-text-style (description (make-text-style :sans-serif :bold :normal))
+    (format description "~&~A / ~A:" (drawing-test-category item) (drawing-test-name item)))
+  (with-text-style (description (make-text-style :sans-serif :roman :normal))
+    (when-let ((test-description (drawing-test-description item)))
+      (format description " ~A~%" test-description))))
 
 (defun %update-selection (pane item)
   (declare (ignore pane))
-  (with-slots (current-selection) *application-frame*
-    (setf current-selection item))
-  (redisplay-frame-pane *application-frame*
-                        (get-frame-pane *application-frame* 'backend-output) :force-p t)
-  (when-let ((render-pane (get-frame-pane *application-frame* 'render-output)))
-    (redisplay-frame-pane *application-frame* render-pane :force-p t)))
+  (with-application-frame (frame)
+    (with-slots (current-selection) frame
+      (setf current-selection item))
+    (unless item
+      (return-from %update-selection))
+    (let ((description (get-frame-pane frame 'description))
+          (stream (get-frame-pane frame 'backend-output))
+          (render (get-frame-pane frame 'render-output)))
+      (print-description description item)
+      (redisplay-frame-pane frame stream :force-p t)
+      (when (sheet-enabled-p render)
+        (redisplay-frame-pane frame render :force-p t)))))
 
 (defun %update-category-selection (gadget value)
   (declare (ignore gadget))
-  (let ((test-selector (find-pane-named *application-frame* 'test-selector))
-        (new-items (sort (loop for x being the hash-values of *drawing-tests*
-                               when (string= value (drawing-test-category x))
-                               collect x)
-                         #'string< :key #'drawing-test-name)))
+  (let* ((test-selector (find-pane-named *application-frame* 'test-selector))
+         (new-items (sort (loop for x being the hash-values of *drawing-tests*
+                                when (string= value (drawing-test-category x))
+                                  collect x)
+                          #'string< :key #'drawing-test-name))
+         (current-item (if *list-pane-up-kludge-p*
+                           (first (last new-items))
+                           (first new-items))))
     (setf (clime:list-pane-items test-selector) new-items
-          (gadget-value test-selector :invoke-callback t) (first new-items))))
+          (gadget-value test-selector :invoke-callback t) current-item)))
 
-(defun display-backend-output (frame pane &optional benchmark)
-  (declare (ignore pane))
+(defun display (frame output)
   (when-let ((item (slot-value frame 'current-selection)))
-    (let ((description (get-frame-pane frame 'description))
-          (output (get-frame-pane frame 'backend-output))
-          (drawing-tests-frame (when (eq (type-of frame) 'drawing-app-frame)
-                                 (slot-value frame 'drawing-tests-frame))))
-      (unless benchmark
-        (with-text-style (description (make-text-style :sans-serif :bold :normal))
-          (format description "~&~A / ~A:" (drawing-test-category item) (drawing-test-name item)))
-        (with-text-style (description (make-text-style :sans-serif :roman :normal))
-          (let ((test-description (drawing-test-description item)))
-            (format description "~:[~; ~A~]~%" (and test-description (> (length test-description) 0))
-                    test-description))))
-      (labels ((draw ()
-                 (with-slots (recording-p) (or drawing-tests-frame frame)
-                   (with-output-recording-options (output :record recording-p)
-                     (with-drawing-options (output :clipping-region
-                                                   (make-rectangle* 0 0 *width* *height*))
-                       (draw-rectangle* output 0 0 *width* *height*
-                                        :filled t :ink +grey90+)
-                       (funcall (drawing-test-display-function item) frame output))))))
-        (if (slot-value (or drawing-tests-frame frame) 'signal-condition-p)
-            (draw)
-            (handler-case (draw)
-              (simple-error (condition)
-                (with-drawing-options (description :ink +red+)
-                  (format description "Backend:~a~%" condition)))))))))
-
-(defun display-render-output (frame pane)
-  (declare (ignore pane))
-  (when-let ((item (slot-value frame 'current-selection)))
-    (let ((output (get-frame-pane frame 'render-output)))
-      (labels ((draw ()
-                 (with-slots (recording-p) *application-frame*
-                   (let ((pattern (clime:with-output-to-drawing-stream
-                                      (stream :raster :pattern :recording-p recording-p
-                                              :width *width* :height *height*)
-                                    (draw-rectangle* stream 0 0 *width* *height* :filled t :ink +grey90+)
-                                    (funcall (drawing-test-display-function item) frame stream))))
-                     (draw-pattern* output pattern 0 0)))))
-        (if (slot-value *application-frame* 'signal-condition-p)
-            (draw)
-            (handler-case (draw)
-              (simple-error (condition)
-                (let ((description (get-frame-pane *application-frame* 'description)))
-                  (with-drawing-options (description :ink +red+)
-                    (format description "Render:~a~%" condition))))))))))
+    (%call-1-test (draw-function output) frame output item (options-recording-p frame))))
 
 (defun run-drawing-tests ()
   (run-frame-top-level (make-application-frame 'drawing-tests)))
 
 (defun drawing-test-print-log (fmt &rest args)
   (when *application-frame*
-    (apply #'format (find-pane-named *application-frame* 'description)
-           fmt args)))
-
-(defun drawing-test-print (stream test filename)
-  (with-slots (category name description) test
-    (with-text-style (stream (make-text-style :sans-serif :roman :small))
-      (format stream "~&~a:~%~a~%" (drawing-test-keyname category name) description))
-    (with-drawing-options (stream :transformation (make-translation-transformation 0 72))
-      (funcall (drawing-test-display-function test) *application-frame*
-               stream))
-    (drawing-test-print-log "~&Writing ~A~%" filename)))
-
-(defun drawing-test-postscript (test &optional filename)
-  (let* ((test (if (symbolp test) (gethash test *drawing-tests*) test))
-         (filename (or filename (format nil "/tmp/~a-~a.eps"
-                                        (drawing-test-category test)
-                                        (drawing-test-name test)))))
-    (with-open-file (out filename :direction :output :if-exists :supersede)
-      (with-output-to-postscript-stream (stream out :device-type :eps)
-        (drawing-test-print stream test filename)))))
-
-(defun print-all-postscript-tests ()
-  (loop for test being the hash-values of *drawing-tests*
-        do (restart-case (drawing-test-postscript test)
-             (:skip ()
-              :report (lambda (stream)
-                        (format stream "skip ~a-~a"
-                                (drawing-test-category test)
-                                (drawing-test-name test)))))))
-
-(defun drawing-test-pdf (test &optional filename)
-  (let* ((test (if (symbolp test) (gethash test *drawing-tests*) test))
-         (filename (or filename (format nil "/tmp/~a-~a.pdf"
-                                        (drawing-test-category test)
-                                        (drawing-test-name test)))))
-    (with-open-file (out filename :direction :output :if-exists :supersede
-                                  :element-type '(unsigned-byte 8))
-      (clim-pdf:with-output-to-pdf-stream (stream out)
-        (drawing-test-print stream test filename)))))
-
-(defun print-all-pdf-tests ()
-  (loop for test being the hash-values of *drawing-tests*
-        do (restart-case (drawing-test-pdf test)
-             (:skip ()
-              :report (lambda (stream)
-                        (format stream "skip ~a-~a"
-                                (drawing-test-category test)
-                                (drawing-test-name test)))))))
-
-(defun print-pdf-test (test-name)
-  (when-let ((test (gethash test-name *drawing-tests*)))
-    (restart-case (drawing-test-pdf test)
-      (:skip ()
-       :report (lambda (stream)
-                 (format stream "skip ~a-~a"
-                         (drawing-test-category test)
-                         (drawing-test-name test)))))))
-
-(defun drawing-test-svg (test &optional filename)
-  (let* ((test (if (symbolp test) (gethash test *drawing-tests*) test))
-         (filename (or filename (format nil "/tmp/~a-~a.svg"
-                                        (drawing-test-category test)
-                                        (drawing-test-name test)))))
-    (with-open-file (out filename :direction :output :if-exists :supersede)
-      (clime:with-output-to-drawing-stream (stream :svg out)
-        (drawing-test-print stream test filename)))))
-
-(defun print-all-svg-tests ()
-  (loop for test being the hash-values of *drawing-tests*
-        do (restart-case (drawing-test-svg test)
-             (:skip ()
-              :report (lambda (stream)
-                        (format stream "skip ~a-~a"
-                                (drawing-test-category test)
-                                (drawing-test-name test)))))))
-
-(defun print-svg-test (test-name)
-  (when-let ((test (gethash test-name *drawing-tests*)))
-    (restart-case (drawing-test-svg test)
-      (:skip ()
-       :report (lambda (stream)
-                 (format stream "skip ~a-~a"
-                         (drawing-test-category test)
-                         (drawing-test-name test)))))))
-
-(defun drawing-test-raster-image (test format &optional filename)
-  (let* ((test (if (symbolp test) (gethash test *drawing-tests*) test))
-         (filename (or filename (format nil "/tmp/~a-~a.~(~a~)"
-                                        (drawing-test-category test)
-                                        (drawing-test-name test) format)))
-         (height (+ 72 *height*)))
-    (clime:with-output-to-drawing-stream
-        (stream :raster filename :width *width* :height height)
-      (draw-rectangle* stream 0 0 *width* height :filled t :ink +grey90+)
-      (drawing-test-print stream test filename))))
-
-(defun print-all-raster-image-tests (format)
-  (time
-   (loop for test being the hash-values of *drawing-tests*
-         do (restart-case (drawing-test-raster-image test format)
-              (:skip ()
-               :report (lambda (stream)
-                         (format stream "skip ~a-~a"
-                                 (drawing-test-category test)
-                                 (drawing-test-name test))))))))
+    (let ((description (find-pane-named *application-frame* 'description)))
+      (apply #'format description fmt args)
+      (finish-output description))))
 
 ;;;
 ;;; utility functions
@@ -652,6 +475,7 @@
       (draw-point* stream 300 (- y 50) :ink +red+ :line-thickness 5)
       (setf y (+ 150 y)))))
 
+
 ;;;
 ;;; Testing
 ;;;
