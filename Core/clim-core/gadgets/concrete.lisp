@@ -814,23 +814,12 @@ response to scroll wheel events."))
 (defmethod initialize-instance :after ((gadget meta-list-pane) &rest rest)
   (declare (ignorable rest))
   ;; Initialize slot value if not specified
-  #+ (or) ;; XXX
-  (when (slot-boundp gadget 'value)
-    (setf (slot-value gadget 'value)
-          (if (list-pane-exclusive-p gadget)
-              (funcall (list-pane-value-key gadget) (first (list-pane-items gadget)))
-              (mapcar #'list-pane-value-key (list (first (list-pane-items gadget)))))))
-
   (when (and (not (list-pane-exclusive-p gadget))
              (not (listp (gadget-value gadget))))
     (error "A :nonexclusive list-pane cannot be initialized with a value which is not a list."))
   (when (not (list-pane-exclusive-p gadget))
     (with-slots (value) gadget
-      (setf value (copy-list value))))
-  #+ (or)
-  (when (and (list-pane-exclusive-p gadget)
-             (> (length (gadget-value gadget)) 1))
-    (error "An 'exclusive' list-pane cannot be initialized with more than one item selected.")))
+      (setf value (copy-list value)))))
 
 (defmethod value-changed-callback :before
     ((gadget generic-list-pane) client gadget-id value)
@@ -839,11 +828,10 @@ response to scroll wheel events."))
   ;; list pane only allows single-selection.
   (when (or (eq (list-pane-mode gadget) :one-of)
             (eq (list-pane-mode gadget) :exclusive))
-    (let* ((i (position value (generic-list-pane-item-values gadget)))
-           (item (elt (list-pane-items gadget) i))
-           (ptype (funcall (list-pane-presentation-type-key gadget) item)))
-      (when ptype
-        (throw-object-ptype value ptype)))))
+    (when-let* ((index (position value (generic-list-pane-item-values gadget)))
+                (ptype (funcall (list-pane-presentation-type-key gadget)
+                               (elt (list-pane-items gadget) index))))
+      (throw-object-ptype value ptype))))
 
 (defun list-pane-exclusive-p (pane)
   (or (eql (list-pane-mode pane) :exclusive)
@@ -1097,8 +1085,9 @@ Returns two values, the item itself, and the index within the item list."
     (multiple-value-bind (item-value index)
         (generic-list-pane-item-from-x-y pane x y)
       (declare (ignore item-value))
-      (let* ((item (elt (list-pane-items pane) index)))
-        (meta-list-pane-call-presentation-menu pane item)))))
+      (when index
+        (let ((item (elt (list-pane-items pane) index)))
+          (meta-list-pane-call-presentation-menu pane item))))))
 
 (defun generic-list-pane-scroll (pane amount)
   (let ((new-origin (+ (items-origin pane) amount)))

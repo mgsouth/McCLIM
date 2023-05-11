@@ -1922,6 +1922,7 @@
    ;; medium
    #:medium-miter-limit
    ;; panes
+   #:border-pane #:bordering
    #:raised-pane #:raising
    #:lowered-pane #:lowering
    #:viewport-pane
@@ -2117,6 +2118,10 @@
    #:text-style-height
    #:text-style-mapping
    #:text-style-width
+   ;; regions and designs
+   #:nowhere-region
+   #:everywhere-region
+   #:standard-rectangle-set
    ;; transformations
    #:medium-device-transformation
    #:medium-device-region

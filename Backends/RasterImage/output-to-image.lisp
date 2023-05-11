@@ -33,11 +33,14 @@
 
 (defmethod invoke-with-output-to-drawing-stream
     (continuation (port raster-image-port) (destination (eql :pattern))
+     &rest args
      &key (width :compute) (height :compute) (target nil) (recording-p nil)
      &allow-other-keys)
   (let* ((graft (graft port))
          (top-level-sheet (make-raster-top-level-sheet port))
-         (stream (make-raster-image-stream port)))
+         (stream (climi::with-keywords-removed
+                     (args (:width :height :target :recording-p))
+                   (apply #'make-raster-image-stream port args))))
     (sheet-adopt-child top-level-sheet stream)
     (sheet-adopt-child graft top-level-sheet)
     (when target

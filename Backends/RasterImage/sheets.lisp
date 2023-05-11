@@ -49,5 +49,5 @@
                                permanent-medium-sheet-output-mixin)
   ())
 
-(defun make-raster-image-stream (port)
-  (make-instance 'raster-image-stream :port port))
+(defun make-raster-image-stream (port &rest args)
+  (apply #'make-instance 'raster-image-stream :port port args))
