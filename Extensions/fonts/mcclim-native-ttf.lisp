@@ -326,7 +326,9 @@
         for j from (1+ start)
         for char = (char string i)
         for next = (and (< j len) (char string j))
-        for code = (char-glyph-code char next)
+        for code = (if (eql next #\newline)
+                       (char-glyph-code char nil)
+                       (char-glyph-code char next))
         do (funcall fun code)))
 
 (defun font-string-glyph-codes (font string &key (start 0) (end (length string)))
