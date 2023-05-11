@@ -4,6 +4,9 @@
   ((clx-image :initform nil :accessor mirror-clx-image)
    (gcontext  :initform nil :accessor mirror-gcontext)))
 
+(defmethod window ((object clx-fb-mirror))
+  (clim-clx::mirror object))
+
 (defmethod mcclim-render::%create-mirror-image :after ((mirror clx-fb-mirror) w h)
   (setf (mcclim-render:image-dirty-region mirror) +nowhere+)
   (let* ((data (clime:pattern-array (image-mirror-image mirror)))

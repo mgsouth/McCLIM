@@ -19,7 +19,7 @@
 
 (defmethod realize-mirror ((port clx-fb-port) (sheet mirrored-sheet-mixin))
   (let* ((window (clim-clx::%realize-mirror port sheet))
-         (mirror (make-instance 'clx-fb-mirror :window window)))
+         (mirror (make-instance 'clx-fb-mirror :mirror window)))
     (setf (getf (xlib:window-plist window) 'sheet) sheet)
     (setf (slot-value mirror 'gcontext)
           (xlib:create-gcontext :drawable window
