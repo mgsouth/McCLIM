@@ -58,15 +58,20 @@
   `(ensure-drawing-test (lambda (,frame ,stream ,@arglist) ,@body)
                         ,category ,name ,description))
 
-(defclass drawing-app-pane (application-pane)
+(defclass drawing-app-pane (clim-stream-pane)
   ((draw-function :initarg :draw-function :reader draw-function))
   (:default-initargs :min-width *width* :width *width* :max-width *width*
                      :min-height *height* :height *height* :max-height *height*
-                     :display-time t
-                     :display-function 'display
+                     :display-time nil
                      :end-of-line-action :allow
                      :end-of-page-action :allow
                      :draw-function '%draw-direct))
+
+(defun redraw-sheet (output)
+  (window-clear output)
+  (let ((frame (pane-frame output)))
+    (when-let ((item (slot-value frame 'current-selection)))
+      (%call-1-test (draw-function output) frame output item (options-recording-p frame)))))
 
 (define-application-frame drawing-tests ()
   ((recording-p :initform t)
@@ -288,9 +293,8 @@
 
 (defmethod handle-event ((pane drawing-app-pane) (event keyboard-event))
   (case (keyboard-event-key-name event)
-    ((:|r| :r) (let ((frame (pane-frame pane)))
-                 (redisplay-frame-pane frame pane :force-p t)))
-    (:| | (repaint-sheet pane +everywhere+))))
+    ((:|r| :| | :r)
+     (redraw-sheet pane))))
 
 (defun %run-in-backend (this-gadget)
   (declare (ignore this-gadget))
@@ -360,9 +364,7 @@
 (defun %update-side-by-side-view (this-gadget value)
   (declare (ignore this-gadget))
   (let ((render (get-frame-pane *application-frame* 'render-output)))
-    (setf (sheet-enabled-p render) value)
-    (when value
-      (redisplay-frame-pane (pane-frame render) render :force-p t))))
+    (setf (sheet-enabled-p render) value)))
 
 (defun print-description (description item)
   (with-text-style (description (make-text-style :sans-serif :bold :normal))
@@ -382,9 +384,8 @@
           (stream (get-frame-pane frame 'backend-output))
           (render (get-frame-pane frame 'render-output)))
       (print-description description item)
-      (redisplay-frame-pane frame stream :force-p t)
-      (when (sheet-enabled-p render)
-        (redisplay-frame-pane frame render :force-p t)))))
+      (redraw-sheet stream)
+      (redraw-sheet render))))
 
 (defun %update-category-selection (gadget value)
   (declare (ignore gadget))
@@ -398,10 +399,6 @@
                            (first new-items))))
     (setf (clime:list-pane-items test-selector) new-items
           (gadget-value test-selector :invoke-callback t) current-item)))
-
-(defun display (frame output)
-  (when-let ((item (slot-value frame 'current-selection)))
-    (%call-1-test (draw-function output) frame output item (options-recording-p frame))))
 
 (defun run-drawing-tests ()
   (run-frame-top-level (make-application-frame 'drawing-tests)))
