@@ -18,7 +18,11 @@
 ;;; protocol class polygon should be a subclass of the protocol class bezigon.
 
 (defclass bezier-thing ()
-  ((points
+  ((plist
+    :type list
+    :initform '()
+    :accessor %bezier-thing-plist)
+   (points
     :type list
     :initarg :points
     :initform '())))
@@ -44,8 +48,8 @@
   (do-sequence* ((x0 y0 x1 y1 x2 y2 x3 y3) coord-seq 6)
     (funcall function x0 y0 x1 y1 x2 y2 x3 y3)))
 
-(defclass standard-polybezier (cached-bbox-mixin polybezier bezier-thing) ())
-(defclass standard-bezigon (cached-bbox-mixin bezigon bezier-thing) ())
+(defclass standard-polybezier (cached-bbox-mixin bezier-thing polybezier) ())
+(defclass standard-bezigon (cached-bbox-mixin bezier-thing bezigon) ())
 
 (defun make-polybezier (point-seq)
   (assert (= (mod (length point-seq) 3) 1))
@@ -63,6 +67,30 @@
   (assert (and (coordinate= (car coord-seq) (car (last coord-seq 2)))
                (coordinate= (cadr coord-seq) (car (last coord-seq)))))
   (make-bezigon (coord-seq->point-seq coord-seq)))
+
+(defmethod transform-region (transformation (object bezier-thing))
+  (let ((points (bezigon-points object)))
+    (make-instance (class-of object)
+                   :points (mapcar (curry #'transform-region transformation)
+                                   points))))
+
+(defmethod bounding-rectangle* ((object bezier-thing))
+  (let* ((points (bezigon-points object))
+         (p0 (car points))
+         (minx (point-x p0))
+         (miny (point-y p0))
+         (maxx minx)
+         (maxy miny))
+    (map-over-bezigon-segments
+     (lambda (x0 y0 x1 y1 x2 y2 x3 y3)
+       (multiple-value-bind (x1 x2) (cubic-bezier-dimension-min-max x0 x1 x2 x3)
+         (minf minx x1)
+         (maxf maxx x2))
+       (multiple-value-bind (y1 y2) (cubic-bezier-dimension-min-max y0 y1 y2 y3)
+         (minf miny y1)
+         (maxf maxy y2)))
+     object)
+    (values minx miny maxx maxy)))
 
 #+ (or)
 ;;; Here be dragons. Basically this means: don't mix bezier things with other
@@ -129,26 +157,27 @@
   (defmethod region-intersection ((r1 polybezier) (r2 polybezier))
     (error "IMPLEMENT ME!")))
 
-(defmethod transform-region (transformation (object bezier-thing))
-  (let ((points (bezigon-points object)))
-    (make-instance (class-of object)
-                   :points (mapcar (curry #'transform-region transformation)
-                                   points))))
+#- (or)
+;;; Hacked versions of important methods (added ad-hoc).
+(progn
+  (defun polything<-bezierthing (region)
+    (let ((result (getf (%bezier-thing-plist region) :polygon)))
+      (or result
+          (let* ((coords (expand-point-seq (bezigon-points region)))
+                 (coords (polygonalize-bezigon coords)))
+            (etypecase region
+              (standard-bezigon
+               (setf result (make-polygon* coords)))
+              (standard-polybezier
+               (setf result (make-polyline* coords :closed nil))))
+            (setf (getf (%bezier-thing-plist region) :polygon) result)))))
 
-(defmethod bounding-rectangle* ((object bezier-thing))
-  (let* ((points (bezigon-points object))
-         (p0 (car points))
-         (minx (point-x p0))
-         (miny (point-y p0))
-         (maxx minx)
-         (maxy miny))
-    (map-over-bezigon-segments
-     (lambda (x0 y0 x1 y1 x2 y2 x3 y3)
-       (multiple-value-bind (x1 x2) (cubic-bezier-dimension-min-max x0 x1 x2 x3)
-         (minf minx x1)
-         (maxf maxx x2))
-       (multiple-value-bind (y1 y2) (cubic-bezier-dimension-min-max y0 y1 y2 y3)
-         (minf miny y1)
-         (maxf maxy y2)))
-     object)
-    (values minx miny maxx maxy)))
+  (defmethod region-contains-position-p ((region standard-bezigon) x y)
+    (region-contains-position-p (polything<-bezierthing region) x y))
+
+  (defmethod region-intersection ((a bounding-rectangle) (b standard-bezigon))
+    (region-intersection a (polything<-bezierthing b)))
+
+  (defmethod region-intersection ((b standard-bezigon) (a bounding-rectangle))
+    (region-intersection a (polything<-bezierthing b))))
+

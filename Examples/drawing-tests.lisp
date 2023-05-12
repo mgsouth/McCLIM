@@ -43,29 +43,35 @@
 (defun rcurry (fun &rest args)
   (lambda (&rest rest) (apply fun (append rest args))))
 
-(defmacro define-drawing-test (category name (frame stream &rest arglist) description &body body)
+(defun ensure-drawing-test (cont category name description)
   (check-type category string)
   (check-type name string)
   (check-type description string)
-  (with-gensyms (g-category g-name)
-    `(let ((,g-name ,name)
-           (,g-category ',(symbolicate category)))
-       (setf (gethash (drawing-test-keyname ,g-category ,g-name) *drawing-tests*)
-             (make-drawing-test :category ,g-category
-                                :name ,g-name
-                                :description ,description
-                                :display-function (lambda (,frame ,stream ,@arglist) ,@body)))
-       (pushnew ,g-category *drawing-tests-categories*))))
+  (setf (gethash (drawing-test-keyname category name) *drawing-tests*)
+        (make-drawing-test :category category
+                           :name name
+                           :description description
+                           :display-function cont))
+  (pushnew category *drawing-tests-categories*))
 
-(defclass drawing-app-pane (application-pane)
+(defmacro define-drawing-test (category name (frame stream &rest arglist) description &body body)
+  `(ensure-drawing-test (lambda (,frame ,stream ,@arglist) ,@body)
+                        ,category ,name ,description))
+
+(defclass drawing-app-pane (clim-stream-pane)
   ((draw-function :initarg :draw-function :reader draw-function))
   (:default-initargs :min-width *width* :width *width* :max-width *width*
                      :min-height *height* :height *height* :max-height *height*
-                     :display-time t
-                     :display-function 'display
+                     :display-time nil
                      :end-of-line-action :allow
                      :end-of-page-action :allow
                      :draw-function '%draw-direct))
+
+(defun redraw-sheet (output)
+  (window-clear output)
+  (let ((frame (pane-frame output)))
+    (when-let ((item (slot-value frame 'current-selection)))
+      (%call-1-test (draw-function output) frame output item (options-recording-p frame)))))
 
 (define-application-frame drawing-tests ()
   ((recording-p :initform t)
@@ -287,9 +293,8 @@
 
 (defmethod handle-event ((pane drawing-app-pane) (event keyboard-event))
   (case (keyboard-event-key-name event)
-    ((:|r| :r) (let ((frame (pane-frame pane)))
-                 (redisplay-frame-pane frame pane :force-p t)))
-    (:| | (repaint-sheet pane +everywhere+))))
+    ((:|r| :| | :r)
+     (redraw-sheet pane))))
 
 (defun %run-in-backend (this-gadget)
   (declare (ignore this-gadget))
@@ -359,9 +364,7 @@
 (defun %update-side-by-side-view (this-gadget value)
   (declare (ignore this-gadget))
   (let ((render (get-frame-pane *application-frame* 'render-output)))
-    (setf (sheet-enabled-p render) value)
-    (when value
-      (redisplay-frame-pane (pane-frame render) render :force-p t))))
+    (setf (sheet-enabled-p render) value)))
 
 (defun print-description (description item)
   (with-text-style (description (make-text-style :sans-serif :bold :normal))
@@ -381,9 +384,8 @@
           (stream (get-frame-pane frame 'backend-output))
           (render (get-frame-pane frame 'render-output)))
       (print-description description item)
-      (redisplay-frame-pane frame stream :force-p t)
-      (when (sheet-enabled-p render)
-        (redisplay-frame-pane frame render :force-p t)))))
+      (redraw-sheet stream)
+      (redraw-sheet render))))
 
 (defun %update-category-selection (gadget value)
   (declare (ignore gadget))
@@ -398,16 +400,12 @@
     (setf (clime:list-pane-items test-selector) new-items
           (gadget-value test-selector :invoke-callback t) current-item)))
 
-(defun display (frame output)
-  (when-let ((item (slot-value frame 'current-selection)))
-    (%call-1-test (draw-function output) frame output item (options-recording-p frame))))
-
 (defun run-drawing-tests ()
   (run-frame-top-level (make-application-frame 'drawing-tests)))
 
 (defun drawing-test-print-log (fmt &rest args)
   (when *application-frame*
-    (let ((description (find-pane-named *application-frame* 'description)))
+    (let ((description (get-frame-pane *application-frame* 'description)))
       (apply #'format description fmt args)
       (finish-output description))))
 
@@ -1566,30 +1564,73 @@ outside the clipping area should be grey.")
   (draw-oval* stream 200 200 25 50 :ink +blue+ :filled nil :line-thickness 4))
 
 ;;;
+;;; Regions
+;;;
+(defparameter *test-regions/simple*
+  (with-bounding-rectangle* (x1 y1 x2 y2 :center-x cx :center-y cy) *clip*
+    (let ((p0 (make-point cx cy))
+          (p1 (make-point (+ x1 100) (+ y1 100)))
+          (p2 (make-point (- x2 100) (+ y1 100)))
+          (p3 (make-point (- x2 100) (- y2 100)))
+          (p4 (make-point (+ x1 100) (- y2 100))))
+     (list :rectangle (make-rectangle p1 p3)
+           :polygon   (make-polygon (list p1 p2 p4))
+           :circle    (make-ellipse p0 100 0 0 100)
+           :ellipse-1 (make-ellipse p0 100 0 0 150)
+           :ellipse-2 (make-ellipse p0 100 0 0 150 :start-angle 0 :end-angle (/ pi 2))
+           :ellipse-3 (make-ellipse p0 100 0 75 150)
+           :ellipse-4 (make-ellipse p0 100 0 75 150 :start-angle 0 :end-angle (/ pi 2))
+           :bezigon-1 (clime:make-bezigon (list p1 p0 p0 p2
+                                                   p0 p0 p3
+                                                   p0 p0 p4
+                                                   p0 p0 p1))
+           :bezigon-2 (clime:make-bezigon (list p1 p0 p2 p3 p1))
+           ;; Transformed regions
+           ;; Region sets
+           ;; Unbound regions
+           ))))
+
+(defparameter *test-regions/unbound*
+  (list* :everywhere +everywhere+
+         :nowhere +nowhere+
+         (loop for (key region) on *test-regions/simple* by #'cddr
+               collect (format nil "~~complement ~a" (string-downcase key))
+               collect (clime:region-complement region))))
+
+(flet ((make-draw (region)
+         (lambda (frame stream)
+           (declare (ignore frame))
+           (draw-design stream region :ink +dark-blue+)
+           (draw-design stream region :ink +dark-red+
+                                      :filled nil
+                                      :line-thickness 10
+                                      :line-cap-shape :round
+                                      :line-joint-shape :round)))
+       (make-clip (region)
+         (lambda (frame stream)
+           (declare (ignore frame))
+           (draw-design stream region :ink +dark-blue+)
+           (with-drawing-options (stream :clipping-region region)
+             (loop repeat 100
+                   do (draw-point* stream (random *width*) (random *height*)
+                                   :ink (make-random-col)
+                                   :line-thickness (random 100)))))))
+  (loop with clip-cat = "Clipping Region"
+        with draw-cat = "Draw Design Region"
+        with clip-desc = "Random points should appear inside the blue region."
+        with draw-desc = "Random points should appear inside the blue region."
+        for (key region) on (append *test-regions/simple* *test-regions/unbound* ) by #'cddr
+        for test-name = (string-downcase key)
+        for clip-cont = (make-clip region)
+        for draw-cont = (make-draw region)
+        do (ensure-drawing-test draw-cont draw-cat test-name draw-desc)
+           (ensure-drawing-test clip-cont clip-cat test-name clip-desc)))
+
+;;;
 ;;; Clipping
 ;;;
 
-(define-drawing-test "Clipping Region" "ellipse" (frame stream)
-    "Non-rectangular clipping region. We should see grey rotated ellipse with limited angle drawn inside green border. This ellipse is a clipping region. Then we randomly drawn points on the screen which should be clipped to the grey area."
-  (declare (ignore frame))
-  (let ((cr (make-ellipse* (/ *width* 2) (/ *height* 2)
-                           (- (/ *width* 2) 50) 100
-                           0 (- (/ *height* 2) 50)
-                           :start-angle (/ pi 8)
-                           :end-angle (* 3 (/ pi 2)))))
-    (with-bounding-rectangle* (min-x min-y max-x max-y)        cr
-      (draw-rectangle* stream (- min-x 10) (- min-y 10) (+ max-x 10) (+ max-y 10)
-                       :line-thickness 2 :filled t :ink +green+)
-      (draw-rectangle* stream min-x min-y max-x max-y
-                       :line-thickness 1 :filled nil)
-      (with-drawing-options (stream :clipping-region cr)
-        (draw-rectangle* stream min-x min-y max-x max-y :filled t :ink +grey50+)
-        (loop repeat 100
-              do (draw-point* stream (random *width*) (random *height*)
-                              :ink (make-random-col)
-                              :line-thickness (random 100)))))))
-
-(define-drawing-test "Clipping Region" "Clipping Region" (frame stream)
+(define-drawing-test "Clipping Region" "Mixed" (frame stream)
     "Various clipping regions. We should see seven blue bounding rectangles. Each of them host a clipping area: square, rotated rectangle, circle, polygon, region intersection, region union and region difference (last three are based on rectangles). Randomly drawn points should be clipped to these clipping areas. No point should be drawn outside the blue rectangles."
   (declare (ignore frame))
   (dolist (cr (list

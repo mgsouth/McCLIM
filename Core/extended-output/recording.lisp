@@ -2137,7 +2137,8 @@ according to the flags RECORD and DRAW."
                                          :clipping-region clip)
             (call-next-method)
             (setf (rectangle-edges* record)
-                  (bounding-rectangle* clip)))))
+                  (bounding-rectangle*
+                   (region-intersection (sheet-region sheet) clip))))))
       (call-next-method)))
 
 

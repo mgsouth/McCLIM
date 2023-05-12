@@ -301,15 +301,16 @@
                         &rest options &key &allow-other-keys)
   (apply #'draw-design medium +everywhere+ :clipping-region design options))
 
-(defmethod draw-design (medium (design (eql +nowhere+))
+(defmethod draw-design (medium (design nowhere-region)
                         &rest options &key &allow-other-keys)
   (declare (ignore medium design options))
   nil)
 
-(defmethod draw-design ((medium medium) (design everywhere-region)
+(defmethod draw-design (medium (design everywhere-region)
                         &rest options &key &allow-other-keys)
   (apply #'draw-design medium
-         (bounding-rectangle (medium-clipping-region medium)) options))
+         (bounding-rectangle (medium-clipping-region medium))
+         options))
 
 ;;;
 

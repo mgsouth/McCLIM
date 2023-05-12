@@ -45,6 +45,11 @@
 (defun (setf stream-cursor-height) (value stream)
   (setf (cursor-height (stream-text-cursor stream)) value))
 
+(defun reset-stream-cursor (stream cursor)
+  (let ((text-style (stream-text-style stream)))
+    (setf (cursor-position cursor) (stream-cursor-initial-position stream)
+          (cursor-height cursor) (text-style-height text-style stream))))
+
 (defmethod stream-force-output :after
     ((stream standard-extended-output-stream))
   (with-sheet-medium (medium stream)
