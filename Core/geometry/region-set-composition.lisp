@@ -97,7 +97,7 @@
          (regions (loop
                     for r in (standard-region-set-regions a)
                     when (region-equal b r)
-                      do (return-from region-intersection b)
+                      do (return-from region-intersection a)
                     collect (let ((region (region-intersection r a)))
                               (when (region-equal region +nowhere+)
                                 (return-from region-intersection +nowhere+))
