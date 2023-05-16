@@ -46,7 +46,7 @@
 ;;; "Other" gestures are defined only by the type and the qualifier -
 ;;; modifiers are ignored.
 (deftype other-gesture-type ()
-  '(member :timer))
+  '(member :timer :indirect))
 
 (deftype gesture-type ()
   '(or keyboard-gesture-type
@@ -212,20 +212,20 @@
 ;;; GESTURE is T or a list of normalized physical gestures.
 (defun event-data-matches-gesture-p
     (type device-name modifier-state physical-gestures)
-  (labels ((matches-with-wildcards-p (value gesture-value)
-             (or (eq gesture-value t)
-                 (eq value :ignore)
-                 (eql value gesture-value)))
+  (labels ((matches-with-wildcards-p (match-value gesture-value)
+             (or (eql gesture-value t)
+                 (eql match-value :ignore)
+                 (eql match-value gesture-value)))
            (physical-gesture-matches-p (gesture)
-             (destructuring-bind
-                 (gesture-type gesture-device-name gesture-modifier-state)
-                 gesture
-               (and (or (matches-with-wildcards-p type gesture-type)
-                        (and (eq gesture-type :pointer-button)
-                             (typep type 'pointer-button-gesture-type)))
-                    (matches-with-wildcards-p device-name gesture-device-name)
-                    (matches-with-wildcards-p
-                     modifier-state gesture-modifier-state)))))
+             (destructuring-bind (gtype gname gmods) gesture
+               (if (eq gtype :indirect)
+                   (event-data-matches-gesture-p
+                    type device-name modifier-state (find-gesture gname))
+                   (and (or (matches-with-wildcards-p type gtype)
+                            (and (eq gtype :pointer-button)
+                                 (typep type 'pointer-button-gesture-type)))
+                        (matches-with-wildcards-p device-name gname)
+                        (matches-with-wildcards-p modifier-state gmods))))))
     (or (eq physical-gestures t)
         (and (eq type :ignore)
              (eq device-name :ignore)
@@ -270,9 +270,12 @@
     (event-matches-gesture-p event physical-gestures)))
 
 (defun modifier-state-matches-gesture-name-p (modifier-state gesture-name)
-  (some (lambda (physical-gesture)
-          (eql modifier-state (third physical-gesture)))
-        (gethash gesture-name *gesture-names*)))
+  (labels ((match-1 (physical)
+             (destructuring-bind (type device-name mods) physical
+               (if (eql type :indirect)
+                   (some #'match-1 (find-gesture device-name))
+                   (eql modifier-state mods)))))
+    (some #'match-1 (find-gesture gesture-name))))
 
 ;;; Wrapper around event-matches-gesture-name-p to match against characters too.
 (defgeneric gesture-matches-spec-p (gesture spec)
