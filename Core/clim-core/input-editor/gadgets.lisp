@@ -117,7 +117,7 @@
   (loop for ch across new-value do
     (handle-editor-event sheet ch))
   (change-space-requirements sheet)
-  (dispatch-repaint sheet +everywhere+))
+  (dispatch-repaint sheet (sheet-region sheet)))
 
 (defmethod handle-event :around ((sheet text-editing-gadget) event)
   (with-activation-gestures ((activation-gestures sheet) :override t)
@@ -127,7 +127,7 @@
 
 (defun update-gadget (sheet)
   (change-space-requirements sheet)
-  (dispatch-repaint sheet +everywhere+)
+  (dispatch-repaint sheet (sheet-region sheet))
   (when (editable-p sheet)
     (value-changed-callback sheet
                             (gadget-client sheet)
@@ -152,7 +152,7 @@
     (stream-set-input-focus sheet)))
 
 (defmethod note-input-focus-changed ((sheet text-editing-gadget) state)
-  (dispatch-repaint sheet +everywhere+))
+  (dispatch-repaint sheet (sheet-region sheet)))
 
 (defmethod handle-repaint ((sheet text-editing-gadget) region)
   (declare (ignore region))
