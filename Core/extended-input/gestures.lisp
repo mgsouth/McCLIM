@@ -238,7 +238,7 @@
     nil)
   (:method ((event character) physical-gestures)
     (event-data-matches-gesture-p :keyboard event 0 physical-gestures))
-  (:method ((event keyboard-event) physical-gestures)
+  (:method ((event key-press-event) physical-gestures)
     (event-data-matches-gesture-p
      :keyboard
      (or (keyboard-event-character event)
