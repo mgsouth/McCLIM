@@ -2,30 +2,35 @@
   (:use #:clim-lisp)
   (:export #:+golden-ratio+
            #:parent #:children :add-child :delete-child :repaint
-           #:defapp #:display
+           #:defapp #:display #:present* #:defpresent
            #:with-table #:row #:col #:cell #:*pane*))
 (in-package #:slim)
 
 (defparameter +golden-ratio+ #. (/ (+ 1 (sqrt 5)) 2)
   "Golden Ratio constant.")
 
+(defun car* (object)
+  (if (consp object)
+      (car object)
+      object))
+
 
 #| Major issue: There is a proposal on the table to unify the sheet and output
-record protocols, not by unifying the class structure, but by making them
-implement the same generic functions where that makes sense. For instance,
-sheets and output records both have regions, transformations (that relate sheets
-to their parents), both support a repainting operation, and so forth.
-
-In particular, sheet-parent and output-record-parent are equivalent, as are
-sheet-children and output-record-children, sheet-adopt-child and
-add-output-record, sheet-disown-child and delete-output-record, and
-repaint-sheet and replay-output-record, and the mapping
-functions. output-record-position and its setf function have sheet analogs. The
-sheet and output record notification functions are also equivalent.
-
-This simplifies the conceptual framework of CLIM, and could eventually simplify
-the implementation as well. Doing this work now opens the door for later
-unifications, such unifying the pane layout functionality with table
+record protocols, not by unifying the class structure, but by making them ; ;
+implement the same generic functions where that makes sense. For instance, ; ;
+sheets and output records both have regions, transformations (that relate sheets ; ;
+to their parents), both support a repainting operation, and so forth. ; ;
+                                        ; ;
+In particular, sheet-parent and output-record-parent are equivalent, as are ; ;
+sheet-children and output-record-children, sheet-adopt-child and ; ;
+add-output-record, sheet-disown-child and delete-output-record, and ; ;
+repaint-sheet and replay-output-record, and the mapping ; ;
+functions. output-record-position and its setf function have sheet analogs. The ; ;
+sheet and output record notification functions are also equivalent. ; ;
+                                        ; ;
+This simplifies the conceptual framework of CLIM, and could eventually simplify ; ;
+the implementation as well. Doing this work now opens the door for later ; ;
+unifications, such unifying the pane layout functionality with table ; ;
 formatting. --- York, SWM |#
 
 (defgeneric parent (object)
@@ -58,6 +63,26 @@ formatting. --- York, SWM |#
     (clim:repaint-sheet sheet region))
   (:method ((output-record clim:output-record) sheet region)
     (clim:replay-output-record output-record sheet region)))
+
+
+;;; Presentation utilities.
+
+;;; This function is compatible with "standard" print functions like 'princ
+;;; thanks to the acceptance of the stream as a second argument.
+(defun present* (object &optional (stream *standard-output*) &rest args
+                 &key (ptype (clim:presentation-type-of object)) &allow-other-keys)
+  (climi::with-stream-designator (stream *standard-output*)
+    (climi::with-keywords-removed (args (:ptype))
+      (apply #'clim:present object ptype :stream stream
+             (append args (list :single-box t))))))
+
+(defmacro defpresent ((object type &optional (stream (gensym)) (view (gensym))) &body body)
+  (when (keywordp view)
+    (setf view `(,(gensym) (eql ,view))))
+  `(clim:define-presentation-method clim:present
+       (,object (type ,type) ,stream ,view &rest args)
+     (declare (ignorable type ,(car* stream) ,(car* view) args))
+     ,@body))
 
 
 ;;; It would be nice if we had a canonical function DISPLAY that may be
