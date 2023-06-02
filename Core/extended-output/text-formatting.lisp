@@ -25,8 +25,9 @@
                                      :right  (:relative 0)
                                      :bottom (:relative 0))))
 
-(defmethod initialize-instance :after ((instance standard-page-layout)
-                                       &key text-margins text-margin)
+(defmethod shared-initialize :after ((instance standard-page-layout)
+                                     slot-names &key text-margins text-margin)
+  (declare (ignore slot-names))
   (let ((right-margin (if text-margin
                           `(:absolute ,text-margin)
                           `(:relative 0))))
