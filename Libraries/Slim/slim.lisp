@@ -66,15 +66,19 @@ formatting. --- York, SWM |#
 
 
 ;;; Presentation utilities.
+(defvar *current-view* nil)
 
 ;;; This function is compatible with "standard" print functions like 'princ
 ;;; thanks to the acceptance of the stream as a second argument.
 (defun present* (object &optional (stream *standard-output*) &rest args
-                 &key (ptype (clim:presentation-type-of object)) &allow-other-keys)
+                 &key (ptype (clim:presentation-type-of object))
+                   ((:view *current-view*)
+                    (or *current-view* (clim:stream-default-view stream)))
+                 &allow-other-keys)
   (climi::with-stream-designator (stream *standard-output*)
     (climi::with-keywords-removed (args (:ptype))
       (apply #'clim:present object ptype :stream stream
-             (append args (list :single-box t))))))
+             (append args (list :single-box t :view *current-view*))))))
 
 (defmacro defpresent ((object type &optional (stream (gensym)) (view (gensym))) &body body)
   (when (keywordp view)
