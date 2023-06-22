@@ -159,7 +159,7 @@
 
 (defun free-clx-drawable-resources (drawable)
   (loop for (key val) on (xlib:drawable-plist drawable) by #'cddr
-        do (case val
+        do (typecase val
              (xlib::picture (xlib:render-free-picture val))
              (xlib:gcontext (xlib:free-gcontext val))
              (xlib:pixmap   (%deallocate-pixmap val)))))
