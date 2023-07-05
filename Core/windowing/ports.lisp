@@ -24,12 +24,12 @@
 ;;;   not currently a complete backend we would want to make a
 ;;;   default.  Put it after CLX, so that it won't actually be
 ;;;   reached.
-(defvar *server-path-search-order*
-  '(#.(cond ((member :mcclim-ffi-freetype *features*) :clx-ff)
-            ((member :mcclim-clx-fb       *features*) :clx-fb)
-            ((member :mcclim-ugly         *features*) :clx)
-            (t :clx-ttf))
-    :null))
+(defparameter *server-path-search-order*
+  (list (cond ((member :mcclim-ffi-freetype *features*) :clx-ff)
+              ((member :mcclim-clx-fb       *features*) :clx-fb)
+              ((member :mcclim-ugly         *features*) :clx)
+              (t :clx-ttf))
+	:null))
 
 (defmethod find-port-type ((port symbol))
   (values (get port :port-type)

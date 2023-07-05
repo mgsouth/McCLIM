@@ -351,7 +351,7 @@ or NIL if the current transformation is the identity transformation."
   (let ((string (ensure-string-value string)))
     (when (alexandria:emptyp string)
       (return-from clim:medium-draw-text*))
-    (clim-clx::with-clx-graphics () medium
+    (clim-clx::with-clx-graphics (mirror gc tr) medium
       (unless (eq align-y :baseline)
         (let* ((font (clim:text-style-mapping (clim:port medium) (clim:medium-text-style medium)))
                (ascent (mcclim-truetype:font-ascent font))
@@ -372,7 +372,7 @@ or NIL if the current transformation is the identity transformation."
                                  (:center (/ text-width 2.0s0))
                                  (:right text-width))))))
       (clim-sys:with-lock-held (*draw-font-lock*)
-        (freetype-draw-glyphs medium clim-clx::mirror clim-clx::gc x y string
+        (freetype-draw-glyphs medium mirror gc x y string
                               :start start :end end
                               :transformation (clim:sheet-device-transformation
                                                (clim:medium-sheet medium))
