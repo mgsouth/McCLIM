@@ -2,7 +2,8 @@
 
 (cffi:define-foreign-library libfontconfig
   (:darwin "libfontconfig.dylib")
-  (:unix "libfontconfig.so"))
+  (:unix "libfontconfig.so")
+  (:windows (:or "libfontconfig-1" "libfontconfig")))
 
 (cffi:use-foreign-library libfontconfig)
 

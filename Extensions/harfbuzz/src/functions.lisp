@@ -2,7 +2,8 @@
 
 (cffi:define-foreign-library libharfbuzz
   (:darwin "libharfbuzz.dylib")
-  (:unix "libharfbuzz.so"))
+  (:unix "libharfbuzz.so")
+  (:windows (:or "libharfbuzz-0" "libharfbuzz")))
 
 (cffi:use-foreign-library libharfbuzz)
 
