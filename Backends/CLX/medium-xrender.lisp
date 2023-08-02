@@ -149,9 +149,11 @@
                (let* ((display (clx-drawable-display medium))
                       (format (xlib:find-standard-picture-format display :argb32)))
                  (xlib:render-create-picture pixmap-32 :format format))))
+           (design1 (flipping-ink-design1 design))
+           (design2 (flipping-ink-design2 design))
            (flipper (ldb (byte 24 0)
-                         (logxor (climi::%rgba-value (flipping-ink-design1 design))
-                                 (climi::%rgba-value (flipping-ink-design2 design))))))
+                         (logxor (climi::%pattern-rgba-value design1 0 0)
+                                 (climi::%pattern-rgba-value design2 0 0)))))
       (%drawable-copy-area (clx-drawable mirror) 0 0 w h %pixmap24 0 0)
       (invert-drawable %pixmap24 flipper w h)
       (with-bounding-rectangle* (x1 y1 x2 y2) (medium-device-region medium)
@@ -179,7 +181,11 @@
              (ensure-clx-drawable-object (pixmap 'clx-picture)
                (let* ((display (clx-drawable-display medium))
                       (format (xlib:find-standard-picture-format display :argb32)))
-                 (xlib:render-create-picture pixmap :format format)))))
+                 (xlib:render-create-picture pixmap :format format))))
+           (design1 (flipping-ink-design1 design))
+           (design2 (flipping-ink-design2 design))
+           (flipper (logxor (climi::%pattern-rgba-value design1 0 0)
+                            (climi::%pattern-rgba-value design2 0 0))))
       (with-bounding-rectangle* (x1 y1 x2 y2) (medium-device-region medium)
         (clx-fill-composite :src
                             (clx-drawable-picture mirror)
@@ -187,10 +193,7 @@
                             picture
                             +identity-transformation+
                             x1 y1 x2 y2)
-        (invert-drawable (clx-drawable pixmap)
-                         (logxor (climi::%rgba-value (flipping-ink-design1 design))
-                                 (climi::%rgba-value (flipping-ink-design2 design)))
-                         w h))
+        (invert-drawable (clx-drawable pixmap) flipper w h))
       picture)))
 
 ;;; KLUDGE by default we maintain only a single picture for colors and fill it
