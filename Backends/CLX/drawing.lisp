@@ -186,7 +186,48 @@
     (flet ((draw-it (region*)
              (clx-draw-region mi gc tr x1 y1 x2 y2 region*)))
       (map-over-region-set-regions #'draw-it region)))
-  (:method (mi gc tr x1 y1 x2 y2 region) ; falback
+  (:method (mi gc tr x1 y1 x2 y2 (region standard-region-intersection))
+    ;; This is a bit excessive approach but it works. -- jd 2023-08-03
+    (labels ((remask (target mask)
+               (destructuring-bind (buf dgc zgc) target
+                 (declare (ignore buf zgc))
+                 (setf (xlib:gcontext-clip-mask dgc) (first mask))))
+             (paint (target region)
+               (destructuring-bind (buf dgc zgc) target
+                 (xlib:draw-rectangle buf zgc x1 y1 x2 y2 t)
+                 (clx-draw-region buf dgc tr x1 y1 x2 y2 region)))
+             (make ()
+               (let* ((buffer (xlib:create-pixmap :drawable mi :depth 1 :width x2 :height y2))
+                      (draw (xlib:create-gcontext :drawable buffer :foreground 1 :background 0))
+                      (zero (xlib:create-gcontext :drawable buffer :foreground 0 :background 1)))
+                 (list buffer draw zero)))
+             (free (palette)
+               (destructuring-bind (buf dgc zgc) palette
+                 (xlib:free-gcontext dgc)
+                 (xlib:free-gcontext zgc)
+                 (xlib:free-pixmap buf))))
+      (let* ((palette-1 (make))
+             (palette-2 (make))
+             (regions (region-set-regions region :normalize t))
+             (region0 (pop regions)))
+        ;; A x B x C x D x E
+        ;; draw A           -> 1
+        ;; draw B through 1 -> 2
+        ;; draw C through 2 -> 1
+        ;; draw D through 1 -> 2
+        ;; draw E through 2 -> 1
+        ;; fill M through 1
+        (paint palette-1 region0)
+        (remask palette-2 palette-1)
+        (remask palette-1 palette-2)
+        (dolist (r regions)
+          (paint  palette-2 r)
+          (rotatef palette-1 palette-2))
+        (climi::letf (((xlib:gcontext-clip-mask gc) (first palette-1)))
+          (xlib:draw-rectangle mi gc x1 y1 (- x2 x1) (- y2 y1) t))
+        (free palette-1)
+        (free palette-2))))
+  (:method (mi gc tr x1 y1 x2 y2 region) ; fallback
     (warn "clx-draw-region: unoptimized path for ~s." (type-of region))
     (loop for x from (floor x1) upto (ceiling x2) do
       (loop for y from (floor y1) upto (ceiling y2) do
