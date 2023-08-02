@@ -9,7 +9,6 @@
                       :drawable drawable))
 
 (defun %deallocate-pixmap (drawable)
-  (free-clx-drawable-resources drawable)
   (xlib:free-pixmap drawable))
 
 (defun %fill-pixmap (pixmap value width height)

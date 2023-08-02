@@ -44,7 +44,7 @@
       (deallocate-pixmap pixmap))))
 
 (defun release-mirror-resources (mirror)
-  (free-clx-drawable-resources (clx-drawable mirror))
+  (free-clx-drawable-resources (mirror mirror))
   (let ((help-buffers (help-buffers mirror)))
     (climi::dohash ((key val) help-buffers)
       (declare (ignore key))
@@ -82,4 +82,5 @@
         do (typecase val
              (xlib::picture (xlib:render-free-picture val))
              (xlib:gcontext (xlib:free-gcontext val))
-             (xlib:pixmap   (%deallocate-pixmap val)))))
+             (xlib:pixmap   (%deallocate-pixmap val))))
+  (setf (xlib:drawable-plist drawable) nil))
