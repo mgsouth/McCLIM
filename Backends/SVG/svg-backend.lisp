@@ -342,14 +342,17 @@
     (cl-who:with-html-output (stream drawable)
       (:rect :x (fmt x1) :y (fmt y1) :width (fmt (- x2 x1)) :height (fmt (- y2 y1))))))
 
-(defmethod medium-draw-bezigon* ((medium svg-medium) coord-seq filled)
+(defmethod medium-draw-bezigon* ((medium svg-medium) coord-seq closed filled)
   (with-drawing-context (drawable medium (if filled :area :path))
     (let* ((coord-seq (coerce coord-seq 'list))
            (points (with-output-to-string (str)
                      (destructuring-bind (x0 y0 . coords) coord-seq
                        (format str "M ~f ~f " x0 y0)
                        (loop for (x1 y1 x2 y2 x3 y3) on coords by (lambda (lst) (nthcdr 6 lst))
-                             do (format str "C ~f ~f, ~f ~f, ~f ~f " x1 y1 x2 y2 x3 y3))))))
+                             when x2
+                               do (format str "C ~f ~f, ~f ~f, ~f ~f " x1 y1 x2 y2 x3 y3))
+                       (when closed
+                         (format str "Z "))))))
       (cl-who:with-html-output (drawable)
         (:path :d points)))))
 

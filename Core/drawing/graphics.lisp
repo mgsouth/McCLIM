@@ -241,13 +241,13 @@
                         &rest options &key &allow-other-keys)
   (with-medium-options (medium options)
     (let ((coords (expand-point-seq (bezigon-points design))))
-      (medium-draw-bezigon* medium coords nil))))
+      (medium-draw-bezigon* medium coords nil nil))))
 
 (defmethod draw-design (medium (design bezigon)
-                        &rest options &key (filled t) &allow-other-keys)
+                        &rest options &key (closed t) (filled t) &allow-other-keys)
   (with-medium-options (medium options)
     (let ((coords (expand-point-seq (bezigon-points design))))
-     (medium-draw-bezigon* medium coords filled))))
+     (medium-draw-bezigon* medium coords closed filled))))
 
 (defmethod draw-design (medium (design line)
                         &rest options &key &allow-other-keys)
