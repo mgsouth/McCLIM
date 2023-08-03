@@ -164,6 +164,10 @@
   (:method (mi gc tr x1 y1 x2 y2 (region standard-polygon))
     (let ((coords (climi::expand-point-seq (polygon-points region))))
       (clx-draw-polygon mi gc tr coords t t)))
+  (:method (mi gc tr x1 y1 x2 y2 (region standard-bezigon))
+    (let ((coords (climi::polygonalize-bezigon
+                   (climi::expand-point-seq (bezigon-points region)))))
+      (clx-draw-polygon mi gc tr coords t t)))
   (:method (mi gc tr x1 y1 x2 y2 (region standard-ellipse))
     (multiple-value-bind (cx cy) (ellipse-center-point* region)
       (multiple-value-bind (rdx1 rdy1 rdx2 rdy2) (ellipse-radii region)
@@ -175,11 +179,9 @@
           (bg (xlib:gcontext-background gc))
           (r* (region-complement region)))
       (clx-draw-rectangle mi gc tr x1 y1 x2 y2 t)
-      (setf (xlib:gcontext-foreground gc) bg
-            (xlib:gcontext-background gc) fg)
+      (setf (xlib:gcontext-foreground gc) bg)
       (clx-draw-region mi gc tr x1 y1 x2 y2 r*)
-      (setf (xlib:gcontext-foreground gc) fg
-            (xlib:gcontext-background gc) bg)))
+      (setf (xlib:gcontext-foreground gc) fg)))
   (:method (mi gc tr x1 y1 x2 y2 (region standard-region-union))
     (flet ((draw-it (region*)
              (clx-draw-region mi gc tr x1 y1 x2 y2 region*)))
