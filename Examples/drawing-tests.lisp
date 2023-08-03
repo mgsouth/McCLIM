@@ -1572,8 +1572,11 @@ outside the clipping area should be grey.")
           (p1 (make-point (+ x1 100) (+ y1 100)))
           (p2 (make-point (- x2 100) (+ y1 100)))
           (p3 (make-point (- x2 100) (- y2 100)))
-          (p4 (make-point (+ x1 100) (- y2 100))))
-     (list :rectangle (make-rectangle p1 p3)
+          (p4 (make-point (+ x1 100) (- y2 100)))
+          (p5 (make-point (+ x1 50) (- cy 25)))
+          (p6 (make-point (- x2 50) (+ cy 25))))
+     (list :rectangle-1 (make-rectangle p1 p3)
+           :rectangle-2 (make-rectangle p5 p6)
            :polygon   (make-polygon (list p1 p2 p4))
            :circle    (make-ellipse p0 100 0 0 100)
            :ellipse-1 (make-ellipse p0 100 0 0 150)
@@ -1584,29 +1587,77 @@ outside the clipping area should be grey.")
                                                    p0 p0 p3
                                                    p0 p0 p4
                                                    p0 p0 p1))
-           :bezigon-2 (clime:make-bezigon (list p1 p0 p2 p3 p1))
-           ;; Transformed regions
-           ;; Region sets
-           ;; Unbound regions
-           ))))
+           :bezigon-2 (clime:make-bezigon (list p1 p0 p2 p3 p1))))))
+
+(defparameter *test-regions/intersection*
+  (flet ((make-pair (reg1 reg2)
+           (let* ((r1 (getf *test-regions/simple* reg1))
+                  (r2 (getf *test-regions/simple* reg2))
+                  (ri (region-intersection r1 r2)))
+             (list (format nil "~~intersection ~a ~a" reg1 reg2) ri))))
+    (append (make-pair :rectangle-2 :circle)
+            (make-pair :polygon :circle)
+            (make-pair :polygon :bezigon-2)
+            (make-pair :ellipse-1 :ellipse-3))))
+
+(defparameter *test-regions/union*
+  (flet ((make-pair (reg1 reg2)
+           (let* ((r1 (getf *test-regions/simple* reg1))
+                  (r2 (getf *test-regions/simple* reg2))
+                  (ri (region-union r1 r2)))
+             (list (format nil "~~union ~a ~a" reg1 reg2) ri))))
+    (append (make-pair :rectangle-2 :circle)
+            (make-pair :polygon :circle)
+            (make-pair :polygon :bezigon-2)
+            (make-pair :ellipse-1 :ellipse-3))))
+
+;;; IMPLEMENTME: scaling, rotation, translation, shearing
+(defparameter *test-regions/transformed*
+  '())
 
 (defparameter *test-regions/unbound*
   (list* :everywhere +everywhere+
          :nowhere +nowhere+
-         (loop for (key region) on *test-regions/simple* by #'cddr
+         (loop for (key region) on (append *test-regions/simple*
+                                           *test-regions/intersection*
+                                           *test-regions/union*
+                                           *test-regions/transformed*)
+               by #'cddr
                collect (format nil "~~complement ~a" (string-downcase key))
                collect (clime:region-complement region))))
 
-(flet ((make-draw (region)
-         (lambda (frame stream)
-           (declare (ignore frame))
-           (draw-design stream region :ink +dark-blue+)
-           (draw-design stream region :ink +dark-red+
-                                      :filled nil
-                                      :line-thickness 10
-                                      :line-cap-shape :round
-                                      :line-joint-shape :round)))
-       (make-clip (region)
+;;; IMPLEMENTME: (INTERSECTIONS UNIONS) x (BOUND UNBOUND) X (TRANSFORMED)
+(defparameter *test-regions/fancy*
+  (with-bounding-rectangle* (:center-x cx :center-y cy) *clip*
+    (list :donut (region-difference (make-ellipse* cx cy 0 100 100 0)
+                                    (make-ellipse* cx cy 0 50 50 0)))))
+
+(defparameter *test-regions/all*
+  (append *test-regions/simple*
+          *test-regions/intersection*
+          *test-regions/union*
+          *test-regions/transformed*
+          *test-regions/unbound*
+          *test-regions/fancy*))
+
+(defun maybe-draw-helper-paths (stream region)
+  (typecase region
+    (region-set
+     (dolist (r (region-set-regions region))
+       (draw-design stream r :ink +dark-green+
+                             :filled nil
+                             :line-thickness 5
+                             :line-cap-shape :round
+                             :line-joint-shape :round)))
+    (clime:standard-region-complement
+     (let ((r (clime:region-complement region)))
+       (draw-design stream r :ink +dark-green+
+                             :filled nil
+                             :line-thickness 5
+                             :line-cap-shape :round
+                             :line-joint-shape :round)))))
+
+(flet ((make-clip (region)
          (lambda (frame stream)
            (declare (ignore frame))
            (draw-design stream region :ink +dark-blue+)
@@ -1614,12 +1665,24 @@ outside the clipping area should be grey.")
              (loop repeat 100
                    do (draw-point* stream (random *width*) (random *height*)
                                    :ink (make-random-col)
-                                   :line-thickness (random 100)))))))
+                                   :line-thickness (random 100))))
+           (maybe-draw-helper-paths stream region)))
+       (make-draw (region)
+         (lambda (frame stream)
+           (declare (ignore frame))
+           (draw-design stream region :ink +dark-blue+)
+           (draw-design stream region :ink +dark-red+
+                                      :filled nil
+                                      :line-thickness 10
+                                      :line-cap-shape :round
+                                      :line-joint-shape :round)
+           (maybe-draw-helper-paths stream region))))
   (loop with clip-cat = "Clipping Region"
         with draw-cat = "Draw Design Region"
         with clip-desc = "Random points should appear inside the blue region."
-        with draw-desc = "Random points should appear inside the blue region."
-        for (key region) on (append *test-regions/simple* *test-regions/unbound* ) by #'cddr
+        with draw-desc = "A red outline should appear around the blue region."
+        for (key region) on *test-regions/all*
+        by #'cddr
         for test-name = (string-downcase key)
         for clip-cont = (make-clip region)
         for draw-cont = (make-draw region)

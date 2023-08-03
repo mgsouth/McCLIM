@@ -36,7 +36,7 @@
     ((pane light-pane) (event pointer-event))
   (declare (ignorable event))
   (let ((label (gadget-label (radio-box-current-selection
-                              (slot-value *application-frame* 'radio-box)))))
+                              (slot-value (pane-frame pane) 'radio-box)))))
     (cond ((string= label "Y")
            (traffic-pause 2)
            (simulate-action (find-pane-named *application-frame* 'red)))
