@@ -166,10 +166,6 @@
     (is (region-equal +nowhere+ (region-difference polygon-1 polygon-1)))
     (is (region-equal +nowhere+ (region-difference polygon-2 polygon-2)))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;
-;;; polyline
-
 (test regions.polyline
   (is (subtypep 'polyline 'path))
   (is (subtypep 'standard-polyline 'polyline))
@@ -380,6 +376,12 @@
               )
             all-ellipses)))
 
+(test regions.ellipse.regressions
+  (let ((e1 (make-ellipse* 0 0 20 0 0 5))
+        (e2 (make-ellipse* 0 0 10 0 0 10)))
+    (is-false (region-contains-region-p e2 e1))
+    (is-true (typep (region-intersection e1 e2) 'standard-region-intersection))))
+
 (test regions.elliptical-arc
   (is (subtypep 'elliptical-arc 'path))
   (is (subtypep 'standard-elliptical-arc 'elliptical-arc))
@@ -407,3 +409,5 @@
     (is (= (coordinate ea) (coordinate (ellipse-end-angle ea1))))
     (is-true (null (ellipse-start-angle ea3)))
     (is-true (null (ellipse-end-angle ea3)))))
+
+
