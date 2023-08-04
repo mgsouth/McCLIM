@@ -83,13 +83,14 @@
            (unless (or (= x cp-x1 x1 cp-x2)
                        (= y cp-y1 y1 cp-y2)) ; Don't draw null beziers.
              (let ((design (if fill-mode
-                               (mcclim-bezier::make-bezier-area*
-                                (list x y cp-x1 cp-y1 cp-x2 cp-y2 x1 y1 x1 y1 x y x y))
-                               (mcclim-bezier::make-bezier-curve*
+                               (clime:make-bezigon*
+                                (list x y cp-x1 cp-y1 cp-x2 cp-y2 x1 y1 x y))
+                               (clime:make-polybezier*
                                 (list x y cp-x1 cp-y1 cp-x2 cp-y2 x1 y1)))))
                (draw-design pane design :ink current-color :line-style line-style))
-             (draw-line* pane x y cp-x1 cp-y1 :ink +red+)
-             (draw-line* pane x1 y1 cp-x2 cp-y2 :ink +blue+))))))))
+             (with-output-recording-options (pane :record nil :draw t)
+               (draw-line* pane x y cp-x1 cp-y1 :ink +red+)
+               (draw-line* pane x1 y1 cp-x2 cp-y2 :ink +blue+)))))))))
 
 (define-presentation-type figure ())
 
@@ -151,7 +152,8 @@
         (stream-add-output-record pane output-record)
         (setf (redo-list *application-frame*) nil)
         (disable-commands frame 'com-redo)
-        (enable-commands frame 'com-undo 'com-clear))
+        (enable-commands frame 'com-undo 'com-clear)
+        (repaint-sheet pane +everywhere+))
       (change-space-requirements pane))))
 
 (defun handle-move-object (pane figure first-point-x first-point-y)

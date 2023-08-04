@@ -657,8 +657,7 @@
     :accessor port)
    (mirror
     :initform nil
-    :reader sheet-direct-mirror
-    :writer (setf %sheet-direct-mirror))
+    :accessor sheet-direct-mirror)
    (native-transformation
     :initform +identity-transformation+)
    (native-region

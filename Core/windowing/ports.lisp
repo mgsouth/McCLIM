@@ -157,7 +157,7 @@
 (defmethod realize-mirror :around
     ((port basic-port) (sheet mirrored-sheet-mixin))
   (or (sheet-direct-mirror sheet)
-      (setf (%sheet-direct-mirror sheet) (call-next-method))))
+      (setf (sheet-direct-mirror sheet) (call-next-method))))
 
 (defmethod destroy-mirror ((port basic-port) (sheet mirrored-sheet-mixin))
   (error "Don't know how to destroy the mirror of a generic mirrored-sheet"))
@@ -166,7 +166,7 @@
     ((port basic-port) (sheet mirrored-sheet-mixin))
   (when-let ((mirror (sheet-direct-mirror sheet)))
     (call-next-method)
-    (setf (%sheet-direct-mirror sheet) nil)))
+    (setf (sheet-direct-mirror sheet) nil)))
 
 (defmethod port-properties ((port basic-port) indicator)
   (with-slots (properties) port

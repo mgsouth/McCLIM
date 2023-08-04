@@ -115,15 +115,17 @@
                                                   (units       :device))
   (let* ((screen (clx-port-screen port))
          (root   (clx-port-window port))
-         (mirror (make-instance 'clx-mirror :window root))
          (width  (xlib:screen-width screen))
          (height (xlib:screen-height screen))
-         (region (make-bounding-rectangle 0 0 width height)))
-    (make-instance 'clx-graft :port        port
-                              :region      region
-                              :mirror      mirror
-                              :orientation orientation
-                              :units       units)))
+         (region (make-bounding-rectangle 0 0 width height))
+         (graft  (make-instance 'clx-graft :port        port
+                                           :region      region
+                                           :mirror      nil
+                                           :orientation orientation
+                                           :units       units))
+         (mirror (make-instance 'clx-window :mirror root :sheet graft)))
+    (setf (sheet-direct-mirror graft) mirror)
+    graft))
 
 (defmethod graft ((port clx-basic-port))
   (first (port-grafts port)))

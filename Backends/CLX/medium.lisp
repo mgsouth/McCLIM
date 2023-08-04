@@ -139,68 +139,6 @@
     (setf (xlib:gcontext-join-style gc) (translate-join-shape js))
     (update-dash-pattern gc medium line-style)))
 
-(defun %clip-region-pixmap (medium mask mask-gc clipping-region x1 y1 width height)
-  (typecase clipping-region
-    (climi::nowhere-region)             ; do nothing
-    (clim:standard-rectangle
-     (multiple-value-bind (x1 y1 width height)
-         (region->clipping-values clipping-region)
-       (xlib:draw-rectangle mask mask-gc x1 y1 width height t)))
-    (clim:standard-polygon
-     (let ((coord-seq (climi::expand-point-seq (polygon-points clipping-region))))
-       (setq coord-seq (map 'vector #'round-coordinate coord-seq))
-       (xlib:draw-lines mask mask-gc
-                        (concatenate 'vector
-                                     coord-seq
-                                     (vector (elt coord-seq 0)
-                                             (elt coord-seq 1)))
-                        :fill-p t)))
-    (clim:standard-ellipse
-     (flet ((%draw-lines (scan-line)
-              (map-over-region-set-regions
-               (lambda (reg)
-                 (when (linep reg)
-                   (multiple-value-bind (lx1 ly1) (line-start-point* reg)
-                     (multiple-value-bind (lx2 ly2) (line-end-point* reg)
-                       (xlib:draw-line mask mask-gc
-                                       (round-coordinate lx1)
-                                       (round-coordinate ly1)
-                                       (round-coordinate lx2)
-                                       (round-coordinate ly2))))))
-               scan-line)))
-       (if (<= width height)
-           (loop for x from x1 to (+ x1 width) do
-                (%draw-lines (region-intersection
-                              clipping-region
-                              (make-line* x y1 x (+ y1 height)))))
-           (loop for y from y1 to (+ y1 height) do
-                (%draw-lines (region-intersection
-                              clipping-region
-                              (make-line* x1 y (+ x1 width) y)))))))
-    (clime:standard-region-complement
-     (let ((complement (clime:region-complement clipping-region)))
-       (xlib:draw-rectangle mask mask-gc x1 y1 width height t)
-       (rotatef (xlib:gcontext-foreground mask-gc)
-                (xlib:gcontext-background mask-gc))
-       (multiple-value-bind (x1* y1* width* height*)
-           (region->clipping-values complement)
-         (%clip-region-pixmap medium mask mask-gc complement x1* y1* width* height*))
-       (rotatef (xlib:gcontext-foreground mask-gc)
-                (xlib:gcontext-background mask-gc))))
-    (clim:standard-region-union
-     (map-over-region-set-regions
-      (lambda (region)
-        (multiple-value-bind (x1* y1* width* height*)
-            (region->clipping-values region)
-          (%clip-region-pixmap medium mask mask-gc region x1* y1* width* height*)))
-      clipping-region))
-    (otherwise
-     (warn "clx backend: set clipping region: unoptimized path for ~s." (type-of clipping-region))
-     (loop for x from x1 to (+ x1 width) do
-          (loop for y from y1 to (+ y1 height) do
-               (when (region-contains-position-p clipping-region x y)
-                 (xlib:draw-point mask mask-gc x y)))))))
-
 (defun %set-gc-clipping-region (medium gc)
   (declare (type clx-medium medium))
   (let ((clipping-region (medium-device-region medium))
@@ -232,11 +170,13 @@
                                           :depth 1
                                           :width (+ x1 width)
                                           :height (+ y1 height)))
-                (mask-gc (xlib:create-gcontext :drawable mask :foreground 1)))
+                (mask-gc (xlib:create-gcontext :drawable mask :foreground 1 :background 0)))
            (setf (xlib:gcontext-foreground mask-gc) 0)
            (xlib:draw-rectangle mask mask-gc 0 0 (+ x1 width) (+ y1 height) t)
            (setf (xlib:gcontext-foreground mask-gc) 1)
-           (%clip-region-pixmap medium mask mask-gc clipping-region x1 y1 width height)
+           (clx-draw-region mask mask-gc +identity-transformation+
+                            x1 y1 (+ x1 width) (+ y1 height) clipping-region)
+           ;; (%clip-region-pixmap medium mask mask-gc clipping-region x1 y1 width height)
            (xlib:free-gcontext mask-gc)
            (push #'(lambda ()
                      (xlib:free-pixmap mask)
@@ -528,20 +468,11 @@ translated, so they begin at different position than [0,0])."))
           (let ((coords (vector x1 y1 x2 y1 x2 y2 x1 y2 x1 y1)))
             (clx-draw-polygon mi gc tr coords nil filled))))))
 
-;; A default method polygonizes the ellipse - this is much more precise, works
-;; with rotations and with clipping.
 (defmethod medium-draw-ellipse* ((medium clx-medium) cx cy
                                  rdx1 rdy1 rdx2 rdy2
                                  eta1 eta2 filled)
   (with-clx-graphics (mi gc tr) medium
-    (with-transformed-distance (tr rdx1 rdy1)
-      (with-transformed-distance (tr rdx2 rdy2)
-        (if (or (= rdx2 rdy1 0) (= rdx1 rdy2 0))
-            (with-transformed-position (tr cx cy)
-              (clx-draw-aligned-ellipse mi gc
-                                        cx cy rdx1 rdy1 rdx2 rdy2
-                                        eta1 eta2 filled))
-            (call-next-method))))))
+    (clx-draw-ellipse mi gc tr cx cy rdx1 rdy1 rdx2 rdy2 eta1 eta2 filled)))
 
 (defmethod medium-clear-area ((medium clx-medium) left top right bottom)
   (climi::letf (((medium-ink medium) (medium-background medium)))

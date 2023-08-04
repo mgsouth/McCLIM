@@ -1359,7 +1359,8 @@ were added."
                    (maxf max-y (+ y border)))))
              (values min-x min-y max-x max-y)))))
 
-(defun bezigon-record-bounding-rectangle (coord-seq filled border)
+(defun bezigon-record-bounding-rectangle (coord-seq closed filled border)
+  (declare (ignore closed))
   (if filled
       (setf border 0)
       (setf border (ceiling border)))
@@ -1402,13 +1403,13 @@ were added."
 
 (def-grecording draw-bezigon (coord-seq-mixin gs-line-style-mixin)
     ((coord-seq (copy-sequence-into-vector coord-seq))
-     filled)
+     closed filled)
   (let* ((transform (medium-transformation medium))
          (transformed-coord-seq (transform-positions transform coord-seq))
          (border (unless filled
                    (/ (fix-line-style-unit graphic medium) 2))))
     (setf coord-seq transformed-coord-seq)
-    (bezigon-record-bounding-rectangle transformed-coord-seq filled border)))
+    (bezigon-record-bounding-rectangle transformed-coord-seq closed filled border)))
 
 (defrecord-predicate draw-bezigon-output-record (filled)
   (if-supplied (filled)

@@ -188,12 +188,14 @@
   (medium-draw-polygon* medium coord-seq closed filled))
 
 (define-drawing-function (draw-bezigon sheet point-seq)
-    ((filled t))
-  (medium-draw-bezigon* medium (expand-point-seq point-seq) filled))
+    ((filled t)
+     (closed t))
+  (medium-draw-bezigon* medium (expand-point-seq point-seq) closed filled))
 
 (define-drawing-function (draw-bezigon* sheet coord-seq)
-    ((filled t))
-  (medium-draw-bezigon* medium coord-seq filled))
+    ((filled t)
+     (closed t))
+  (medium-draw-bezigon* medium coord-seq closed filled))
 
 (define-drawing-function (draw-rectangle sheet point1 point2)
     ((filled t))
@@ -432,7 +434,7 @@
 (def-graphic-op draw-line (x1 y1 x2 y2))
 (def-graphic-op draw-lines (coord-seq))
 (def-graphic-op draw-polygon (coord-seq closed filled))
-(def-graphic-op draw-bezigon (coord-seq filled))
+(def-graphic-op draw-bezigon (coord-seq closed filled))
 (def-graphic-op draw-rectangle (left top right bottom filled))
 (def-graphic-op draw-rectangles (position-seq filled))
 (def-graphic-op draw-ellipse (center-x center-y

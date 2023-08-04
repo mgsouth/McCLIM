@@ -23,9 +23,13 @@
 (defclass clx-port (clim-xcommon:keysym-port-mixin
                     clx-selection-mixin
                     clx-basic-port)
-  ((color-table :initform (make-hash-table :test #'eq))
-   (design-cache :initform (trivial-garbage:make-weak-hash-table :weakness :key :test #'eq)
-                 :reader port-design-cache)))
+  ((color-table
+    :initform (make-hash-table :test #'eq))
+   ;; The design cache maintains pixmaps that are shared between drawables on
+   ;; the same display. To avoid race conditions they are immutable.
+   (design-cache
+    :initform (trivial-garbage:make-weak-hash-table :weakness :key :test #'eq)
+    :reader port-design-cache)))
 
 (defclass clx-render-port (clx-port) ())
 
@@ -164,7 +168,7 @@
   ;;mirrored-sheet-mixin is always in the top of the Class Precedence List
   (let ((window (%realize-mirror port sheet)))
     (setf (getf (xlib:window-plist window) 'sheet) sheet)
-    (make-instance 'clx-mirror :window window)))
+    (make-instance 'clx-window  :mirror window :sheet sheet)))
 
 (defmethod %realize-mirror ((port clx-port) (sheet basic-sheet))
   (with-bounding-rectangle* (:width w :height h) sheet

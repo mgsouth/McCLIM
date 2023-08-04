@@ -449,9 +449,9 @@
   (with-identity-transformation* (medium coord-seq)
     (call-next-method medium coord-seq closed filled)))
 
-(defmethod medium-draw-bezigon* :around ((medium transform-coordinates-mixin) coord-seq filled)
+(defmethod medium-draw-bezigon* :around ((medium transform-coordinates-mixin) coord-seq closed filled)
   (with-identity-transformation* (medium coord-seq)
-    (call-next-method medium coord-seq filled)))
+    (call-next-method medium coord-seq closed filled)))
 
 (defun expand-rectangle-coords (left top right bottom)
   "Expand the two corners of a rectangle into a polygon coord-seq"
@@ -529,9 +529,9 @@
 (defmethod medium-draw-circle* ((medium basic-medium) cx cy radius eta1 eta2 filled)
   (medium-draw-ellipse* medium cx cy radius 0 0 radius eta1 eta2 filled))
 
-(defmethod medium-draw-bezigon* ((medium basic-medium) coord-seq filled)
+(defmethod medium-draw-bezigon* ((medium basic-medium) coord-seq closed filled)
   (let ((polygon-coord-seq (polygonalize-bezigon coord-seq)))
-    (medium-draw-polygon* medium polygon-coord-seq nil filled)))
+    (medium-draw-polygon* medium polygon-coord-seq closed filled)))
 
 ;;; Fall-through Methods For Multiple Objects Drawing Functions
 

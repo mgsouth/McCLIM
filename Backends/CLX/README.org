@@ -2,6 +2,76 @@
 #+author: Daniel Kochmański
 #+date: [2022-12-27 Tue]
 
+* Rendering
+
+Definition of DONE:
+
+- [X] with-clx-context's body transparently may use render for blending
+- [X] smart picking of sources in with-clx-context (performance or fidelty)
+- [-] parity support for with-render-context
+  - [X] flipping ink
+  - [X] patterns
+  - [X] transformed patterns
+- [X] performant clipping
+  - [X] define a function clx-draw-region
+  - [X] provide implementation for intersections
+  - [X] add more tests for clipping
+- [ ] no known regressions
+
+Optional extras (antialiasing is slow, recursive patterns are unfeasible):
+
+- [ ] use solidfill instead of a pixmap for uniforms (improve clx)
+  https://www.x.org/releases/current/doc/renderproto/renderproto.txt
+  ~+X-RenderCreateSolidFill+~
+- [ ] accelerated transformations
+- [ ] add "transformed regions" - sheared ellipse is now still drawn as ellipse
+- [ ] separate path for pictures when we clip regions
+- [ ] antialiased drawing (fills) :: slow (20x slowdown on empty request)
+  - maybe it is due to a lack of buffering of xrender requests (check)?
+- [ ] antialiased drawing (paths) :: hard (we can't triangulate paths yet)
+- [ ] antialiased masking (regions) :: if we can fill and mask then gtg
+- [ ] transform glyphs with picture transformation :: ugly (alpha-blend)
+  - perhaps we could use two sets of glyphs - upscaled one for transformations
+
+The new implementation of rendering using XRender[fn:2] uncouples drawing
+shapes from filling the color. The rendering may be performed either by:
+
+- the old mechanism ~clx-draw-foo~ using gcontext and drawable
+- the new mechanism ~clx-fill-foo~ using pictures "source" and "target"
+
+Depending on the used ink and the clipping region the passed drawable or
+target may be different than the "real" destination. This is because we may
+need to do additional composing operation.
+
+For example when the filling has the alpha component then DRAW routines can't
+be explicitly used because the legacy mechanism does not support transparency.
+In this case the drawable and the gcontext point at the stencil buffer where
+we draw the shape in black. When finished we compose [SRC in STEN over DST].
+
+#+begin_src lisp
+  (defun clx-draw-rectangle (mi gc tr x1 y1 x2 y2 filled)
+    (with-clipped-rect (tr x1 y1 x2 y2)
+      (xlib:draw-rectangle mi gc x1 y1 (- x2 x1) (- y2 y1) filled)))
+
+  (defmethod medium-draw-rectangle* ((medium clx-medium) x1 y1 x2 y2 filled)
+    (with-clx-graphics (mi gc tr) medium
+      (clx-draw-rectangle mi gc tr x1 y1 x2 y2 filled)))
+#+end_src
+
+A drawing operation may "decide" to perform drawing with the XRender extension
+to achieve antialiasing. In this case the drawing operation is wrapped in a
+macro WITH-RENDER-CONTEXT that is responsible for configuring the source and
+the destination.
+
+#+begin_src lisp
+  (defmethod medium-draw-rectangle* ((medium clx-medium) x1 y1 x2 y2 filled)
+    (with-render-context (dst src fmt tr) medium
+      (clx-fill-rectangle :src src dst fmt tr x1 y1 x2 y2 filled)))
+#+end_src
+
+Either macro may decide to provide the mirror/destination that is the actual
+output or provide an intermediate stencil.
+
 * Keysym handling
 
 When the keyboard event is received from the display server we receive:
@@ -51,4 +121,5 @@ full protocol (but it works portably also on Wayland).
 
 * Footnotes
 
+[fn:2] https://cgit.freedesktop.org/xorg/lib/libXrender/tree/doc/libXrender.txt
 [fn:1] https://www.x.org/releases/current/doc/libX11/XKB/xkblib.html

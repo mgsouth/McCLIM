@@ -246,7 +246,7 @@
        ;; Region complements are not bound and BOUNDING-RECTANGLE* would cause
        ;; a runtime error. Not accounting for it will make our result
        ;; mathematically imprecise, but not incorrect. -- 2022-01-13
-       (unless (typep r 'standard-region-complement)
+       (unless (typep r '(or standard-region-complement everywhere-region))
          (multiple-value-bind (x1 y1 x2 y2) (bounding-rectangle* r)
            (setf bx1 (max (or bx1 x1) x1)
                  bx2 (min (or bx2 x2) x2)

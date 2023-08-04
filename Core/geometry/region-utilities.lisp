@@ -1141,7 +1141,8 @@ y2."
 
 (defun intersection-ellipse/unit-circle (ell)
   (multiple-value-bind (a b c d e f) (ellipse-coefficients ell)
-    (flet ((ellipse-equation (x y)
+    (flet (#+ (or)
+           (ellipse-equation (x y)
              (+ (* a x x) (* b y y) (* c x y) (* d x) (* e y) f))
            (ellipse-polynom ()
              ;; It is rather funny that for two circles we always get a
@@ -1160,10 +1161,16 @@ y2."
           (dolist (y ys)
             (let ((x (sqrt (- 1 (* y y)))))
               (when (realp x)
-                (when (coordinate= 0 (ellipse-equation x y))
-                  (pushnew (cons x y) res :test #'equal))
-                (when (coordinate= 0 (ellipse-equation (- x) y))
-                  (pushnew (cons (- x) y) res :test #'equal)))))
+                ;; Beware of the approximation errors. The newton iteration will
+                ;; return correct results (if any), but the equation:
+                ;;
+                ;;   (COORDINATE= 0 (ELLIPSE-EQUATION X Y))
+                ;;
+                ;; may not hold. That would be a problem if we had called this
+                ;; function to compute exact points, but the main client of this
+                ;; interface is REGION-CONTAINS-REGION-P. -- jd 2023-08-04
+                (pushnew (cons x y) res :test #'equal)
+                (pushnew (cons (- x) y) res :test #'equal))))
           res)))))
 
 ;;; We just build ourselves a simple newton iteration. Sometimes we fail
@@ -1244,7 +1251,7 @@ y2."
             (eps-f 0d0)
             (eps-f* 0d-16)
             (eps-x 1d-20)
-            (m 20)               ; maximum number of steps
+            (m 100)               ; maximum number of steps
             (res nil))
         (loop
           (when (> n m)
@@ -1587,7 +1594,8 @@ and RADIUS2-DY"
 (defun polygonalize-bezigon (coords &key (precision *polygonalize-precision*))
   (labels ((%polygonalize (p0 p1 p2 p3)
              "Convert a cubic bezier segment to a list of line segments."
-             (if (colinear-approximate-p p0 p1 p2 precision)
+             (if (and (colinear-approximate-p p0 p1 p2 precision)
+                      (colinear-approximate-p p1 p2 p3 precision))
                  (list p3)
                  (let* ((p01 (part-way p0 p1 0.5))
                         (p12 (part-way p1 p2 0.5))

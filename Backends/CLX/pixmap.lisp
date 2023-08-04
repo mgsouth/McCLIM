@@ -9,35 +9,76 @@
                       :drawable drawable))
 
 (defun %deallocate-pixmap (drawable)
-  (free-clx-drawable-resources drawable)
   (xlib:free-pixmap drawable))
 
-(defmethod allocate-pixmap ((medium clx-medium) width height)
-  (when-let ((mirror (medium-drawable medium)))
-    (let* ((window (window mirror))
-           (width (ceiling width))
-           (height (ceiling height))
-           (depth (xlib:drawable-depth window))
-           (pixmap (%allocate-pixmap window width height depth)))
-      (let ((gcontext (xlib:create-gcontext :drawable pixmap)))
-        (setf (xlib:gcontext-function gcontext) boole-1)
-        (setf (xlib:gcontext-foreground gcontext) #x00000000)
-        (xlib:draw-rectangle pixmap gcontext 0 0 width height t)
-        (xlib:free-gcontext gcontext))
-      (make-instance 'clx-mirror :window pixmap))))
+(defun %fill-pixmap (pixmap value width height)
+  (let ((gcontext (xlib:create-gcontext :drawable pixmap))
+        (w (xlib:drawable-width pixmap))
+        (h (xlib:drawable-height pixmap)))
+    (setf (xlib:gcontext-function gcontext) boole-1)
+    (setf (xlib:gcontext-foreground gcontext) value)
+    (xlib:draw-rectangle pixmap gcontext 0 0 width height t)
+    (xlib:free-gcontext gcontext)))
 
-(defmethod deallocate-pixmap ((pixmap clx-mirror))
-  (let ((pixmap (clx-drawable pixmap)))
+(defclass clx-pixmap (clx-mirror)
+  ((width
+    :initarg :width
+    :reader mirror-width
+    :accessor pixmap-width)
+   (height
+    :initarg :height
+    :reader mirror-height
+    :accessor pixmap-height)
+   (depth
+    :initarg :depth
+    :reader pixmap-depth
+    :reader mirror-depth)))
+
+(defmethod allocate-pixmap ((medium clx-medium) width height)
+  (when-let ((mirror (clx-drawable medium)))
+    (let* ((width (ceiling width))
+           (height (ceiling height))
+           (depth (clx-drawable-depth mirror))
+           (pixmap (%allocate-pixmap mirror width height depth)))
+      (%fill-pixmap pixmap #xff0000ff width height)
+      (make-instance 'clx-pixmap :mirror pixmap
+                                 :width width
+                                 :height height
+                                 :depth depth))))
+
+(defmethod deallocate-pixmap ((mirror clx-pixmap))
+  (release-mirror-resources mirror)
+  (let ((pixmap (clx-drawable mirror)))
     (%deallocate-pixmap pixmap)))
 
-(defmethod pixmap-width ((pixmap clx-mirror))
-  (xlib:drawable-width (window pixmap)))
+(defun create-pixmap (mirror width height depth)
+  (let* ((target (clx-drawable mirror))
+         (pixmap (%allocate-pixmap target width height depth)))
+    (make-instance 'clx-pixmap
+                   :mirror pixmap
+                   :width width
+                   :height height
+                   :depth depth)))
 
-(defmethod pixmap-height ((pixmap clx-mirror))
-  (xlib:drawable-height (window pixmap)))
+(defun resize-pixmap (pixmap width height)
+  (when (or (< (pixmap-width pixmap) width)
+            (< (pixmap-height pixmap) height))
+    (let* ((depth (pixmap-depth pixmap))
+           (old-pixmap (clx-drawable pixmap))
+           (new-pixmap (%allocate-pixmap old-pixmap width height depth)))
+      (%deallocate-pixmap old-pixmap)
+      (setf (mirror pixmap) new-pixmap
+            (pixmap-width pixmap) width
+            (pixmap-height pixmap) height)))
+  pixmap)
 
-(defmethod pixmap-depth ((pixmap clx-mirror))
-  (xlib:drawable-depth (window pixmap)))
+(defun ensure-pixmap (mirror pixmap width height)
+  (if (null pixmap)
+      (create-pixmap mirror width height (mirror-depth mirror))
+      (resize-pixmap pixmap width height)))
+
+
+;;; These methods will work on mirrors (both pixmaps and windows).
 
 ;;; WIDTH and HEIGHT arguments should be integers, but we'll leave the calls
 ;;; to round "in" for now.
