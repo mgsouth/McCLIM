@@ -1594,7 +1594,8 @@ and RADIUS2-DY"
 (defun polygonalize-bezigon (coords &key (precision *polygonalize-precision*))
   (labels ((%polygonalize (p0 p1 p2 p3)
              "Convert a cubic bezier segment to a list of line segments."
-             (if (colinear-approximate-p p0 p1 p2 precision)
+             (if (and (colinear-approximate-p p0 p1 p2 precision)
+                      (colinear-approximate-p p1 p2 p3 precision))
                  (list p3)
                  (let* ((p01 (part-way p0 p1 0.5))
                         (p12 (part-way p1 p2 0.5))
