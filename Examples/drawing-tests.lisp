@@ -2166,158 +2166,19 @@ outside the clipping area should be grey.")
 (define-drawing-test "Bezier" "Area" (frame stream)
     "Draws a single bezier-area. Currently this is quite slow and needs to be optimized. Also, the shape of the drawn bezier area is not particularly attractive."
   (declare (ignore frame))
-  (let* ((r1 (mcclim-bezier:make-bezier-area*
-              '(120 160 35 200 220 280 220 40 180 160 160 180 120 160))))
-    (mcclim-bezier:draw-bezier-design* stream r1 :ink +cyan2+)))
+  (let ((r (clime:make-bezigon* '(120 160 35 200 220 280 220 40 180 160 160 180 120 160))))
+    (draw-design stream r :ink +cyan2+)))
 
 (define-drawing-test "Bezier" "Curve" (frame stream)
     "Draws a single bezier curve. This is currently broken as it should just draw the stroke of the bezier and instead renders the design as a bezier area."
   (declare (ignore frame))
-  (let* ((r4 (mcclim-bezier:make-bezier-curve*
-              (list 20 150 20 80 90 110 90 170 90 220 140 210 140 140))))
-    (mcclim-bezier:draw-bezier-design* stream r4
-                                       :line-thickness 12
-                                       :ink +orange+)))
-
-(define-drawing-test "Bezier" "Test 3" (frame stream)
-    "Some more complicated bezier design drawings. We draw two overlapping bezier areas, the difference between these two areas, a bezier curve, and a convolution of a curve and an area."
-  (declare (ignore frame))
-  (let* ((r1 (mcclim-bezier:make-bezier-area*
-              '(100 100 200 200 300 200 400 100 300 50 200 50 100 100)))
-         (r2 (mcclim-bezier:make-bezier-area*
-              '(150 100 200 120 300 150 350 100 300 80 200 80 150 100)))
-         (r3 (mcclim-bezier:region-difference r1 r2))
-         (r4 (mcclim-bezier:make-bezier-curve*
-              (list 20 150 20 80 90 110 90 170 90 220 140 210 140 140)))
-         (r5 (mcclim-bezier:convolve-regions r2 r4)))
-    (mcclim-bezier:draw-bezier-design* stream r3)
-    (mcclim-bezier:draw-bezier-design* stream r4
-                                       :line-thickness 12
-                                       :ink +orange+)
-    (mcclim-bezier:draw-bezier-design* stream r5)))
-
-(define-drawing-test "Bezier" "Test 4" (frame stream)
-    "Some more complicated bezier design drawings."
-  (declare (ignore frame))
-  (formatting-table (stream :x-spacing 20
-                            :y-spacing 20)
-    (formatting-row (stream)
-      (formatting-cell (stream :align-x :center
-                               :align-y :bottom
-                               :min-height 110)
-        (draw-text* stream "Bezier Test" 170 30
-                    :text-style (make-text-style :fix :bold :normal))))
-    (formatting-row (stream)
-      (formatting-cell (stream :align-x :left :align-y :center)
-        (let ((line-thickness 4))
-          (draw-circle* stream 30 30 20
-                        :start-angle (/ pi 2)
-                        :end-angle (+ (/ pi 2) pi)
-                        :filled nil
-                        :line-thickness line-thickness)
-          (draw-circle* stream 60 30 20
-                        :start-angle (+ (/ pi 2) pi)
-                        :end-angle (/ pi 2)
-                        :filled nil
-                        :line-thickness line-thickness)
-          (draw-rectangle* stream 0 0 10 10 :ink +green+)
-          (draw-rectangle* stream 3 3 13 13 :ink +red+)
-          (draw-rectangle* stream 34 44 247 256 :ink +yellow+)
-          (draw-polygon* stream '(10 200 50 120 120 200) :ink +blue+)
-          (let ((design
-                 (mcclim-bezier:make-bezier-area*
-                  (list 34 44 34 128 147 44 247 256 34 128 50 50 34 44))))
-            (mcclim-bezier:draw-bezier-design* stream design
-                                               :line-thickness line-thickness
-                                               :ink +black+))
-          (let ((design
-                 (mcclim-bezier:make-bezier-curve*
-                  (list 20 150 20 80 90 110 90 170 90 220 140 210 140 140))))
-            (mcclim-bezier:draw-bezier-design* stream design
-                                               :line-thickness line-thickness
-                                               :ink +royal-blue+))))
-      (formatting-cell (stream :align-x :left
-                               :align-y :center)
-        (let ((line-thickness 4))
-          (draw-circle* stream 30 30 20
-                        :start-angle (/ pi 2)
-                        :end-angle (+ (/ pi 2) pi)
-                        :filled nil
-                        :line-thickness line-thickness)
-          (draw-circle* stream 60 30 20
-                        :start-angle (+ (/ pi 2) pi)
-                        :end-angle (/ pi 2)
-                        :filled nil
-                        :line-thickness line-thickness)
-          (draw-rectangle* stream 0 0 10 10 :ink +green+)
-          (draw-rectangle* stream 3 3 13 13 :ink +red+)
-          (draw-rectangle* stream 34 44 247 256 :ink +pink+)
-          (draw-polygon* stream '(10 200 50 120 120 200) :ink +blue+)
-          (let ((design
-                 (mcclim-bezier:make-bezier-area*
-                  (list 34 44 34 128 147 44 247 256 34 128 50 50 34 44))))
-            (mcclim-bezier:draw-bezier-design* stream design
-                                               :line-thickness 8
-                                               :ink +sea-green+))
-          (let ((design (mcclim-bezier:make-bezier-curve*
-                         (list 20 150 20 80 90 110 90 170 90 220 140 210 140 140))))
-            (mcclim-bezier:draw-bezier-design* stream design
-                                               :line-thickness 16
-                                               :ink +orange+)))))))
-
-(define-drawing-test "Bezier" "Test 5" (frame stream)
-    "Some more complicated bezier design drawings."
-  (declare (ignore frame))
-  (formatting-table (stream :x-spacing 20 :y-spacing 20)
-    (formatting-row (stream)
-      (formatting-cell (stream :min-height 80)
-        (declare (ignore stream))))
-    (formatting-row (stream)
-      (formatting-cell (stream :align-x :left
-                               :align-y :top)
-        (loop for i from 0 to 300 by 10
-           do (draw-line* stream i 0 i 300 :line-thickness 2 :ink +black+)
-              (draw-line* stream 0 i 300 i :line-thickness 2 :ink +black+))
-        (draw-rectangle* stream 100 100 200 200 :ink +blue+)
-        (draw-text* stream "Bogus" 200 200
-                    :text-style (make-text-style :sans-serif :roman :normal))
-        (draw-rectangle* stream 200 200 210 210)
-        (let ((design
-               (mcclim-bezier:make-bezier-curve*
-                (mapcar (lambda (x) (+ x 10))
-                        (list 100 100 20 80 90 110 90 170 90 220 140 210 140 140)))))
-          (mcclim-bezier:draw-bezier-design* stream design
-                                             :line-thickness 16
-                                             :ink +green+))
-        (draw-line* stream 110 110 150 150 :line-thickness 2 :ink +green+)
-        (let ((design
-               (mcclim-bezier:make-bezier-curve*
-                (list 100 100 20 80 90 110 90 170 90 220 140 210 140 140))))
-          (mcclim-bezier:draw-bezier-design* stream design
-                                             :line-thickness 16
-                                             :ink +orange+))
-        (let* ((coords (mcclim-bezier:relative-to-absolute-coord-seq
-                        (list 200 200 0 -50 80 -50 100 -20)))
-               (c1 (mcclim-bezier:make-bezier-curve* coords)))
-          (mcclim-bezier:draw-bezier-design* stream c1 :line-thickness 5 :ink +blue+)
-          (destructuring-bind (arrow-y arrow-x &rest args)
-              (reverse coords)
-            (declare (ignore args))
-            (draw-arrow* stream arrow-x arrow-y arrow-x arrow-y)))
-        (let ((design
-               (mcclim-bezier:make-bezier-curve*
-                (mapcar (lambda (x) (+ x 25))
-                        (list 100 100 20 80 90 110 90 170 90 220 140 210 140 140)))))
-          (mcclim-bezier:draw-bezier-design* stream design
-                                             :line-thickness 16
-                                             :ink +pink+))))))
+  (let ((r (clime::make-polybezier* '(20 150 20 80 90 110 90 170 90 220 140 210 140 140))))
+    (draw-design stream r :line-thickness 12 :ink +orange+)))
 
 (define-drawing-test "Bezier" "Difference" (frame stream)
     "Draws a single bezier difference"
   (declare (ignore frame))
-  (let* ((r1 (mcclim-bezier:make-bezier-area*
-              '(100 100 200 200 300 200 400 100 300 50 200 50 100 100)))
-         (r2 (mcclim-bezier:make-bezier-area*
-              '(150 100 200 120 300 150 350 100 300 80 200 80 150 100)))
-         (r3 (mcclim-bezier:region-difference r1 r2)))
-    (mcclim-bezier:draw-bezier-design* stream r3)))
+  (let* ((r1 (clime:make-bezigon* '(100 100 200 200 300 200 400 100 300 50 200 50 100 100)))
+         (r2 (clime:make-bezigon* '(150 100 200 120 300 150 350 100 300 80 200 80 150 100)))
+         (r3 (region-difference r1 r2)))
+    (draw-design stream r3)))

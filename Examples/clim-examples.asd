@@ -8,7 +8,6 @@
                "mcclim"
                "mcclim-layouts/tab"
                "mcclim-raster-image"
-               "mcclim-bezier"
                "mcclim-svg")
   :components ((:file "package")
                (:file "text-size-util")
