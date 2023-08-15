@@ -28,5 +28,4 @@ experimentation. Present features include:
                (:file "asdf")
                (:file "dev-commands")
                (:file "wholine")
-               (:file "listener")
-               (:file "cmu-hacks" :if-feature :cmu)))
+               (:file "listener")))
