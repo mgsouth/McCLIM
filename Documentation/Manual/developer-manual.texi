@@ -3,6 +3,7 @@
 
 @menu
 * Coding conventions::
+* Pointer cursors::
 * Writing backends::
 * PostScript backend::
 @end menu
@@ -40,6 +41,43 @@ a separate system named @code{clim-examples}.  Each example should be
 put either directly in the package @code{clim-demo} or live in its own
 package the name of which should be start with @code{clim-demo.}, for
 instance @code{clim-demo.foobar-example}.
+
+@node Pointer cursors
+@section Pointer cursors
+
+@clim specifies the protocol to set the pointer cursor but does not
+specify what are its valid values.
+
+@mcclim specifies an obligaory set of system cursors designated by a
+symbol. They are listed in the table below.
+
+Backends may implement other valid cursor values. Backends are also
+encouraged to support designs of the class @code{image-pattern}.
+
+@table @code
+@item :default
+Normal cursor (i.e an arrow).
+@item :prompt
+The element underneath the cursor is editable (i.e an i-beam).
+@item :button
+The element underneath the cursor is actionable (i.e a hand).
+@item :busy
+Cursor signaling that the application is busy (i.e a hourglass).
+@item :not-allowed
+Cursor signaling that the action is not allowed.
+@item :position
+Precise cursor for selecting a point (i.e a crosshair).
+@item :move
+The element underneath the cursor is being moved (i.e four arrows).
+@item :arrow-we
+The element underneath the cursor may be dragged horizontally.
+@item :arrow-ns
+The element underneath the cursor may be dragged vertically.
+@item :grab
+The element underneath the cursor is being grabbed (i.e a clenched hand).
+@item :help
+The element underneath the cursor is inspectable (i.e a question mark).
+@end table
 
 @node Writing backends
 @section Writing backends
