@@ -45,14 +45,16 @@
   (let ((window (clim-clx::realize-mirror-aux port sheet
                                               :map nil
                                               :width (bounding-rectangle-width sheet)
-                                              :height (bounding-rectangle-height sheet))))
+                                              :height (bounding-rectangle-height sheet)))
+        (pname (clime:sheet-pretty-name sheet))
+        (uname (clime:sheet-name sheet)))
     (setf (xlib:wm-hints window) (xlib:make-wm-hints :input :on))
-    (setf (xlib:wm-name window) (clime:sheet-pretty-name sheet))
-    (setf (xlib:wm-icon-name window) (clime:sheet-pretty-name sheet))
+    (setf (xlib:wm-name window) pname)
+    (setf (xlib:wm-icon-name window) pname)
     (xlib:set-wm-class
      window
-     (string-downcase (clime:sheet-name sheet))
-     (string-capitalize (string-downcase (clime:sheet-name sheet))))
+     (string-downcase uname)
+     (string-capitalize (string-downcase uname)))
     (setf (xlib:wm-protocols window) `(:wm_delete_window))
     (xlib:change-property window
                           :WM_CLIENT_LEADER (list (xlib:window-id window))
