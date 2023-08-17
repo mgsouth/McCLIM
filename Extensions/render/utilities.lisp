@@ -206,19 +206,21 @@ top-left. Useful when we iterate over the same array and mutate its state."
 (defmacro with-brushes ((mask) &body body)
   (let ((designs '(color opacity climi::uniform-compositum
                    standard-flipping-ink climi::%rgba-pattern otherwise)))
-    `(locally
-         (declare (optimize (speed 3) (safety 0)))
-       (maxf x1 0)
-       (maxf y1 0)
-       (minf x2 (array-dimension image-array 1))
-       (minf y2 (array-dimension image-array 0))
-       (typecase design
-         (bounded-region
-          (with-bounding-rectangle* (a b c d) design
-            (maxf x1 a) (maxf y1 b)
-            (minf x2 c) (minf y2 d)))
-         (indirect-ink
-          (setf design (indirect-ink-ink design))))
+    `(locally (declare (optimize (speed 3) (safety 0)))
+       (loop while (indirect-ink-p design)
+             do (setf design (indirect-ink-ink design)))
+       (let ((max-x (array-dimension image-array 1))
+             (max-y (array-dimension image-array 0)))
+         (clampf x1 0 max-x)
+         (clampf y1 0 max-y)
+         (clampf x2 0 max-x)
+         (clampf y2 0 max-y)
+         (when (typep design 'bounded-region)
+           (with-bounding-rectangle* (a b c d) design
+             (clampf x1 a max-x)
+             (clampf y1 b max-y)
+             (clampf x2 0 c)
+             (clampf y2 0 d))))
        (when (region-contains-region-p clipping-region (make-rectangle* x1 y1 x2 y2))
          (setf clipping-region nil))
        (setf x1 (floor x1)
