@@ -77,11 +77,12 @@
       ;; Start a new thread to run the event loop, if necessary.
       (let ((*application-frame* frame))
         (stream-set-input-focus (encapsulating-stream-stream frame)))
-      #+clim-mp
-      (unless input-buffer
-        (redisplay-frame-panes frame :force-p t)
-        (clim-sys:make-process (lambda () (let ((*application-frame* frame))
-                                            (standalone-event-loop)))))
+      (when *multiprocessing-p*
+        (unless input-buffer
+          (redisplay-frame-panes frame :force-p t)
+          (clim-sys:make-process (lambda ()
+                                   (let ((*application-frame* frame))
+                                     (standalone-event-loop))))))
       (encapsulating-stream-stream frame))))
 
 (defun standalone-event-loop ()

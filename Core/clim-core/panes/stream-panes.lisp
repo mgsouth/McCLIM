@@ -37,7 +37,6 @@
 (defclass clim-stream-pane (text-selection-mixin
                             updating-output-stream-mixin
                             pane-display-mixin
-                            #-clim-mp standard-repainting-mixin
                             standard-output-recording-stream
                             standard-extended-input-stream
                             standard-extended-output-stream
