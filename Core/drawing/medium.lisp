@@ -338,20 +338,6 @@
        (declare (dynamic-extent (function ,cont)))
        (invoke-with-output-buffered ,medium (function ,cont) ,buffer-p))))
 
-(defmethod invoke-with-output-buffered
-    ((medium basic-medium) continuation &optional (buffered-p t))
-  (let ((buffering-output-p (medium-buffering-output-p medium)))
-    ;; When the buffering state changes, then we ensure that all output is
-    ;; synchronized before and after invoking the continuation.
-    ;; MEDIUM-FINISH-OUTPUT may behave differently when buffering output.
-    (if (alexandria:xor buffered-p buffering-output-p)
-        (progn
-          (medium-finish-output medium)
-          (letf (((medium-buffering-output-p medium) buffered-p))
-            (multiple-value-prog1 (funcall continuation)
-              (medium-finish-output medium))))
-        (funcall continuation))))
-
 ;;; Default method.
 (defmethod invoke-with-output-buffered
     (sheet continuation &optional (buffered-p t))

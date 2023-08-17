@@ -54,6 +54,20 @@
     (setf (buffering-p drawable) new-value)
     (call-next-method)))
 
+(defmethod invoke-with-output-buffered
+    ((medium clx-medium) continuation &optional (buffered-p t))
+  (let ((buffering-output-p (medium-buffering-output-p medium)))
+    ;; When the buffering state changes, then we ensure that all output is
+    ;; synchronized before and after invoking the continuation.
+    ;; MEDIUM-FINISH-OUTPUT may behave differently when buffering output.
+    (if (alexandria:xor buffered-p buffering-output-p)
+        (progn
+          (medium-finish-output medium)
+          (climi::letf (((medium-buffering-output-p medium) buffered-p))
+            (multiple-value-prog1 (funcall continuation)
+              (medium-finish-output medium))))
+        (funcall continuation))))
+
 ;;; Other Medium-specific Output Functions
 
 (defmethod medium-finish-output ((medium clx-medium))
