@@ -144,6 +144,9 @@
     (destroy-process (port-event-process port))
     (setf (port-event-process port) nil)))
 
+(defmethod graft ((port basic-port))
+  (first (port-grafts port)))
+
 
 ;;; Mirrors
 

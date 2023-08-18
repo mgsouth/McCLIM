@@ -126,6 +126,3 @@
          (mirror (make-instance 'clx-window :mirror root :sheet graft)))
     (setf (sheet-direct-mirror graft) mirror)
     graft))
-
-(defmethod graft ((port clx-basic-port))
-  (first (port-grafts port)))
