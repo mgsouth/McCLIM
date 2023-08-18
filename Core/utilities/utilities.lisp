@@ -651,6 +651,9 @@ be forms containing FORM."
                   macros))))
     `(macrolet ,macros (let* ,(nreverse binds) ,@body))))
 
+(defun required-argument (name)
+  (error "The argument ~s is missing." name))
+
 ;;;
 ;;; pretty printing
 ;;;
