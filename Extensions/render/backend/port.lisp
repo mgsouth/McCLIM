@@ -27,3 +27,10 @@
 (defmethod destroy-mirror ((port render-port-mixin) (sheet mirrored-sheet-mixin))
   (let ((mirror (sheet-direct-mirror sheet)))
     (setf (image-mirror-image mirror) nil)))
+
+(defmethod distribute-event :before
+    ((port render-port-mixin) (event window-configuration-event))
+  (when-let ((mirror (sheet-direct-mirror (event-sheet event))))
+    (let ((region (window-event-native-region event)))
+      (with-image-locked (mirror)
+        (mcclim-render::%set-image-region mirror region)))))

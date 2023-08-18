@@ -70,12 +70,3 @@
 (defmethod port-force-output ((port clx-fb-port))
   (map nil #'%mirror-force-output (all-mirrors port))
   (xlib:display-force-output (clx-port-display port)))
-
-(defmethod distribute-event :before
-    ((port clx-fb-port) (event window-configuration-event))
-  (with-bounding-rectangle* (:width width :height height)
-      (window-event-native-region event)
-    (when-let ((mirror (sheet-direct-mirror (event-sheet event))))
-      (with-image-locked (mirror)
-        (mcclim-render::%set-image-region
-         mirror (make-bounding-rectangle 0 0 width height))))))
