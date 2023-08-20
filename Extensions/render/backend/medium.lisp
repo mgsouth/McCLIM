@@ -104,6 +104,8 @@
                                            radius-2-dx radius-2-dy
                                            :start-angle start-angle
                                            :end-angle end-angle)))
+  (when (region-equal el +nowhere+)
+    (return-from medium-draw-ellipse*))
   (multiple-value-bind (cx cy hx hy theta)
       (climi::ellipse-simplified-representation el)
     (declare (ignorable cx cy))
