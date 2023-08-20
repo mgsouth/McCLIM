@@ -162,8 +162,31 @@
   (check-gesture-name name)
   (gethash name *gesture-names*))
 
+;; To calculate the pointer documentation only the pointer button events are
+;; necessary. It's necessary to cache them for performances. The cache is
+;; cleared everytime a new gesture is added or removed.
+;; -- admich 2023-08-21
+
+(defvar *gesture-for-pointer-documetation-cache* (make-hash-table))
+
+(defun gestures-for-pointer-documentation (gesture-name)
+  (check-gesture-name gesture-name)
+  (labels ((gestures-for-pointer-documentation-1 (gesture)
+             (typecase gesture
+               (symbol
+                (gestures-for-pointer-documentation-1 (find-gesture gesture)))
+               ((cons pointer-button-gesture-type)
+                (list gesture))
+               ((cons cons)
+                (mappend #'gestures-for-pointer-documentation-1 gesture))
+               ((cons (eql :indirect))
+                (gestures-for-pointer-documentation-1 (find-gesture (second gesture)))))))
+    (ensure-gethash gesture-name *gesture-for-pointer-documetation-cache*
+      (gestures-for-pointer-documentation-1 gesture-name))))
+
 (defun add-gesture-name (name type gesture-spec &key unique)
   (check-gesture-name name)
+  (clrhash *gesture-for-pointer-documetation-cache*)
   (let ((gesture-entry (multiple-value-list
                         (normalize-physical-gesture type gesture-spec))))
     (if unique
@@ -172,6 +195,7 @@
 
 (defun delete-gesture-name (name)
   (check-gesture-name name)
+  (clrhash *gesture-for-pointer-documetation-cache*)
   (remhash name *gesture-names*))
 
 ;;; Extension: GESTURE-SPEC can be an atom which is treated like a device name
