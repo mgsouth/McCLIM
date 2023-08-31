@@ -124,7 +124,7 @@ sheet by minimizing it.
 the following protocol:
 
 @include docstrings/fun-clim-extensions-shrink-sheet.texi
-@include docstrings/fun-clim-backend-port-shrink-sheet.texi
+@include docstrings/fun-clim-backend-shrink-mirror.texi
 
 @node Frame command table change
 @section Frame command table change

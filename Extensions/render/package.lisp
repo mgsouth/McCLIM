@@ -46,7 +46,7 @@
                 #:standard-color
                 #:standard-flipping-ink)
   (:import-from #:clim-backend
-                #:port-set-mirror-geometry
+                #:set-mirror-geometry
                 #:medium-native-transformation
                 #:medium-device-transformation
                 #:medium-native-region

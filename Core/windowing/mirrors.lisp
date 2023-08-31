@@ -131,7 +131,7 @@ infinite recursion on (setf sheet-*).")
               ;; however we can't always set its exact location and region (the
               ;; window manager may i.e add decorations or ignore our request -
               ;; like a tiling window manager). -- jd 2020-11-30
-              (port-set-mirror-geometry (port sheet) sheet region)))
+              (set-mirror-geometry (port sheet) sheet region)))
     geometry))
 
 (defmethod update-mirror-geometry ((sheet mirrored-sheet-mixin))
@@ -157,7 +157,7 @@ infinite recursion on (setf sheet-*).")
             (sheet-mirror-geometry msheet)
           (clip msheet (make-rectangle* 0 0 w h))))
       ;; %set-mirror-geometry will return the mirror region with coordinates
-      ;; rounded according to the port-set-mirror-geometry policy.
+      ;; rounded according to the set-mirror-geometry policy.
       (let ((mirror-region (%set-mirror-geometry sheet mirrored-region)))
         (when (region-equal mirrored-region +nowhere+)
           (with-slots (native-transformation device-transformation) sheet

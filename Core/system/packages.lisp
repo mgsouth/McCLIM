@@ -2040,16 +2040,22 @@
    ;; CLIM-INTERNALS
    #:find-port-type
    #:make-graft
-   #:port-disable-sheet
-   #:port-enable-sheet
-   #:port-shrink-sheet
+   ;; window managament
+   #:realize-mirror
+   #:destroy-mirror
+   #:enable-mirror
+   #:disable-mirror
+   #:shrink-mirror
+   #:raise-mirror
+   #:bury-mirror
+   #:set-mirror-name
+   #:set-mirror-icon
+   #:set-mirror-geometry
+   ;; ~
    #:port-force-output
    #:port-grab-pointer
    #:port-ungrab-pointer
    #:with-pointer-grabbed
-   #:port-set-mirror-name
-   #:port-set-mirror-icon
-   #:port-set-mirror-geometry
    #:queue-callback
    #:set-sheet-pointer-cursor
    #:synthesize-pointer-motion-event
@@ -2080,7 +2086,6 @@
    ;; From CLIM (mentioned in the spec)
    #:adopt-frame
    #:allocate-space
-   #:destroy-mirror
    #:destroy-port
    #:graft
    #:graftp
@@ -2111,7 +2116,6 @@
    #:note-space-requirements-changed
    #:pointer-button-state
    #:pointer-position
-   #:realize-mirror
    #:text-size
    #:text-style-ascent
    #:text-style-descent

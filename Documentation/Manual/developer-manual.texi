@@ -218,12 +218,13 @@ PORT (BRIDGE) TO GUI (A SERVER LIKE)
 destroy-port
 
 ;;; Originally in CLIM-INTERNALS
-port-disable-sheet
-port-enable-sheet
+enable-mirror
+disable-mirror
+set-mirror-name
+set-mirror-icon
+set-mirror-geometry
 port-force-output
-port-set-mirror-geometry
 set-sheet-pointer-cursor
-port-set-mirror-name
 @end verbatim
 
 @node Frame manager

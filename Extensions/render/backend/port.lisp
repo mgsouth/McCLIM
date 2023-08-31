@@ -7,7 +7,7 @@
 
 ;;; change geometry
 
-(defmethod port-set-mirror-geometry :after
+(defmethod set-mirror-geometry :after
     ((port render-port-mixin) (sheet mirrored-sheet-mixin) region)
   (when-let ((mirror (sheet-direct-mirror sheet)))
     (with-image-locked (mirror)

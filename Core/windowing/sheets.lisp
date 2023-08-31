@@ -686,14 +686,14 @@ this might be different from the sheet's native region and transformation.")))
 (defmethod (setf sheet-enabled-p) :after
     (new-value (sheet mirrored-sheet-mixin))
   (if new-value
-      (port-enable-sheet (port sheet) sheet)
-      (port-disable-sheet (port sheet) sheet)))
+      (enable-mirror (port sheet) sheet)
+      (disable-mirror (port sheet) sheet)))
 
 (defmethod (setf sheet-pretty-name) :after (new-name (sheet mirrored-sheet-mixin))
-  (port-set-mirror-name (port sheet) sheet new-name))
+  (set-mirror-name (port sheet) sheet new-name))
 
 (defmethod (setf sheet-icon) :after (new-value (sheet mirrored-sheet-mixin))
-  (port-set-mirror-icon (port sheet) sheet new-value))
+  (set-mirror-icon (port sheet) sheet new-value))
 
 (defmethod invalidate-cached-transformations ((sheet mirrored-sheet-mixin))
   (with-slots (native-transformation device-transformation) sheet
@@ -746,7 +746,7 @@ this might be different from the sheet's native region and transformation.")))
       (get-top-level-sheet (sheet-parent sheet))))
 
 (defmethod shrink-sheet ((sheet top-level-sheet-mixin))
-  (port-shrink-sheet (port sheet) sheet))
+  (shrink-mirror (port sheet) sheet))
 
 ;;; Unmanaged sheet is not managed by the window manager.
 (defclass unmanaged-sheet-mixin () ())

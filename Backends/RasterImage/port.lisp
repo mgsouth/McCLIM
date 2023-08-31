@@ -52,6 +52,6 @@
 
 ;;; mirror
 
-(defmethod port-set-mirror-geometry ((port raster-image-port) sheet region)
+(defmethod set-mirror-geometry ((port raster-image-port) sheet region)
   (declare (ignore port sheet))
   (bounding-rectangle* region))

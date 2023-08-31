@@ -69,7 +69,7 @@
                         (babel:string-to-octets icon-name :encoding :utf-8)
                         :UTF8_STRING 8))
 
-(defmethod port-set-mirror-name
+(defmethod set-mirror-name
     ((port clx-basic-port) (sheet mirrored-sheet-mixin) name)
   (when-let ((mirror (sheet-direct-mirror sheet)))
     (let ((window (window mirror)))
@@ -110,12 +110,12 @@
       (mapc #'pack-icon icons))
     (xlib:change-property window :_NET_WM_ICON bytes :cardinal 32)))
 
-(defmethod port-set-mirror-icon
+(defmethod set-mirror-icon
     ((port clx-basic-port) (sheet mirrored-sheet-mixin) icon)
   (when-let ((mirror (sheet-direct-mirror sheet)))
     (%mirror-install-icons (window mirror) icon)))
 
-(defmethod port-set-mirror-geometry
+(defmethod set-mirror-geometry
     ((port clx-basic-port) (sheet mirrored-sheet-mixin) region)
   (when-let ((mirror (sheet-direct-mirror sheet)))
     (with-bounding-rectangle* (x1 y1 x2 y2 :width w :height h) region
@@ -149,17 +149,17 @@
     (setf (xlib:window-priority (window mirror)) :below)
     (xlib:display-force-output (clx-port-display port))))
 
-(defmethod port-enable-sheet ((port clx-basic-port) (sheet mirrored-sheet-mixin))
+(defmethod enable-mirror ((port clx-basic-port) (sheet mirrored-sheet-mixin))
   (when-let ((mirror (sheet-direct-mirror sheet)))
     (xlib:map-window (window mirror))
     (xlib:display-force-output (clx-port-display port))))
 
-(defmethod port-disable-sheet ((port clx-basic-port) (sheet mirrored-sheet-mixin))
+(defmethod disable-mirror ((port clx-basic-port) (sheet mirrored-sheet-mixin))
   (when-let ((mirror (sheet-direct-mirror sheet)))
     (xlib:unmap-window (window mirror))
     (xlib:display-force-output (clx-port-display port))))
 
-(defmethod port-shrink-sheet ((port clx-basic-port) (sheet mirrored-sheet-mixin))
+(defmethod shrink-mirror ((port clx-basic-port) (sheet mirrored-sheet-mixin))
   ;; Not all x11 window-managers iconify windows (in particular many
   ;; tiling window-managers). In those window managers, after the call
   ;; of shrink-frame McClim think that the frame is iconified but it

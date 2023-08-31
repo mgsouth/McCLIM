@@ -1,0 +1,5 @@
+@anchor{Generic-Function clim-backend:shrink-mirror}
+@deffn {Generic Function} {@symbol{shrink-mirror,clim-backend}} port sheet
+Calling this method on a port and on a mirrored sheet should minimize
+the window associated with the sheet.
+@end deffn
