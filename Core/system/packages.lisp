@@ -2046,6 +2046,7 @@
    #:enable-mirror
    #:disable-mirror
    #:shrink-mirror
+   #:unshrink-mirror
    #:raise-mirror
    #:bury-mirror
    #:set-mirror-name
