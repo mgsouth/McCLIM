@@ -485,7 +485,7 @@
     graft))
 
 (defmethod map-over-grafts (function (port basic-port))
-  (mapc function (port-grafts port)))
+  (map nil function (port-grafts port)))
 
 (defun find-graft (&key (port nil)
                      (server-path *default-server-path*)
