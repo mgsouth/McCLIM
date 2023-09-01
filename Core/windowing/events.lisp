@@ -52,10 +52,14 @@
 
 (defclass standard-event (event)
   ((timestamp :initarg :timestamp :reader event-timestamp)
+   ;; This slot represents the source of the event. It is optional. In pointer
+   ;; events it is collapsed into the slot containing the pointer.
+   (source :initarg :source :reader event-source)
    ;; This slot is pretty much required in order to call handle-event. Some
    ;; events have something other than a sheet in this slot, which is gross.
    (sheet :initarg :sheet :reader event-sheet))
   (:default-initargs :timestamp nil
+                     :source nil
                      :sheet (alexandria:required-argument :sheet)))
 
 (defmethod initialize-instance :after ((event standard-event) &rest initargs)
@@ -96,6 +100,7 @@
 ;;;
 ;;; * (X Y) - native coordinates (the mirror)
 ;;; * (SHEET-X SHEET-Y) - sheet coordinates
+;;;
 (define-event-class device-event (standard-event)
   ((modifier-state :initarg :modifier-state :reader event-modifier-state)
    (x :initarg :x :reader device-event-native-x)
@@ -159,8 +164,7 @@
   ())
 
 (define-event-class pointer-event (device-event)
-  ((pointer :initarg :pointer
-            :reader pointer-event-pointer)
+  ((source :initarg :pointer :reader pointer-event-pointer)
    (sheet-x :reader pointer-event-x)
    (sheet-y :reader pointer-event-y)
    (x :reader pointer-event-native-x)
@@ -255,10 +259,17 @@
 ;;; Constants dealing with events
 (defconstant +pointer-no-button+     #x00)
 
+;;; Standard
 (defconstant +pointer-left-button+   #x01)
 (defconstant +pointer-middle-button+ #x02)
 (defconstant +pointer-right-button+  #x04)
+;;; Extension
 (defconstant +pointer-wheel-up+      #x08)
 (defconstant +pointer-wheel-down+    #x10)
 (defconstant +pointer-wheel-left+    #x20)
 (defconstant +pointer-wheel-right+   #x40)
+;;; Not exported
+(defconstant +pointer-extra-1+      #x080)
+(defconstant +pointer-extra-2+      #x100)
+(defconstant +pointer-extra-3+      #x200)
+(defconstant +pointer-extra-4+      #x400)

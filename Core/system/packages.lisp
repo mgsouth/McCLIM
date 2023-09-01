@@ -2060,11 +2060,14 @@
    #:queue-callback
    #:set-sheet-pointer-cursor
    #:synthesize-pointer-motion-event
+   ;; Events
    #:window-manager-focus-event
    #:window-manager-iconify-event
    #:window-manager-deiconify-event
    #:window-map-event
    #:window-unmap-event
+   #:pointer-scroll-event
+   ;; ~
    #:with-port
    #:invoke-with-port
    #:find-concrete-pane-class
