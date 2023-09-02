@@ -19,15 +19,17 @@ symbol)."
   (with-output-recording-options (stream :draw t :record nil)
     (let ((ox nil) (oy nil))           ; So we can erase the old line.
       (labels ((end (x y)
-                 (when ox (funcall drawer ox oy :draw))
+                 (with-output-buffered (stream nil)
+                   (when ox (funcall drawer ox oy :erase)))
                  (return-from dragging-drawing
                    (values x y))))
         (tracking-pointer (stream :pointer pointer
                                   :multiple-window multiple-window)
           (:pointer-motion (x y)
-            (when ox (funcall drawer ox oy :erase))
-            (funcall drawer x y :draw)
-            (setf ox x oy y))
+            (with-output-buffered (stream nil)
+              (when ox (funcall drawer ox oy :erase))
+              (funcall drawer x y :draw)
+              (setf ox x oy y)))
           (:pointer-button-press (x y)
             (end x y))
           (:pointer-button-release (x y)
