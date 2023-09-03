@@ -66,15 +66,20 @@ or none at all")
                                  (setf start-y y)
                                  (return)))))
   (assert (and (>= start-x 0) (>= start-y 0)))
-  (labels ((draw (x y state)
-             (declare (ignore state))
-             (with-drawing-options (stream :ink +flipping-ink+)
-               (draw-line* stream start-x start-y x y))))
+  (let (output-record)
+    (labels ((draw (x y state)
+               (ecase state
+                 (:erase (when output-record
+                           (erase-output-record output-record stream nil)))
+                 (:draw (setf output-record
+                              (with-output-recording-options (stream :draw t :record t)
+                                (with-new-output-record (stream)
+                                  (draw-line* stream start-x start-y x y))))))))
     (multiple-value-call #'values
       (values start-x start-y)
       (dragging-drawing stream #'draw :finish-on-release finish-on-release
                                       :pointer pointer :multiple-window multiple-window
-                                      :draw-on-exit draw-on-exit))))
+                                      :draw-on-exit draw-on-exit)))))
 
 ;; The CLIM 2.2 spec is slightly unclear about how the next two
 ;; functions are supposed to behave, especially wrt. the user
@@ -125,13 +130,18 @@ finishes the rectangle will be recorded and visible on the `stream' otherwise no
                                (setf top y)
                                (return)))))
   (multiple-value-bind (x y)
-      (labels ((draw (x y state)
-                 (declare (ignore state))
-                 (with-drawing-options (stream :ink +flipping-ink+)
-                   (draw-rectangle* stream left top x y :filled nil))))
-        (dragging-drawing stream #'draw :finish-on-release finish-on-release
+      (let (output-record)
+        (labels ((draw (x y state)
+                   (ecase state
+                     (:erase (when output-record
+                           (erase-output-record output-record stream nil)))
+                     (:draw (setf output-record
+                              (with-output-recording-options (stream :draw t :record t)
+                                (with-new-output-record (stream)
+                                  (draw-rectangle* stream left top x y :filled nil))))))))
+          (dragging-drawing stream #'draw :finish-on-release finish-on-release
                                         :pointer pointer :multiple-window multiple-window
-                                        :draw-on-exit draw-on-exit))
+                                        :draw-on-exit draw-on-exit)))
     ;; Normalise so that x1 < x2 ^ y1 < y2.
     (values (min left x) (min top y)
             (max left x) (max top y))))
