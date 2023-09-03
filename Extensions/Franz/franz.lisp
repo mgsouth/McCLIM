@@ -2,32 +2,36 @@
 
 (defun dragging-drawing (stream drawer &key (finish-on-release t)
                          (pointer (port-pointer (port stream)))
-                         multiple-window)
+                         multiple-window draw-on-exit)
   "Draws something simple in response to pointer events for
-`pointer' and returns the coordinates of the pointer when the
-function finishes. The function finishes when mouse button one is
-no longer held down if `finish-on-release' is true; if it is
-false, it finishes when the mouse is clicked. `Drawer' should
-draw something on `stream', and is called with tree arguments:
-two integers, the X and the Y coordinates for the pointer motion
-triggering the draw, and either the symbol `:draw' or `:erase'
-signalling what the function should do. `Drawer' will be called
-with the previously used coordinates whenever pointer motion
-occurs, so it can erase the previous output (elegantly done by
-using `+flipping-ink+' for drawing and ignoring the state
-symbol)."
+`pointer' and returns the coordinates of the pointer when the function
+finishes. The function finishes when mouse button one is no longer held down if
+`finish-on-release' is true; if it is false, it finishes when the mouse is
+clicked. `drawer' should draw something on `stream', and is called with tree
+arguments: two integers, the X and the Y coordinates for the pointer motion
+triggering the draw, and either the symbol `:draw' or `:erase' signalling what
+the function should do. `drawer' will be called with the previously used
+coordinates whenever pointer motion occurs, so it can erase the previous
+output (elegantly done by using `+flipping-ink+' for drawing and ignoring the
+state symbol). If `draw-on-exit' is true the last drawing will be recorded and
+visible on the `stream' otherwise no."
   (with-output-recording-options (stream :draw t :record nil)
     (let ((ox nil) (oy nil))           ; So we can erase the old line.
       (labels ((end (x y)
-                 (when ox (funcall drawer ox oy :draw))
+                 (with-output-buffered (stream nil)
+                   (when ox (funcall drawer ox oy :erase)
+                         (when draw-on-exit
+                           (with-output-recording-options (stream :draw t :record t)
+                             (funcall drawer x y :draw)))))
                  (return-from dragging-drawing
                    (values x y))))
         (tracking-pointer (stream :pointer pointer
                                   :multiple-window multiple-window)
           (:pointer-motion (x y)
-            (when ox (funcall drawer ox oy :erase))
-            (funcall drawer x y :draw)
-            (setf ox x oy y))
+            (with-output-buffered (stream nil)
+              (when ox (funcall drawer ox oy :erase))
+              (funcall drawer x y :draw)
+              (setf ox x oy y)))
           (:pointer-button-press (x y)
             (end x y))
           (:pointer-button-release (x y)
@@ -37,18 +41,18 @@ symbol)."
 (defun clime:pointer-place-rubber-band-line* (&key (stream *standard-output*)
                                         (pointer (port-pointer (port stream)))
                                         multiple-window start-x start-y
-                                        (finish-on-release t))
+                                        (finish-on-release t) draw-on-exit)
   "Let the user drag a line on `stream', returning the
-coordinates of the line ends as four values. `Pointer' is the
-pointer that will be tracked (the default should be used unless
-the port has multiple pointing devices), `multiple-window' is
-currently unimplemented and `start-x'/`start-y', if provided (and
-both or none must be provided) are the coordinates for one end of
-the line. If these arguments are not provided, the user will have
-to press a mouse button to specify the beginning of the line. If
-`finish-on-release' is true, the function will end when the user
-releases the mouse button. If false, the user will have to click
-to finish inputting the line."
+coordinates of the line ends as four values. `Pointer' is the pointer that will
+be tracked (the default should be used unless the port has multiple pointing
+devices), `multiple-window' is currently unimplemented and `start-x'/`start-y',
+if provided (and both or none must be provided) are the coordinates for one end
+of the line. If these arguments are not provided, the user will have to press a
+mouse button to specify the beginning of the line. If `finish-on-release' is
+true, the function will end when the user releases the mouse button. If false,
+the user will have to click to finish inputting the line. If `draw-on-exit' is
+true when the function finishes the line will be recorded and visible on the
+`stream' otherwise no."
   (assert (not (eq (not (not start-x)) (not start-y))) nil
           "You must provide either both `:start-x' and `:start-y'
 or none at all")
@@ -62,14 +66,20 @@ or none at all")
                                  (setf start-y y)
                                  (return)))))
   (assert (and (>= start-x 0) (>= start-y 0)))
-  (labels ((draw (x y state)
-             (declare (ignore state))
-             (with-drawing-options (stream :ink +flipping-ink+)
-               (draw-line* stream start-x start-y x y))))
+  (let (output-record)
+    (labels ((draw (x y state)
+               (ecase state
+                 (:erase (when output-record
+                           (erase-output-record output-record stream nil)))
+                 (:draw (setf output-record
+                              (with-output-recording-options (stream :draw t :record t)
+                                (with-new-output-record (stream)
+                                  (draw-line* stream start-x start-y x y))))))))
     (multiple-value-call #'values
       (values start-x start-y)
       (dragging-drawing stream #'draw :finish-on-release finish-on-release
-                        :pointer pointer :multiple-window multiple-window))))
+                                      :pointer pointer :multiple-window multiple-window
+                                      :draw-on-exit draw-on-exit)))))
 
 ;; The CLIM 2.2 spec is slightly unclear about how the next two
 ;; functions are supposed to behave, especially wrt. the user
@@ -90,22 +100,20 @@ or none at all")
 (defun clime:pointer-input-rectangle* (&key (stream *standard-output*)
                                  (pointer (port-pointer (port stream)))
                                  multiple-window left top right bottom
-                                 (finish-on-release t))
+                                 (finish-on-release t) draw-on-exit)
   "Let the user drag a rectangle on `stream' and return four
-values, the coordinates of the rectangle. `Pointer' is the
-pointer that will be tracked (the default should be used unless
-the port has multiple pointing devices), `multiple-window' is
-currently unimplemented and both `left'/`top' and
-`right'/`bottom' specify an initial position for a rectangle
-corner. You must provide either both parts of any of these two
-coordinate pairs or none at all. If you provide both `left'/`top'
-and `right'/`bottom', the `left'/`top' values will be used,
-otherwise, the non-nil set will be used. If neither is specified,
-the user will be able to specify the origin corner of the
-rectangle by clicking the mouse. If `finish-on-release' is true,
-the function will end when the user releases the mouse button. If
-false, the user will have to click to finish inputting the
-rectangle."
+values, the coordinates of the rectangle. `Pointer' is the pointer that will be
+tracked (the default should be used unless the port has multiple pointing
+devices), `multiple-window' is currently unimplemented and both `left'/`top' and
+`right'/`bottom' specify an initial position for a rectangle corner. You must
+provide either both parts of any of these two coordinate pairs or none at
+all. If you provide both `left'/`top' and `right'/`bottom', the `left'/`top'
+values will be used, otherwise, the non-nil set will be used. If neither is
+specified, the user will be able to specify the origin corner of the rectangle
+by clicking the mouse. If `finish-on-release' is true, the function will end
+when the user releases the mouse button. If false, the user will have to click
+to finish inputting the rectangle. If `draw-on-exit' is true when the function
+finishes the rectangle will be recorded and visible on the `stream' otherwise no."
   (assert (not (eq (not (not top)) (not left))) nil
           "You must provide either none or both of `:top' and `:left'")
   (assert (not (eq (not (not right)) (not bottom))) nil
@@ -122,12 +130,18 @@ rectangle."
                                (setf top y)
                                (return)))))
   (multiple-value-bind (x y)
-      (labels ((draw (x y state)
-                 (declare (ignore state))
-                 (with-drawing-options (stream :ink +flipping-ink+)
-                   (draw-rectangle* stream left top x y :filled nil))))
-        (dragging-drawing stream #'draw :finish-on-release finish-on-release
-                          :pointer pointer :multiple-window multiple-window))
+      (let (output-record)
+        (labels ((draw (x y state)
+                   (ecase state
+                     (:erase (when output-record
+                           (erase-output-record output-record stream nil)))
+                     (:draw (setf output-record
+                              (with-output-recording-options (stream :draw t :record t)
+                                (with-new-output-record (stream)
+                                  (draw-rectangle* stream left top x y :filled nil))))))))
+          (dragging-drawing stream #'draw :finish-on-release finish-on-release
+                                        :pointer pointer :multiple-window multiple-window
+                                        :draw-on-exit draw-on-exit)))
     ;; Normalise so that x1 < x2 ^ y1 < y2.
     (values (min left x) (min top y)
             (max left x) (max top y))))
@@ -135,7 +149,7 @@ rectangle."
 (defun clime:pointer-input-rectangle (&rest args &key (stream *standard-output*)
                                 (pointer (port-pointer (port stream)))
                                 multiple-window rectangle
-                                (finish-on-release t))
+                                (finish-on-release t) draw-on-exit)
   "Like `pointer-input-rectangle*', but returns a bounding
 rectangle instead of coordinates."
   (declare (ignore pointer multiple-window rectangle finish-on-release))
