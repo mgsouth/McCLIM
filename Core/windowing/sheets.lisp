@@ -61,7 +61,6 @@
                           :initform nil
                           :accessor %sheet-native-transformation)
    (native-region :type (or null region)
-                  :initarg :native-region
                   :initform nil
                   :accessor %sheet-native-region)
    (device-transformation :type (or null transformation)
@@ -640,15 +639,14 @@
 ;;; We assume the following limitations of the host window systems:
 ;;;
 ;;;  mirror transformations:
-;;;   . can only be translations
-;;;   . are limited to 16-bit signed integer deltas
+;;;   - can only be translations
 ;;;
 ;;;  mirror regions:
 ;;;   . can only be axis-aligend rectangles
 ;;;   . min-x = min-y = 0
-;;;   . max-x, max-y < 2^16
 ;;;
-;;; These are the limitations of the X Window System.
+;;; The host system may impose further limitations that are enforced in the
+;;; appropriate method specialized to the function SET-MIRROR-GEOMETRY.
 
 (defclass mirrored-sheet-mixin ()
   ((port
@@ -658,10 +656,6 @@
    (mirror
     :initform nil
     :accessor sheet-direct-mirror)
-   (native-transformation
-    :initform +identity-transformation+)
-   (native-region
-    :initform +nowhere+)
    (mirror-geometry
     :initform (make-bounding-rectangle -5 -5 1 1)
     :accessor sheet-mirror-geometry

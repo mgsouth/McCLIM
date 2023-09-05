@@ -118,7 +118,7 @@
 infinite recursion on (setf sheet-*).")
 
 ;;; This mirror is invisible because it doesn't intersect its parent's mirror.
-(defconstant +nowhere-mirror+ (make-rectangle* -5 -5 -4 -4))
+(defconstant +nowhere-mirror+ (make-bounding-rectangle -5 -5 -4 -4))
 
 (defun %set-mirror-geometry (sheet region)
   (when (region-equal region +nowhere+)
@@ -127,10 +127,11 @@ infinite recursion on (setf sheet-*).")
     (setf (rectangle-edges* geometry)
           (if (eql *configuration-event-p* sheet)
               (bounding-rectangle* region)
-              ;; TOP-LEVEL-SHEET-MIXIN is a sheet representing the window,
-              ;; however we can't always set its exact location and region (the
-              ;; window manager may i.e add decorations or ignore our request -
-              ;; like a tiling window manager). -- jd 2020-11-30
+              ;; We may propose the mirror dimensions but it is not guaranteed
+              ;; that the host window system will accept them - coordinates may
+              ;; be rounded or truncated to fill the host limitations, or a
+              ;; tiling window manager may force us back in the last position.
+              ;; -- jd 2023-09-05
               (set-mirror-geometry (port sheet) sheet region)))
     geometry))
 
