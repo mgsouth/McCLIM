@@ -60,9 +60,7 @@
   (with-sheet-medium (medium stream)
     (medium-finish-output medium)))
 
-(defmethod initialize-instance :after
-    ((stream standard-extended-output-stream) &rest initargs)
-  (declare (ignore initargs))
+(defmethod note-sheet-grafted :after ((stream standard-extended-output-stream))
   (multiple-value-bind (x-start y-start)
       (stream-cursor-initial-position stream)
     (setf (stream-text-cursor stream)
