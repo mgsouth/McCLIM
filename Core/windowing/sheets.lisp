@@ -491,7 +491,12 @@
     (bury-mirror (port sheet) sheet)))
 
 (defmethod graft ((sheet sheet-parent-mixin))
-  (and (sheet-parent sheet) (graft (sheet-parent sheet))))
+  (when-let ((parent (sheet-parent sheet)))
+    (graft (sheet-parent sheet))))
+
+(defmethod port ((sheet sheet-parent-mixin))
+  (when-let ((mirror (sheet-mirrored-ancestor sheet)))
+    (port mirror)))
 
 ;;; Computes the topmost sheet. When the sheet is grafted then it will be a
 ;;; graft - otherwise its oldest ancestor.

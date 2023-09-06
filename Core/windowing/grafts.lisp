@@ -26,9 +26,8 @@
   graft)
 
 (defmethod sheet-grafted-p ((sheet basic-sheet))
-  (if (sheet-parent sheet)
-      (sheet-grafted-p (sheet-parent sheet))
-      nil))
+  (when-let ((parent (sheet-parent sheet)))
+    (sheet-grafted-p parent)))
 
 (defmethod sheet-grafted-p ((graft graft))
   t)
