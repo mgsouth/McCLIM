@@ -205,7 +205,7 @@
                            (list 0.20 0.08 0.80 0.30)
                            (list 0.20 0.09 0.60 0.20)))))
 
-(defmethod note-sheet-grafted ((sheet radar-pane))
+(defmethod note-sheet-grafted :after ((sheet radar-pane))
   (clime:schedule-event sheet (make-instance 'timer-event :sheet sheet) 0.1))
 
 (defmethod handle-event ((pane radar-pane) (event timer-event))

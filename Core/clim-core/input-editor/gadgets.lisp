@@ -98,12 +98,11 @@
             (setf sheet gadget width 2 height ht)
             (setf (cursor-visibility cursor) editable)))))))
 
-(defmethod initialize-instance :after ((gadget text-editing-gadget) &key value)
-  (setf (gadget-value gadget :invoke-callback t) value)
+(defmethod note-sheet-grafted :after ((gadget text-editing-gadget))
   (fix-cursors gadget))
 
-(defmethod reinitialize-instance :after ((gadget text-editing-gadget) &key)
-  (fix-cursors gadget))
+(defmethod initialize-instance :after ((gadget text-editing-gadget) &key value)
+  (setf (gadget-value gadget :invoke-callback t) value))
 
 (defmethod (setf editable-p) :after (new-value (object text-editing-gadget))
   (setf (cursor-visibility (edit-cursor object)) new-value))

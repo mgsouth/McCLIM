@@ -567,11 +567,13 @@
 
 (defmethod engraft-medium ((medium basic-medium) port sheet)
   (declare (ignore port))
-  (setf (%medium-sheet medium) sheet))
+  (setf (%medium-sheet medium) sheet)
+  (setf (port medium) port))
 
 (defmethod degraft-medium ((medium basic-medium) port sheet)
   (declare (ignore port sheet))
-  (setf (%medium-sheet medium) nil))
+  (setf (%medium-sheet medium) nil)
+  (setf (port medium) nil))
 
 (defmethod allocate-medium ((port port) sheet)
   (make-medium port sheet))

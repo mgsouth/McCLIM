@@ -912,6 +912,9 @@ and button states of the pointer."))
 (defgeneric note-sheet-enabled (sheet))
 (defgeneric note-sheet-disabled (sheet))
 
+(defgeneric note-sheet-grafted-internal (port sheet))
+(defgeneric note-sheet-degrafted-internal (port sheet))
+
 ;;; 8.5.2 Sheet Geometry Notifications
 (defgeneric note-sheet-region-changed (sheet))
 (defgeneric note-sheet-transformation-changed (sheet))

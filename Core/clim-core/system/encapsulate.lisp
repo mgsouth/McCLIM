@@ -216,7 +216,14 @@
 (def-stream-method repaint-sheet ((stream standard-encapsulating-stream)
                                   region))
 
-(def-stream-method note-sheet-grafted ((stream standard-encapsulating-stream)))
+(def-stream-method note-sheet-grafted-internal
+    (port (stream standard-encapsulating-stream)))
+
+(def-stream-method note-sheet-degrafted-internal
+    (port (stream standard-encapsulating-stream)))
+
+(def-stream-method note-sheet-grafted
+    ((stream standard-encapsulating-stream)))
 
 (def-stream-method note-sheet-degrafted
     ((stream standard-encapsulating-stream)))

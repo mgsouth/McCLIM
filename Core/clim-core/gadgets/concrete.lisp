@@ -1650,7 +1650,7 @@ it in a layout between two panes that are to be resizeable.  E.g.:
        (make-space-requirement :min-height major-size :height major-size :max-height major-size
                                :min-width minor-size :width minor-size)))))
 
-(defmethod note-sheet-grafted ((sheet box-adjuster-gadget))
+(defmethod note-sheet-grafted :after ((sheet box-adjuster-gadget))
   (setf (sheet-pointer-cursor sheet) :move))
 
 (defmethod handle-event ((gadget box-adjuster-gadget)

@@ -90,7 +90,8 @@
 (defmethod sheet-adopt-child :after ((sheet basic-sheet) (child sheet))
   (note-sheet-adopted child)
   (when (sheet-grafted-p sheet)
-    (note-sheet-grafted child)))
+    (map-over-sheets (curry #'note-sheet-grafted-internal (port sheet)) child)
+    (map-over-sheets #'note-sheet-grafted child)))
 
 (defmethod sheet-disown-child :before
     ((sheet basic-sheet) (child sheet) &key (errorp t))
@@ -102,7 +103,8 @@
   (declare (ignore errorp))
   (note-sheet-disowned child)
   (when (sheet-grafted-p sheet)
-    (note-sheet-degrafted child)))
+    (map-over-sheets (curry #'note-sheet-degrafted-internal (port sheet)) child)
+    (map-over-sheets #'note-sheet-degrafted child)))
 
 (defmethod sheet-siblings ((sheet basic-sheet))
   (when (not (sheet-parent sheet))
@@ -328,11 +330,21 @@
 (defmethod graft ((sheet basic-sheet))
   nil)
 
+(defmethod note-sheet-grafted-internal (port (sheet basic-sheet))
+  (declare (ignorable sheet))
+  nil)
+
+(defmethod note-sheet-degrafted-internal (port (sheet basic-sheet))
+  (declare (ignorable sheet))
+  nil)
+
 (defmethod note-sheet-grafted ((sheet basic-sheet))
-  (mapc #'note-sheet-grafted (sheet-children sheet)))
+  (declare (ignorable sheet))
+  nil)
 
 (defmethod note-sheet-degrafted ((sheet basic-sheet))
-  (mapc #'note-sheet-degrafted (sheet-children sheet)))
+  (declare (ignorable sheet))
+  nil)
 
 (defmethod note-sheet-adopted ((sheet basic-sheet))
   (declare (ignorable sheet))
@@ -496,7 +508,7 @@
 
 (defmethod port ((sheet sheet-parent-mixin))
   (when-let ((mirror (sheet-mirrored-ancestor sheet)))
-    (port mirror)))
+    (slot-value mirror 'port)))
 
 ;;; Computes the topmost sheet. When the sheet is grafted then it will be a
 ;;; graft - otherwise its oldest ancestor.
@@ -670,13 +682,17 @@ this might be different from the sheet's native region and transformation.")))
 (defmethod sheet-mirror ((sheet mirrored-sheet-mixin))
   (sheet-direct-mirror sheet))
 
-(defmethod note-sheet-grafted :before ((sheet mirrored-sheet-mixin))
-  (unless (port sheet)
-    (error "~S called on sheet ~S, which has no port?!" 'note-sheet-grafted sheet))
-  (realize-mirror (port sheet) sheet))
+(defmethod realize-mirror :before (port (sheet mirrored-sheet-mixin))
+  (setf (port sheet) port))
 
-(defmethod note-sheet-degrafted :after ((sheet mirrored-sheet-mixin))
-  (destroy-mirror (port sheet) sheet))
+(defmethod destroy-mirror :after (port (sheet mirrored-sheet-mixin))
+  (setf (port sheet) nil))
+
+(defmethod note-sheet-grafted-internal :after (port (sheet mirrored-sheet-mixin))
+  (realize-mirror port sheet))
+
+(defmethod note-sheet-degrafted-internal :after (port (sheet mirrored-sheet-mixin))
+  (destroy-mirror port sheet))
 
 (defmethod (setf sheet-enabled-p) :after
     (new-value (sheet mirrored-sheet-mixin))
