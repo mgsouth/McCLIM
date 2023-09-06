@@ -63,10 +63,7 @@
   (clim-clx::realize-mirror-aux port sheet :override-redirect :on :map nil))
 
 (defmethod make-medium ((port clx-fb-port) sheet)
-  (make-instance 'clx-fb-medium
-                 :port port
-                 ;; :graft (find-graft :port port)
-                 :sheet sheet))
+  (make-instance 'clx-fb-medium :sheet sheet :port port))
 
 (defmethod port-force-output ((port clx-fb-port))
   (map nil #'%mirror-force-output (all-mirrors port))

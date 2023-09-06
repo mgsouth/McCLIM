@@ -318,16 +318,12 @@
   nil)
 
 (defmethod sheet-mirrored-ancestor ((sheet basic-sheet))
-  (let ((parent (sheet-parent sheet)))
-    (if (null parent)
-        nil
-        (sheet-mirrored-ancestor parent))))
+  (when-let ((parent (sheet-parent sheet)))
+    (sheet-mirrored-ancestor parent)))
 
 (defmethod sheet-mirror ((sheet basic-sheet))
-  (let ((mirrored-ancestor (sheet-mirrored-ancestor sheet)))
-    (if (null mirrored-ancestor)
-        nil
-        (sheet-direct-mirror mirrored-ancestor))))
+  (when-let ((mirrored-ancestor (sheet-mirrored-ancestor sheet)))
+    (sheet-direct-mirror mirrored-ancestor)))
 
 (defmethod graft ((sheet basic-sheet))
   nil)

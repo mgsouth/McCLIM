@@ -577,12 +577,13 @@
   (make-medium port sheet))
 
 (defmethod make-medium ((port port) sheet)
-  (make-instance 'basic-medium :sheet sheet :port port))
+  (make-instance 'basic-medium :port port :sheet sheet))
 
 (defmethod deallocate-medium ((port port) medium)
   (declare (ignorable port medium))
   nil)
 
 (defmethod graft ((medium basic-medium))
-  (and (medium-sheet medium)
-       (graft (medium-sheet medium))))
+  (when-let ((sheet (medium-sheet medium)))
+    (graft sheet)))
+

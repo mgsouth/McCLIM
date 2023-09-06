@@ -782,8 +782,7 @@ frames and will not have focus.
                                &allow-other-keys)
   (declare (ignorable frame-class))
   (let ((frame (unless (eq create :force)
-                 (block
-                     found-frame
+                 (block found-frame
                    (map-over-frames
                     #'(lambda (frame)
                         (when (eq (frame-name frame) frame-name)

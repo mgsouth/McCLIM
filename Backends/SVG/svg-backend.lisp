@@ -91,7 +91,7 @@
   ())
 
 (defmethod make-medium ((port svg-port) sheet)
-  (make-instance 'svg-medium :stream sheet :port port))
+  (make-instance 'svg-medium :port port :stream sheet))
 
 (defmethod medium-drawable ((medium svg-medium))
   (if (medium-sheet medium)
