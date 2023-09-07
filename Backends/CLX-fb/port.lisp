@@ -38,7 +38,8 @@
           (mirror-gcontext mirror) nil)
     (remf (xlib:window-plist window) 'sheet)
     (alexandria:deletef (all-mirrors port) mirror)
-    (xlib:destroy-window window)))
+    (xlib:destroy-window window)
+    (xlib:display-force-output (clx-port-display port))))
 
 (defmethod clim-clx::%realize-mirror ((port clx-fb-port) (sheet top-level-sheet-mixin))
   (let ((window (clim-clx::realize-mirror-aux port sheet

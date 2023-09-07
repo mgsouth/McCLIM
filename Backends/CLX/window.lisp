@@ -137,7 +137,8 @@
       (xlib:destroy-window window)
       (xlib:display-force-output (clx-port-display port)))
     (when-let ((pixmap (pixmap mirror)))
-      (deallocate-pixmap pixmap))))
+      (deallocate-pixmap pixmap))
+    (xlib:display-force-output (clx-port-display port))))
 
 (defmethod raise-mirror ((port clx-basic-port) (sheet basic-sheet))
   (when-let ((mirror (sheet-mirror sheet)))
