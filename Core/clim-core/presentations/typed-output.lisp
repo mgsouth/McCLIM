@@ -198,12 +198,13 @@
 ;;; Internal function to highlight just one presentation
 
 (defun highlight-presentation-1 (presentation stream state)
-  (with-output-recording-options (stream :record nil)
-    (funcall-presentation-generic-function highlight-presentation
-                                           (presentation-type presentation)
-                                           presentation
-                                           stream
-                                           state)))
+  (when (sheet-grafted-p stream)
+    (with-output-recording-options (stream :record nil)
+      (funcall-presentation-generic-function highlight-presentation
+                                             (presentation-type presentation)
+                                             presentation
+                                             stream
+                                             state))))
 
 (defmethod highlight-output-record-tree (record stream state)
   (declare (ignore record stream state))

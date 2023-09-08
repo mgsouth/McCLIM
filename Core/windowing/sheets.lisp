@@ -40,6 +40,7 @@
 (define-condition sheet-is-not-ancestor (error) ())
 (define-condition sheet-already-has-parent (error) ())
 (define-condition sheet-is-ancestor (error) ())
+(define-condition sheet-is-not-grafted (error) ())
 
 (define-condition sheet-supports-only-one-child (error)
   ((sheet :initarg :sheet)))
