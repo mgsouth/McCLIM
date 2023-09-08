@@ -434,8 +434,8 @@
 (declfun draw-text* (sheet text x y &rest drawing-options &key (start 0) (end nil) (align-x :left) (align-y :baseline) (toward-x (1+ x)) (toward-y y) transform-glyphs &allow-other-keys))
 (declfun draw-triangle (sheet point1 point2 point3 &rest drawing-options &key (filled t) &allow-other-keys))
 (declfun draw-triangle* (sheet x1 y1 x2 y2 x3 y3 &rest drawing-options &key (filled t) &allow-other-keys))
-(declfun draw-bezigon (sheet point-seq &rest drawing-args &key (filled t) &allow-other-keys))
-(declfun draw-bezigon* (sheet position-seq &rest drawing-args &key (filled t) &allow-other-keys))
+(declfun draw-bezigon (sheet point-seq &rest drawing-args &key (filled t) (closed t) &allow-other-keys))
+(declfun draw-bezigon* (sheet position-seq &rest drawing-args &key (filled t) (closed t) &allow-other-keys))
 (declfun draw-image (sheet pattern point &rest drawing-options))
 (declfun draw-image* (sheet pattern x y &rest drawing-options))
 
