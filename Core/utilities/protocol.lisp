@@ -876,6 +876,7 @@ and button states of the pointer."))
 ;;; 8.3.4 Associating a Medium with a Sheet
 (pledge :macro with-sheet-medium ((medium sheet) &body body))
 (pledge :macro with-sheet-medium-bound ((medium sheet) &body body))
+(defgeneric invoke-with-sheet-medium (cont sheet))
 (defgeneric invoke-with-sheet-medium-bound (cont medium sheet))
 (defgeneric sheet-medium (instance))
 

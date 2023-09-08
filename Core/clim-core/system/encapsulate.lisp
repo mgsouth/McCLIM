@@ -204,6 +204,9 @@
 
 (def-stream-method sheet-medium ((stream standard-encapsulating-stream)))
 
+(def-stream-method invoke-with-sheet-medium
+    (continuation (stream standard-encapsulating-stream)))
+
 (def-stream-method invoke-with-sheet-medium-bound
     (continuation medium (stream standard-encapsulating-stream)))
 
