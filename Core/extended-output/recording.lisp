@@ -2102,7 +2102,6 @@ according to the flags RECORD and DRAW."
   (declare (ignore record))
   (error "Not implemented."))
 
-
 (defclass clipping-output-record (standard-tree-output-record)
   ((clipping-region :initarg :clipping-region :type region
                     :accessor graphics-state-clip)))

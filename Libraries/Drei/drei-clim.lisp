@@ -176,7 +176,8 @@ command loop completely."))
        (plusp (displayed-lines-count view))))
 
 (defmethod (setf view) :after (new-val (drei drei-pane))
-  (window-clear drei))
+  (when (sheet-grafted-p drei)
+    (window-clear drei)))
 
 (defmethod (setf cursors) :around (new-cursors (drei drei-pane))
   (let ((old-cursors (cursors drei)))

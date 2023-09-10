@@ -38,21 +38,21 @@
           (mirror-gcontext mirror) nil)
     (remf (xlib:window-plist window) 'sheet)
     (alexandria:deletef (all-mirrors port) mirror)
-    (xlib:destroy-window window)))
+    (xlib:destroy-window window)
+    (xlib:display-force-output (clx-port-display port))))
 
 (defmethod clim-clx::%realize-mirror ((port clx-fb-port) (sheet top-level-sheet-mixin))
-  (let ((frame (pane-frame sheet))
-        (window (clim-clx::realize-mirror-aux port sheet
+  (let ((window (clim-clx::realize-mirror-aux port sheet
                                               :map nil
                                               :width (bounding-rectangle-width sheet)
                                               :height (bounding-rectangle-height sheet))))
     (setf (xlib:wm-hints window) (xlib:make-wm-hints :input :on))
-    (setf (xlib:wm-name window) (frame-pretty-name frame))
-    (setf (xlib:wm-icon-name window) (frame-pretty-name frame))
+    (setf (xlib:wm-name window) (clime:sheet-pretty-name sheet))
+    (setf (xlib:wm-icon-name window) (clime:sheet-pretty-name sheet))
     (xlib:set-wm-class
      window
-     (string-downcase (frame-name frame))
-     (string-capitalize (string-downcase (frame-name frame))))
+     (string-downcase (clime:sheet-name sheet))
+     (string-capitalize (string-downcase (clime:sheet-name sheet))))
     (setf (xlib:wm-protocols window) `(:wm_delete_window))
     (xlib:change-property window
                           :WM_CLIENT_LEADER (list (xlib:window-id window))
@@ -63,10 +63,7 @@
   (clim-clx::realize-mirror-aux port sheet :override-redirect :on :map nil))
 
 (defmethod make-medium ((port clx-fb-port) sheet)
-  (make-instance 'clx-fb-medium
-                 :port port
-                 ;; :graft (find-graft :port port)
-                 :sheet sheet))
+  (make-instance 'clx-fb-medium :sheet sheet :port port))
 
 (defmethod port-force-output ((port clx-fb-port))
   (map nil #'%mirror-force-output (all-mirrors port))

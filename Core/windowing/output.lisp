@@ -61,62 +61,75 @@
 (defclass permanent-medium-sheet-output-mixin (sheet-with-medium-mixin)
   ())
 
-(defmethod initialize-instance :after
-    ((sheet permanent-medium-sheet-output-mixin) &key port)
-  ;; hmm,
-  (setf (%sheet-medium sheet) (make-medium port sheet))
-  ;; hmm...
-  (engraft-medium (sheet-medium sheet) (port sheet) sheet))
+(defmethod note-sheet-grafted-internal :after (port (sheet permanent-medium-sheet-output-mixin))
+  (let ((medium (make-medium port sheet)))
+    (setf (%sheet-medium sheet) medium)
+    (engraft-medium medium port sheet)))
+
+(defmethod note-sheet-degrafted-internal :after (port (sheet permanent-medium-sheet-output-mixin))
+  (let ((medium (sheet-medium sheet)))
+    (setf (%sheet-medium sheet) nil)
+    (degraft-medium medium port sheet)
+    (deallocate-medium port medium)))
 
 (defmacro with-sheet-medium ((medium sheet) &body body)
   (check-type medium symbol)
   (let ((fn (gensym)))
     `(labels ((,fn (,medium)
                 ,(declare-ignorable-form* medium)
-               ,@body))
-      (declare (dynamic-extent #',fn))
-      (invoke-with-sheet-medium-bound #',fn nil ,sheet))))
+                ,@body))
+       (declare (dynamic-extent (function ,fn)))
+       (invoke-with-sheet-medium (function ,fn) ,sheet))))
 
-(defmacro with-sheet-medium-bound ((sheet medium) &body body)
-  (check-type medium symbol)
-  (let ((fn (gensym)))
-    `(labels ((,fn  (,medium)
-                ,(declare-ignorable-form* medium)
-               ,@body))
-      (declare (dynamic-extent #',fn))
-      (invoke-with-sheet-medium-bound #',fn ,medium ,sheet))))
-
-(defmethod invoke-with-sheet-medium-bound (continuation medium sheet)
-  (declare (ignore sheet))
-  (funcall continuation medium))
-
-(defmethod invoke-with-sheet-medium-bound
-    (continuation medium (sheet permanent-medium-sheet-output-mixin))
-  (declare (ignore medium))
-  (funcall continuation (sheet-medium sheet)))
-
-(defmethod invoke-with-sheet-medium-bound
-    (continuation medium (sheet temporary-medium-sheet-output-mixin))
+(defmethod invoke-with-sheet-medium
+    (continuation (sheet sheet-with-medium-mixin))
   (if-let ((sheet-medium (sheet-medium sheet)))
     (funcall continuation sheet-medium)
-    (let ((port (port sheet)))
-      (if (null medium)
-          (let ((new-medium (allocate-medium port sheet)))
-            (unwind-protect
-                 (progn
-                   (engraft-medium new-medium port sheet)
-                   (setf (%sheet-medium sheet) new-medium)
-                   (funcall continuation new-medium))
-              (setf (%sheet-medium sheet) nil)
-              (degraft-medium new-medium port sheet)
-              (deallocate-medium port new-medium)))
-          (unwind-protect
-               (progn
-                 (engraft-medium medium port sheet)
-                 (setf (%sheet-medium sheet) medium)
-                 (funcall continuation medium))
-            (setf (%sheet-medium sheet) nil)
-            (degraft-medium medium port sheet))))))
+    (let* ((port (port sheet))
+           (new-medium (allocate-medium port sheet)))
+      (unwind-protect
+           (progn
+             (engraft-medium new-medium port sheet)
+             (setf (%sheet-medium sheet) new-medium)
+             (funcall continuation new-medium))
+        (setf (%sheet-medium sheet) nil)
+        (degraft-medium new-medium port sheet)
+        (deallocate-medium port new-medium)))))
+
+;;; The purpose of this macro is not clearly spelled out in the specification.
+;;; This macro is necessary when we want to use a medium before the sheet is
+;;; fully grafted. For example we may want to call COMPOSE-SPACE in MAKE-PANE
+;;; to determine the viewport size in the scroller pane. -- jd 2023-09-08
+;;;
+;;; The specification is not clear whether the medium argument must be a
+;;; symbol or not. We are taking a DWIM approach and when it is not a symbol
+;;; then we provide a gensym variable and evalute body as is.
+(defmacro with-sheet-medium-bound ((sheet medium) &body body)
+  (let ((fn (gensym))
+        (medium-var (if (symbolp medium) medium (gensym))))
+    (once-only (sheet)
+      `(labels ((,fn (,medium-var)
+                  ,(declare-ignorable-form* medium-var)
+                  ,@body))
+         (declare (dynamic-extent (function ,fn)))
+         (if-let ((,medium-var (sheet-medium ,sheet)))
+           (,fn ,medium-var)
+           (invoke-with-sheet-medium-bound (function ,fn) ,medium ,sheet))))))
+
+(defmethod invoke-with-sheet-medium-bound
+    (continuation medium (sheet sheet-with-medium-mixin))
+  (cond ((sheet-medium sheet)
+         (funcall continuation (sheet-medium sheet)))
+        ((null medium)
+         (with-sheet-medium (medium sheet)
+           (funcall continuation medium)))
+        ((mediump medium)
+         (setf (%sheet-medium sheet) medium)
+         (engraft-medium medium (port medium) sheet)
+         (unwind-protect (funcall continuation medium)
+           (setf (%sheet-medium sheet) nil)
+           (degraft-medium medium (port medium) sheet)))
+        (t (error "~s is not a medium." medium))))
 
 (defmethod do-graphics-with-options ((sheet sheet) func &rest options)
   (with-sheet-medium (medium sheet)

@@ -98,12 +98,11 @@
             (setf sheet gadget width 2 height ht)
             (setf (cursor-visibility cursor) editable)))))))
 
-(defmethod initialize-instance :after ((gadget text-editing-gadget) &key value)
-  (setf (gadget-value gadget :invoke-callback t) value)
+(defmethod note-sheet-grafted :after ((gadget text-editing-gadget))
   (fix-cursors gadget))
 
-(defmethod reinitialize-instance :after ((gadget text-editing-gadget) &key)
-  (fix-cursors gadget))
+(defmethod initialize-instance :after ((gadget text-editing-gadget) &key value)
+  (setf (gadget-value gadget :invoke-callback t) value))
 
 (defmethod (setf editable-p) :after (new-value (object text-editing-gadget))
   (setf (cursor-visibility (edit-cursor object)) new-value))
@@ -231,23 +230,24 @@
                      :allow-line-breaks nil
                      :activation-gestures *standard-activation-gestures*))
 
-(defun wrap-text-field-pane (pane)
-  (let ((space (compose-space pane)))
-    (wrap-clim-pane pane nil :scroll-bars
-                    `(nil :width ,(space-requirement-min-width space)
-                          :height ,(space-requirement-min-height space)))))
+(defun wrap-text-gadget-pane (realizer pane)
+  (with-sheet-medium-bound (pane (allocate-medium (port realizer) pane))
+    (let ((space (compose-space pane)))
+      (wrap-clim-pane pane nil :scroll-bars
+                      `(nil :width ,(space-requirement-min-width space)
+                            :height ,(space-requirement-min-height space))))))
 
 (defmethod make-pane-1 :around
     (realizer frame (type (eql :text-field)) &rest initargs)
   (declare (ignore initargs))
   (let ((pane (call-next-method)))
     (if (typep pane 'text-field-pane)
-        (wrap-text-field-pane pane)
+        (wrap-text-gadget-pane realizer pane)
         pane)))
 
 (defmethod reinitialize-pane ((pane text-field-pane) &rest initargs)
   (apply #'reinitialize-instance pane initargs)
-  (wrap-text-field-pane pane))
+  (wrap-text-gadget-pane (pane-frame pane) pane))
 
 (defclass text-editor-pane (text-editing-gadget)
   ()
@@ -256,20 +256,14 @@
                      ;; :end-of-line-action :wrap*
    ))
 
-(defun wrap-text-editor-pane (pane)
-  (let ((space (compose-space pane)))
-    (wrap-clim-pane pane nil :scroll-bars
-                    `(nil :width ,(space-requirement-min-width space)
-                          :height ,(space-requirement-min-height space)))))
-
 (defmethod make-pane-1 :around
     (realizer frame (class (eql :text-editor)) &rest initargs)
   (declare (ignore initargs))
   (let ((pane (call-next-method)))
     (if (typep pane 'text-editor-pane)
-        (wrap-text-editor-pane pane)
+        (wrap-text-gadget-pane realizer pane)
         pane)))
 
 (defmethod reinitialize-pane ((pane text-editor-pane) &rest initargs)
   (apply #'reinitialize-instance pane initargs)
-  (wrap-text-editor-pane pane))
+  (wrap-text-gadget-pane (pane-frame pane) pane))

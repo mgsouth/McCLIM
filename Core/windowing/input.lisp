@@ -457,10 +457,7 @@ use condition-variables nor locks."))
   ((queue :initform #+clim-mp (make-instance 'concurrent-event-queue)
                     #-clim-mp (make-instance 'simple-event-queue)
           :reader sheet-event-queue
-          :initarg :event-queue)
-   (port :initform nil
-         :initarg :port
-         :reader port)))
+          :initarg :event-queue)))
 
 (defmethod dispatch-event ((sheet standard-sheet-input-mixin) event)
   (queue-event sheet event))

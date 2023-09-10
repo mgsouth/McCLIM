@@ -67,9 +67,8 @@
 
 (defmethod make-graft
     ((port null-port) &key (orientation :default) (units :device))
-  (make-instance 'null-graft
-                 :port port :mirror (gensym)
-                 :orientation orientation :units units))
+  (make-instance 'null-graft :port port :mirror t
+                             :orientation orientation :units units))
 
 (defmethod make-medium ((port null-port) sheet)
   (make-instance 'null-medium :port port :sheet sheet))
@@ -87,7 +86,7 @@
   nil)
 
 (defmethod graft ((port null-port))
-  (first (climi::port-grafts port)))
+  (map-over-grafts (lambda (g) (return-from graft g)) port))
 
 (defmethod port-modifier-state ((port null-port))
   nil)

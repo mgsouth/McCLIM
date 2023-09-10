@@ -1349,29 +1349,30 @@ if INVOKE-CALLBACK is given."))
                           :test (list-pane-test parent)
                           (and (slot-boundp parent 'value)
                                (list :value (gadget-value parent))))))
-    (multiple-value-bind (scroll-p position height)
-        (popup-compute-height parent list-pane)
-      (with-bounding-rectangle* (cx0 cy0 cx1 cy1) parent
-        (multiple-value-bind (x0 y0 x1 y1)
-            (multiple-value-call #'values
-              (transform-position (sheet-delta-transformation parent nil) cx0 cy0)
-              (transform-position (sheet-delta-transformation parent nil) cx1 cy1))
-          (let* ((topmost-pane (if scroll-p
-                                   (let ((w (bounding-rectangle-width list-pane)))
-                                     (scrolling (:scroll-bar :vertical
-                                                 :height height
-                                                 :width w)
-                                       list-pane))
-                                   list-pane))
-                 (topmost-pane    (outlining (:thickness 1) topmost-pane))
-                 (composed-height (space-requirement-height (compose-space topmost-pane :width (- x1 x0) :height height)))
-                 (menu-frame      (make-menu-frame topmost-pane
-                                                   :min-width (bounding-rectangle-width parent)
-                                                   :left x0
-                                                   :top (if (eq position :below)
-                                                            y1
-                                                            (- y0 composed-height 1)))))
-            (values list-pane topmost-pane menu-frame)))))))
+    (with-sheet-medium-bound (list-pane (allocate-medium (port manager) parent))
+      (multiple-value-bind (scroll-p position height)
+          (popup-compute-height parent list-pane)
+        (with-bounding-rectangle* (cx0 cy0 cx1 cy1) parent
+          (multiple-value-bind (x0 y0 x1 y1)
+              (multiple-value-call #'values
+                (transform-position (sheet-delta-transformation parent nil) cx0 cy0)
+                (transform-position (sheet-delta-transformation parent nil) cx1 cy1))
+            (let* ((topmost-pane (if scroll-p
+                                     (let ((w (bounding-rectangle-width list-pane)))
+                                       (scrolling (:scroll-bar :vertical
+                                                   :height height
+                                                   :width w)
+                                         list-pane))
+                                     list-pane))
+                   (topmost-pane    (outlining (:thickness 1) topmost-pane))
+                   (composed-height (space-requirement-height (compose-space topmost-pane :width (- x1 x0) :height height)))
+                   (menu-frame      (make-menu-frame topmost-pane
+                                                     :min-width (bounding-rectangle-width parent)
+                                                     :left x0
+                                                     :top (if (eq position :below)
+                                                              y1
+                                                              (- y0 composed-height 1)))))
+              (values list-pane topmost-pane menu-frame))))))))
 
 (defun popup-list-box (parent)
   (let* ((frame *application-frame*)
@@ -1586,13 +1587,17 @@ if INVOKE-CALLBACK is given."))
   (multiple-value-bind (x y) (stream-cursor-position stream)
     (flet ((invoke-with-output-as-gadget-continuation (stream record)
              (setf (gadget record) (funcall cont stream))))
-      (let ((gadget-record
-              (apply #'invoke-with-output-to-output-record
-                     stream #'invoke-with-output-as-gadget-continuation
-                     'gadget-output-record (append options (list :x x :y y)))))
-        (setup-gadget-record stream gadget-record)
+      (let* ((gadget-record
+               (apply #'invoke-with-output-to-output-record
+                      stream #'invoke-with-output-as-gadget-continuation
+                      'gadget-output-record (append options (list :x x :y y))))
+             (pane (gadget gadget-record)))
+        ;; We need to bind the medium here because SETUP-GADGET-RECORD calls
+        ;; COMOPSE-SPACE while pane may not be grafted yet. -- jd 2023-09-08
+        (with-sheet-medium-bound (pane (allocate-medium (port stream) stream))
+          (setup-gadget-record stream gadget-record))
         (stream-add-output-record stream gadget-record)
-        (values (gadget gadget-record) gadget-record)))))
+        (values pane gadget-record)))))
 
 (defmacro with-output-as-gadget ((stream &rest options) &body body)
   (with-stream-designator (stream '*standard-output*)
@@ -1650,7 +1655,7 @@ it in a layout between two panes that are to be resizeable.  E.g.:
        (make-space-requirement :min-height major-size :height major-size :max-height major-size
                                :min-width minor-size :width minor-size)))))
 
-(defmethod note-sheet-grafted ((sheet box-adjuster-gadget))
+(defmethod note-sheet-grafted :after ((sheet box-adjuster-gadget))
   (setf (sheet-pointer-cursor sheet) :move))
 
 (defmethod handle-event ((gadget box-adjuster-gadget)

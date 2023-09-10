@@ -40,6 +40,7 @@
 (define-condition sheet-is-not-ancestor (error) ())
 (define-condition sheet-already-has-parent (error) ())
 (define-condition sheet-is-ancestor (error) ())
+(define-condition sheet-is-not-grafted (error) ())
 
 (define-condition sheet-supports-only-one-child (error)
   ((sheet :initarg :sheet)))
@@ -90,7 +91,8 @@
 (defmethod sheet-adopt-child :after ((sheet basic-sheet) (child sheet))
   (note-sheet-adopted child)
   (when (sheet-grafted-p sheet)
-    (note-sheet-grafted child)))
+    (map-over-sheets (curry #'note-sheet-grafted-internal (port sheet)) child)
+    (map-over-sheets #'note-sheet-grafted child)))
 
 (defmethod sheet-disown-child :before
     ((sheet basic-sheet) (child sheet) &key (errorp t))
@@ -102,7 +104,8 @@
   (declare (ignore errorp))
   (note-sheet-disowned child)
   (when (sheet-grafted-p sheet)
-    (note-sheet-degrafted child)))
+    (map-over-sheets (curry #'note-sheet-degrafted-internal (port sheet)) child)
+    (map-over-sheets #'note-sheet-degrafted child)))
 
 (defmethod sheet-siblings ((sheet basic-sheet))
   (when (not (sheet-parent sheet))
@@ -318,25 +321,36 @@
   nil)
 
 (defmethod sheet-mirrored-ancestor ((sheet basic-sheet))
-  (let ((parent (sheet-parent sheet)))
-    (if (null parent)
-        nil
-        (sheet-mirrored-ancestor parent))))
+  (when-let ((parent (sheet-parent sheet)))
+    (sheet-mirrored-ancestor parent)))
 
 (defmethod sheet-mirror ((sheet basic-sheet))
-  (let ((mirrored-ancestor (sheet-mirrored-ancestor sheet)))
-    (if (null mirrored-ancestor)
-        nil
-        (sheet-direct-mirror mirrored-ancestor))))
+  (when-let ((mirrored-ancestor (sheet-mirrored-ancestor sheet)))
+    (sheet-direct-mirror mirrored-ancestor)))
 
 (defmethod graft ((sheet basic-sheet))
+  (when-let ((parent (sheet-parent sheet)))
+    (graft parent)))
+
+(defmethod port ((sheet basic-sheet))
+  (when-let ((mirrored-sheet (sheet-mirrored-ancestor sheet)))
+    (slot-value mirrored-sheet 'port)))
+
+(defmethod note-sheet-grafted-internal (port (sheet basic-sheet))
+  (declare (ignorable sheet))
+  nil)
+
+(defmethod note-sheet-degrafted-internal (port (sheet basic-sheet))
+  (declare (ignorable sheet))
   nil)
 
 (defmethod note-sheet-grafted ((sheet basic-sheet))
-  (mapc #'note-sheet-grafted (sheet-children sheet)))
+  (declare (ignorable sheet))
+  nil)
 
 (defmethod note-sheet-degrafted ((sheet basic-sheet))
-  (mapc #'note-sheet-degrafted (sheet-children sheet)))
+  (declare (ignorable sheet))
+  nil)
 
 (defmethod note-sheet-adopted ((sheet basic-sheet))
   (declare (ignorable sheet))
@@ -493,16 +507,6 @@
     (bury-sheet-internal sheet (sheet-parent sheet)))
   (when (sheet-direct-mirror sheet)
     (bury-mirror (port sheet) sheet)))
-
-(defmethod graft ((sheet sheet-parent-mixin))
-  (and (sheet-parent sheet) (graft (sheet-parent sheet))))
-
-;;; Computes the topmost sheet. When the sheet is grafted then it will be a
-;;; graft - otherwise its oldest ancestor.
-(defun graft* (sheet)
-  (if-let ((parent (sheet-parent sheet)))
-    (graft* parent)
-    sheet))
 
 (defmethod map-sheet-position-to-parent ((sheet sheet-parent-mixin) x y)
   (transform-position (sheet-transformation sheet) x y))
@@ -669,13 +673,17 @@ this might be different from the sheet's native region and transformation.")))
 (defmethod sheet-mirror ((sheet mirrored-sheet-mixin))
   (sheet-direct-mirror sheet))
 
-(defmethod note-sheet-grafted :before ((sheet mirrored-sheet-mixin))
-  (unless (port sheet)
-    (error "~S called on sheet ~S, which has no port?!" 'note-sheet-grafted sheet))
-  (realize-mirror (port sheet) sheet))
+(defmethod realize-mirror :before (port (sheet mirrored-sheet-mixin))
+  (setf (port sheet) port))
 
-(defmethod note-sheet-degrafted :after ((sheet mirrored-sheet-mixin))
-  (destroy-mirror (port sheet) sheet))
+(defmethod destroy-mirror :after (port (sheet mirrored-sheet-mixin))
+  (setf (port sheet) nil))
+
+(defmethod note-sheet-grafted-internal :after (port (sheet mirrored-sheet-mixin))
+  (realize-mirror port sheet))
+
+(defmethod note-sheet-degrafted-internal :after (port (sheet mirrored-sheet-mixin))
+  (destroy-mirror port sheet))
 
 (defmethod (setf sheet-enabled-p) :after
     (new-value (sheet mirrored-sheet-mixin))
@@ -738,6 +746,13 @@ this might be different from the sheet's native region and transformation.")))
   (if (typep sheet '(or top-level-sheet-mixin null))
       sheet
       (get-top-level-sheet (sheet-parent sheet))))
+
+;;; Computes the topmost sheet. When the sheet is grafted then it will be a
+;;; graft - otherwise its oldest ancestor.
+(defun graft* (sheet)
+  (if-let ((parent (sheet-parent sheet)))
+    (graft* parent)
+    sheet))
 
 (defmethod shrink-sheet ((sheet top-level-sheet-mixin))
   (shrink-mirror (port sheet) sheet))

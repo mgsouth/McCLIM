@@ -566,23 +566,37 @@
 ;;;;;;;;;
 
 (defmethod engraft-medium ((medium basic-medium) port sheet)
-  (declare (ignore port))
+  (declare (ignorable port))
+  (assert (eq (port medium) port))
   (setf (%medium-sheet medium) sheet))
 
 (defmethod degraft-medium ((medium basic-medium) port sheet)
-  (declare (ignore port sheet))
+  (declare (ignorable port sheet))
+  (assert (eq (port medium) port))
   (setf (%medium-sheet medium) nil))
 
 (defmethod allocate-medium ((port port) sheet)
+  ;; If we decide to use the resource pool, then this method should at least
+  ;; setf the port of a recycled medium.
   (make-medium port sheet))
 
 (defmethod make-medium ((port port) sheet)
-  (make-instance 'basic-medium :sheet sheet :port port))
+  (make-instance 'basic-medium :port port :sheet sheet))
 
 (defmethod deallocate-medium ((port port) medium)
-  (declare (ignorable port medium))
-  nil)
+  (declare (ignorable port))
+  (setf (port medium) nil))
 
 (defmethod graft ((medium basic-medium))
-  (and (medium-sheet medium)
-       (graft (medium-sheet medium))))
+  (when-let ((sheet (medium-sheet medium)))
+    (graft sheet)))
+
+;;; XXX the specification says, that only mediums that have a mirrored sheet
+;;; should return a non-NIL port. That is not practical, especially if we want
+;;; to reuse mediums for pixmap operations. This method would fulfill the spec
+;;; to the letter (or we could NIL the port when degrated). -- jd 2023-09-07
+#+ (or)
+(defmethod port :around ((medium basic-medium))
+  (if-let ((sheet (medium-sheet medium)))
+    (port sheet)
+    (call-next-method)))

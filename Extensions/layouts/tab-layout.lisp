@@ -419,7 +419,7 @@ that the frame manager can customize the implementation."))
   ()
   (:default-initargs :default-view +tab-bar-view+))
 
-(defmethod note-sheet-grafted ((sheet tab-bar-pane))
+(defmethod note-sheet-grafted :after ((sheet tab-bar-pane))
   (redisplay-frame-pane (pane-frame sheet) sheet :force-p t))
 
 (defmethod compose-space ((pane tab-bar-pane) &key width height)
