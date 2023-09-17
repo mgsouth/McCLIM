@@ -1535,8 +1535,9 @@ if INVOKE-CALLBACK is given."))
   (setf (output-record-position record) (values x y)))
 
 (defmethod note-output-record-got-sheet ((record gadget-output-record) sheet)
-  (multiple-value-bind (x y)  (output-record-position record)
-    (sheet-adopt-child sheet (gadget record))
+  (multiple-value-bind (x y) (output-record-position record)
+    ;; The sheet is already adopted by INVOKE-WITH-OUTPUT-AS-GADGET.
+    #+(or) (sheet-adopt-child sheet (gadget record))
     (allocate-space (gadget record)
                     (rectangle-width record)
                     (rectangle-height record))
@@ -1573,9 +1574,9 @@ if INVOKE-CALLBACK is given."))
         ;; Almost like LWW, except baseline of text should align with bottom
         ;; of gadget? FIXME
         (with-bounding-rectangle* (:width width :height height) record
-         (setf (stream-cursor-position sheet)
-               (values (+ x width)
-                       (+ y height))))))))
+          (setf (stream-cursor-position sheet)
+                (values (+ x width)
+                        (+ y height))))))))
 
 ;; The CLIM 2.0 spec does not really say what this operator should return.
 ;; Existing code written for "Real CLIM" assumes it returns the gadget pane
@@ -1590,10 +1591,10 @@ if INVOKE-CALLBACK is given."))
                       stream #'invoke-with-output-as-gadget-continuation
                       'gadget-output-record (append options (list :x x :y y))))
              (pane (gadget gadget-record)))
-        ;; We need to bind the medium here because SETUP-GADGET-RECORD calls
-        ;; COMOPSE-SPACE while pane may not be grafted yet. -- jd 2023-09-08
-        (with-sheet-medium-bound (pane (allocate-medium (port stream) stream))
-          (setup-gadget-record stream gadget-record))
+        ;; We graft PANE here because SETUP-GADGET-RECORD calls COMOPSE-SPACE,
+        ;; that needs mediums of the pane and its children. -- jd 2023-09-08
+        (sheet-adopt-child stream pane)
+        (setup-gadget-record stream gadget-record)
         (stream-add-output-record stream gadget-record)
         (values pane gadget-record)))))
 
