@@ -1549,20 +1549,18 @@ if INVOKE-CALLBACK is given."))
 (defmethod note-output-record-lost-sheet ((record gadget-output-record) sheet)
   (sheet-disown-child sheet (gadget record)))
 
-;; This is as good a place as any other to handle moving the position of the
-;; gadget if the output record has moved. This is consistent with other
-;; operations on output records that force you to manage repainting manually.
+;;; This is as good a place as any other to handle moving the position of the
+;;; gadget if the output record has moved. This is consistent with other
+;;; operations on output records that force you to manage repainting manually.
 (defmethod replay-output-record  ((record gadget-output-record) stream
                                   &optional region x-offset y-offset)
   (declare (ignorable stream region x-offset y-offset))
   (multiple-value-bind (gx gy)
       (transform-position (sheet-transformation (gadget record)) 0 0)
-    (multiple-value-bind (ox oy)
-        (output-record-position record)
-      (if (not (and (= ox gx)
-                    (= oy gy)))
+    (multiple-value-bind (ox oy) (output-record-position record)
+      (if (or (/= ox gx) (/= oy gy))
           (move-sheet (gadget record) ox oy)
-          (dispatch-repaint (gadget record) region)))))
+          (repaint-sheet (gadget record) region)))))
 
 (defun setup-gadget-record (sheet record)
   (let* ((child (gadget record))
