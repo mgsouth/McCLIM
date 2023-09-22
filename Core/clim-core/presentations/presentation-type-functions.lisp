@@ -105,7 +105,9 @@ otherwise return false."
       ((t) t)                           ; super type
       ((nil) nil)                       ; empty type
       (otherwise
-       (let ((clos-class (find-class name nil))) ; Don't error out.
+       (let ((clos-class (if (symbolp name)
+                             (find-class name nil)  ; Don't error out.
+                             name)))
          (when (and clos-class (typep clos-class 'standard-class))
            (unless (typep object name)
              (return-from presentation-typep nil))
