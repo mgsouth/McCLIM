@@ -284,7 +284,7 @@ designator) inherits menu items."
     (when (and errorp
                (or (gethash command-name (commands command-table))
                    (and menu-name (find-menu-item menu-name command-table :errorp nil))
-                   (and keystroke (find-keystroke-item (ensure-physical-gesture keystroke)
+                   (and keystroke (find-keystroke-item keystroke
                                                        command-table
                                                        :errorp nil
                                                        :test #'equal))))
@@ -399,7 +399,7 @@ menu item to see if it is `:menu'."
   (let* ((command-table (find-command-table command-table))
          (old-item-1 (and string (find-menu-item string command-table :errorp nil)))
          (old-item-2 (and keystroke (find-keystroke-item
-                                     (ensure-physical-gesture keystroke)
+                                     keystroke
                                      command-table
                                      :errorp nil
                                      :test #'equal))))
@@ -483,7 +483,7 @@ menu item to see if it is `:menu'."
                                             &key (errorp t))
   (let ((command-table (find-command-table command-table)))
     (with-slots (menu) command-table
-      (if-let ((item (find (ensure-physical-gesture gesture) menu
+      (if-let ((item (find gesture menu
                            :key #'command-menu-item-keystroke
                            :test #'equal)))
         (if (null (command-menu-item-name item))

@@ -209,23 +209,24 @@
                                                       `(:unique ',unique))))
 
 (defun ensure-physical-gesture (designator)
-  ;; Just to be nice, we special-case literal characters here.  We
-  ;; also special-case literal 'physical' gesture specs of the form
-  ;; (type device-name modifier-state).  The CLIM spec requires
-  ;; neither of these things.
+  ;; We special-case literal characters and special-case literal 'physical'
+  ;; gesture specs of the form: (type device-name modifier-state). Neither of
+  ;; these things is required by the CLIM specification.
   (flet ((make-keyboard-gesture (gesture-spec)
            (multiple-value-list
-            (normalize-physical-gesture :keyboard gesture-spec))))
-    (typecase designator
-      ((cons gesture-type) ; Physical gesture
+            (normalize-physical-gesture :keyboard gesture-spec)))
+         (make-indirect-gesture (gesture-spec)
+           (multiple-value-list
+            (normalize-physical-gesture :indirect gesture-spec))))
+    (etypecase designator
+      ((cons gesture-type)              ; Physical gesture
        designator)
-      ((or cons character symbol)
-       (make-keyboard-gesture designator)))))
-
-(defun ensure-gesture (designator)
-  (if (and (symbolp designator) (find-gesture designator))
-      designator
-      (ensure-physical-gesture designator)))
+      ((or cons character)
+       (make-keyboard-gesture designator))
+      (symbol
+       (if (find-gesture designator)
+           (make-indirect-gesture designator)
+           (make-keyboard-gesture designator))))))
 
 (defgeneric character-gesture-name (name)
   (:method ((name character))
