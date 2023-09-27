@@ -54,6 +54,10 @@
        pointer-motion-gesture-type
        other-gesture-type))
 
+(deftype event-data-type () t
+  '(or (eql :ignore)
+       (and gesture-type (not (eql :indirect)))))
+
 (deftype physical-gesture ()
   '(cons gesture-type (cons (or symbol character integer) (cons integer null))))
 
@@ -212,6 +216,7 @@
 ;;; GESTURE is T or a list of normalized physical gestures.
 (defun event-data-matches-gesture-p
     (type device-name modifier-state physical-gestures)
+  (check-type type event-data-type)
   (labels ((matches-with-wildcards-p (match-value gesture-value)
              (or (eql gesture-value t)
                  (eql match-value :ignore)
@@ -251,12 +256,15 @@
                                   (event-modifier-state event)
                                   physical-gestures))
   (:method ((event pointer-motion-event) physical-gestures)
-    (event-data-matches-gesture-p (event-type event)
-                                  (pointer-button-state event)
-                                  (event-modifier-state event)
-                                  physical-gestures))
+    ;; Only :POINTER-MOTION is recognized as a valid event data gesture type.
+    ;; Sending :POINTER-ENTER etc would signal an error.
+    (when (eq (event-type event) :pointer-motion)
+      (event-data-matches-gesture-p :pointer-motion
+                                    (pointer-button-state event)
+                                    (event-modifier-state event)
+                                    physical-gestures)))
   (:method ((event timer-event) physical-gestures)
-    (event-data-matches-gesture-p (event-type event)
+    (event-data-matches-gesture-p :timer
                                   (timer-event-qualifier event)
                                   :ignore
                                   physical-gestures)))
