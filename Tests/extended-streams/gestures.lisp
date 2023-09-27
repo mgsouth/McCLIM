@@ -11,7 +11,7 @@
 (def-suite* :mcclim.gestures
   :in :mcclim)
 
-(test gestures.add-gesture-name.smoke
+(test gestures.1.add-gesture-name.smoke
   "Test errors signaled by `add-gesture-name'."
   (mapc (lambda (arguments-and-expected)
           (destructuring-bind (name type gesture-spec &optional expected)
@@ -53,15 +53,15 @@
           (:foo :timer                  (:alarm))
           (:foo :timer                  (:alarm :meta)            error))))
 
-(test gestures.ensure-physical-gesture.smoke
+(test gestures.2.ensure-physical-gesture.smoke
   "Smoke test for the `ensure-physical-gesture' function."
   (mapc (lambda (designator-and-expected)
           (destructuring-bind (designator expected) designator-and-expected
             (flet ((do-it ()
                      (climi::ensure-physical-gesture designator)))
               (case expected
-                (error (signals error (do-it)))
-                (t     (equal expected (do-it)))))))
+                (error     (signals error (do-it)))
+                (otherwise (is (equal expected (do-it))))))))
 
         `(;; Physical gestures
           ((:keyboard #\x 0)         (:keyboard #\x 0))
@@ -69,18 +69,21 @@
           (#\x                       (:keyboard #\x 0))
           ((#\x :control)            (:keyboard #\x ,+control-key+))
           (:left                     (:keyboard :left 0))
-          ((:left :meta)             (:keyboard :feft ,+meta-key+))
+          ((:left :meta)             (:keyboard :left ,+meta-key+))
           ;; Errors
           ((:left :no-such-modifier) error))))
 
-(test gestures.event-data-matches-gesture-p.smoke
+(test gestures.3.event-data-matches-gesture-p.smoke
   "Smoke test for the `event-data-matches-gesture-p' function."
   (mapc (lambda (arguments-and-expected)
           (destructuring-bind (type device-name modifier-state gesture expected)
               arguments-and-expected
-            (is (eq expected
-                    (climi::event-data-matches-gesture-p
-                     type device-name modifier-state gesture)))))
+            (flet ((do-it ()
+                     (climi::event-data-matches-gesture-p
+                      type device-name modifier-state gesture)))
+              (if expected
+                  (is-true  (do-it))
+                  (is-false (do-it))))))
         `(;; Wildcard gesture
           (:keyboard    #\a     0       t  t) ; extension
           (:keyboard    #\a     :ignore t  t) ; extension
@@ -115,3 +118,82 @@
           (:timer :alarm  :ignore ((:timer :alarm   0))   t)
           (:timer :alarm  :ignore ((:timer :timeout 0)) nil)
           (:timer :ignore :ignore ((:timer :timeout 0))   t))))
+
+(test gestures.4.indirect-gestures.smoke
+  (flet ((reset-gestures ()
+           (delete-gesture-name 'movement)
+           (delete-gesture-name 'forward)
+           (delete-gesture-name 'move-n)
+           (delete-gesture-name 'move-s)
+           (delete-gesture-name 'move-w)
+           (delete-gesture-name 'move-e)
+           (delete-gesture-name 'move-f))
+         (define-game ()                ;indirect mapping
+           ;; Define an indirect gesture that matches all movement.
+           (add-gesture-name 'movement :indirect 'move-n)
+           (add-gesture-name 'movement :indirect 'move-s :unique nil)
+           (add-gesture-name 'movement :indirect 'move-w :unique nil)
+           (add-gesture-name 'movement :indirect 'move-e :unique nil)
+           (add-gesture-name 'movement :indirect 'move-f :unique nil)
+           ;; Define an indirect gesture that matches "move forward".
+           (add-gesture-name 'forward :indirect 'move-f))
+         (define-wsad ()                ;normal gestures
+           (add-gesture-name 'move-n :keyboard #\w :unique t)
+           (add-gesture-name 'move-s :keyboard #\s :unique t)
+           (add-gesture-name 'move-w :keyboard #\a :unique t)
+           (add-gesture-name 'move-e :keyboard #\d :unique t)
+           ;;
+           (add-gesture-name 'move-f :keyboard #\space          :unique nil)
+           (add-gesture-name 'move-f :pointer-button '(:left t) :unique nil))
+         (define-move ()                ;normal gestures (redefines)
+           (add-gesture-name 'move-n :keyboard :up    :unique t)
+           (add-gesture-name 'move-s :keyboard :down  :unique t)
+           (add-gesture-name 'move-w :keyboard :left  :unique t)
+           (add-gesture-name 'move-e :keyboard :right :unique t)
+           ;;
+           (add-gesture-name 'move-f :keyboard #\newline         :unique nil)
+           (add-gesture-name 'move-f :pointer-button '(:right t) :unique nil))
+         (check (data gesture expected)
+           (destructuring-bind (gtype gdevt gmods) data
+             (flet ((do-it ()
+                      (climi::event-data-matches-gesture-p
+                       gtype gdevt gmods (climi::find-gesture gesture))))
+               (ecase expected
+                 (:true  (is-true  (do-it) "Gesture ~s should match ~s." gesture data))
+                 (:false (is-false (do-it) "Gesture ~s shan't match ~s." gesture data))
+                 (:error (signals error (do-it))))))))
+    (reset-gestures)
+    (define-game)
+    ;; Indirect gestures are unbound at this point.
+    (check '(:ignore :ignore :ignore)   'movement :true)
+    (check '(:keyboard :ignore :ignore) 'movement :false)
+    (check '(:indirect :ignore :ignore) 'movement :error) ;no real data is "indirect"
+    ;; Define target gestures (WSAD)
+    (define-wsad)
+    (check '(:keyboard :ignore :ignore)         'movement :true)
+    (check `(:keyboard #\w :ignore)             'movement :true)
+    (check `(:keyboard #\e :ignore)             'movement :false)
+    (check `(:keyboard #\s ,climi::+no-key+)    'movement :true)
+    (check `(:keyboard #\s ,climi::+meta-key+)  'movement :false)
+    (check `(:keyboard :left :ignore)           'movement :false)
+    (check `(:keyboard #\space :ignore)         'movement :true)
+    ;; forward movement
+    (check `(:keyboard #\space ,climi::+no-key+)   'forward :true)
+    (check `(:keyboard #\space ,climi::+meta-key+) 'forward :false)
+    (check `(:pointer-button ,climi::+pointer-left-button+ ,climi::+no-key+)   'forward :true)
+    (check `(:pointer-button ,climi::+pointer-left-button+ ,climi::+meta-key+) 'forward :true)
+    (check `(:keyboard #\newline :ignore) 'forward :false)
+    ;; Redefine target gestures.
+    (define-move)
+    (check `(:keyboard #\w :ignore)     'movement :false)
+    (check `(:keyboard :left :ignore)   'movement :true)
+    (check `(:keyboard :left :ignore)   'movement :true)
+    ;; move-f is not redefined (only extended)
+    (check `(:keyboard #\space :ignore) 'movement :true)
+    ;; forward movement
+    (check `(:keyboard #\space ,climi::+no-key+)   'forward :true)
+    (check `(:keyboard #\space ,climi::+meta-key+) 'forward :false)
+    (check `(:pointer-button ,climi::+pointer-left-button+ ,climi::+no-key+)   'forward :true)
+    (check `(:pointer-button ,climi::+pointer-left-button+ ,climi::+meta-key+) 'forward :true)
+    (check `(:keyboard #\newline :ignore) 'forward :true)
+    (reset-gestures)))
