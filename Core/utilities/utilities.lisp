@@ -343,6 +343,10 @@ sequence.  The iteration is then \"stepped\" by the specified number."
        (declare (dynamic-extent (function ,cont)))
        (maphash (function ,cont) ,hash-table)
        ,result)))
+
+(defun mappend (function &rest lists)
+  (loop for results in (apply #'mapcar function lists)
+        append results))
 ;;;;
 ;;;; meta functions
 ;;;;
