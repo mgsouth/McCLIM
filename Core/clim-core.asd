@@ -25,7 +25,8 @@
                (:module "geometry"
                 :depends-on ("system")
                 :serial t
-                :components ((:file "coordinates")
+                :components ((:file "protocol")
+                             (:file "coordinates")
                              (:file "transforms")
                              (:file "bounding-rectangle")
                              (:file "regions")
@@ -44,7 +45,8 @@
   :depends-on ("clim-core/system" "spatial-trees" "trivial-garbage")
   :components
   ((:module "drawing"
-    :components ((:file "design")
+    :components ((:file "protocol")
+                 (:file "design")
                  (:file "text-style")
                  (:file "colors"   :depends-on ("design"))
                  (:file "pattern"  :depends-on ("design"))
@@ -52,7 +54,8 @@
                  (:file "graphics" :depends-on ("design" "text-style" "medium"))))
    (:module "windowing"
     :depends-on ("drawing")
-    :components ((:file "standard-keys")
+    :components ((:file "protocol")
+                 (:file "standard-keys")
                  (:file "events")
                  (:file "output")
                  (:file "pointer")
