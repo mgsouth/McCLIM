@@ -410,12 +410,9 @@
   (declare (ignore pane force-p))
   nil)
 
-;;; Redisplaying from scratch involves clearing old output record history,
-;;; recording the new output record history, updating the window dimensiosn
-;;; and repainting the sheet. We don't use window-clear becase it eagerly
-;;; resets the window dimensions and restores the scroll bars. Further
-;;; improvements are possible - for example erase only the back buffer and
-;;; blit it onto the window - this will avoid a flicker from window-erase.
+;;; Redisplaying the pane from scratch involves clearing the old output history,
+;;; recording the new output record history, updating the window dimensiosn and
+;;; repainting the sheet.
 (defgeneric do-redisplay-pane (pane cont clearp)
   (:method ((pane pane) cont clearp)
     (with-output-buffered (pane)
@@ -436,9 +433,8 @@
           (when clearp
             (erase-pane))
           (funcall cont))
-        (window-erase-viewport pane)
         (change-space-requirements pane)
-        (stream-replay pane)))))
+        (repaint-sheet pane +everywhere+)))))
 
 (defmethod redisplay-frame-pane :around
     ((frame application-frame) pane &key force-p)
