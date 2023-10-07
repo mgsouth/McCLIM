@@ -1900,6 +1900,8 @@
    #:event-read-with-timeout
    #:event-listen-or-wait
    #:schedule-event
+   #:schedule-timer-event
+   #:timer-event-qualifier
    #:window-manager-focus-event
    ;; frame managers
    #:headless-frame-manager

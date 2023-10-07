@@ -233,7 +233,7 @@
   ((qualifier :initarg :qualifier :reader timer-event-qualifier))
   (:default-initargs :qualifier nil))
 
-(defun schedule-timer (sheet qualifier delay)
+(defun schedule-timer-event (sheet qualifier delay)
   (let ((event (make-instance 'timer-event
                               :sheet sheet
                               :qualifier qualifier)))

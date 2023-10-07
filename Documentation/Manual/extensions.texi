@@ -604,9 +604,9 @@ keyword that is the timer event qualifier to distinguish them.
 (define-gesture-name school :timer :school)
 
 ;;; cookie in 20s!
-(schedule-timer my-sheet :cookie 20)
+(schedule-timer-event my-sheet :cookie 20)
 ;;; school in 2 hours!
-(schedule-timer my-sheet :school (* 2 60 60))
+(schedule-timer-event my-sheet :school (* 2 60 60))
 @end lisp
 
 @item @code{:indirect}
