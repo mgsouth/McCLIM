@@ -391,8 +391,6 @@
                                         :vertical))
      (n-columns)
      (n-rows)
-     (stream-width :passp nil)
-     (stream-height :passp nil)
      (max-width)
      (max-height)
      (initial-spacing)
@@ -402,8 +400,13 @@
        (stream-cursor-position stream)
      (with-output-recording-options (stream :record t :draw nil)
        (funcall continuation stream)
-       (force-output stream))
-     (adjust-item-list-cells item-list stream)
+       (adjust-item-list-cells item-list stream)
+       ;; KLUDGE parent may move the item list record to a specified position.
+       ;; The output record position is based on the its bounding rectangle. If
+       ;; we don't add a transparent pixel at the top-left corner, then margins
+       ;; and initial spacing will be ignored despite correct placement of items
+       ;; during the layout phase.
+       (draw-rectangle* stream 0 0 1 1 :ink +transparent-ink+))
      (setf (output-record-position item-list)
            (stream-cursor-position stream))
      (setf (stream-cursor-position stream)
@@ -559,7 +562,7 @@
 
 (defmethod adjust-multiple-columns ((table standard-table-output-record) stream)
   (with-slots (widths heights rows
-                      multiple-columns multiple-columns-x-spacing x-spacing y-spacing)
+               multiple-columns multiple-columns-x-spacing x-spacing y-spacing)
       table
     (let* ((mcolumn-width
             ;; total width of a column of the "meta" table.
@@ -575,115 +578,117 @@
                             (+ mcolumn-width multiple-columns-x-spacing))
                      multiple-columns)))
            (column-size (ceiling (length rows) n-columns)) )
-      (let ((y 0) (dy 0))
-        (loop for row across rows
-           for h across heights
-           for i from 0
-           do
-             (multiple-value-bind (ci ri) (floor i column-size)
-               (when (zerop ri)
-                 (setf dy (- y)))
-               (let ((dx (* ci mcolumn-width)))
-                 (loop for cell across row do
-                      (multiple-value-bind (x y) (output-record-position cell)
-                        (setf (output-record-position cell)
-                              (values (+ x dx) (+ y dy))))))
-               (incf y h)
-               (incf y y-spacing)))) )))
+      (loop with y = 0
+            with dy = 0
+            for row across rows
+            for h across heights
+            for i from 0
+            do (multiple-value-bind (ci ri) (floor i column-size)
+                 (when (zerop ri)
+                   (setf dy (- y)))
+                 (let ((dx (* ci mcolumn-width)))
+                   (loop for cell across row do
+                     (multiple-value-bind (x y) (output-record-position cell)
+                       (setf (output-record-position cell)
+                             (values (+ x dx) (+ y dy))))))
+                 (incf y h)
+                 (incf y y-spacing))) )))
 
-(defmethod adjust-item-list-cells ((item-list standard-item-list-output-record)
-                                   stream)
-  (with-slots (x-spacing y-spacing initial-spacing row-wise) item-list
-    ;;
-    ;; What we do:
-    ;;
-    ;; First we collect the items, then we figure out the width of the
-    ;; single initial column. While doing so we collect the heights.
-    (let ((items nil)
-          (width 0)
-          (heights nil))
-      ;;
-      (map-over-item-list-cells (lambda (item)
-                                  (push item items))
-                                item-list)
-      (setf items (reverse items))
-      (setf heights (make-array (length items)))
-      ;;
-      (loop for item in items
-         for i from 0
-         do
-           (with-bounding-rectangle* (x1 y1 x2 y2) item
-             (maxf width (- x2 x1))
-             (setf (aref heights i) (- y2 y1))))
-      ;;
-      ;; Now figure out the number of rows and the number of columns to
-      ;; layout to.
-      ;;
-      (let ((stream-width (- (stream-text-margin stream) (stream-cursor-position stream)
-                             (if initial-spacing
-                                 x-spacing
-                                 0)))
-            (N (length items))
-            (column-width
-             (+ width x-spacing)))
-        ;; ### note that the floors below are still not correct
-        (multiple-value-bind (n-columns n-rows)
-            (with-slots (n-columns n-rows max-width max-height) item-list
-              (cond (n-columns
-                     (values n-columns (ceiling N n-columns)))
-                    (n-rows
-                     (values (ceiling N n-rows) n-rows))
-                    (max-width
-                     (let ((n-columns (max 1 (floor (+ max-width x-spacing)
-                                                    (+ column-width x-spacing)))))
-                       (values n-columns (ceiling N n-columns))))
-                    (max-height
-                     ;; difficult
-                     ;; ###
-                     (let ((n-rows (max 1 (floor (+ max-height y-spacing)
-                                                 (+ (reduce #'max heights :initial-value 0)
-                                                    (* (1- (length heights)) y-spacing)
-                                                    y-spacing)))))
-                       (values (ceiling N n-rows) n-rows)))
-                    (t
-                     (let ((n-columns (max 1 (floor (+ stream-width x-spacing)
-                                                    (+ column-width x-spacing)))))
-                       (values n-columns (ceiling N n-columns))))))
-          ;;
-          (cond (row-wise
-                 ;; Here is the catch: When this is row-wise, this not
-                 ;; not so different from a table.
-                 ;; ### do the cells put alongside expose baseline adjust?
-                 (let ((y 0))
-                   (loop for yi below n-rows
-                      while items
-                      do
-                        (let ((h 0))
-                          (loop for xi below n-columns
-                             for x = (if initial-spacing (floor x-spacing 2) 0)
-                             then (+ x width x-spacing)
-                             while items
-                             do
-                               (let ((item (pop items)))
-                                 (maxf h (bounding-rectangle-height item))
-                                 (adjust-cell* item x y width
-                                               (bounding-rectangle-height item)
-                                               (output-record-baseline item))))
-                          (incf y (+ h y-spacing))))))
-                (t
-                 ;; This is somewhat easier ...
-                 (let (h)
-                   (loop for xi below n-columns
-                      for x = (if initial-spacing (floor x-spacing 2) 0)
-                      then (+ x width x-spacing)
-                      while items
-                      do
-                        (loop for yi below n-rows
-                           for y = 0 then (+ y y-spacing h)
-                           while items do
-                             (let ((item (pop items)))
-                               (setf h (bounding-rectangle-height item))
-                               (adjust-cell* item x y width h (output-record-baseline item)))))))))))))
+;;; The adjust of the item list is different from the table:
+;;;
+;;; - row-wise -- cols in different rows are not aligned horizontally
+;;; - col-wise -- rows in different cols are not aligned vertically
+;;;
+;;; In other words they are flowing from left to right or from top to bottom and
+;;; wrap over the appropriate edge. That also means that unless n-columns/n-rows
+;;; is specified, individual columns/rows may have variable number of cells.
+
+(defun adjust-item-list-1 (record n-elements max-size row-wise-p)
+  (with-slots (initial-spacing x-spacing y-spacing) record
+    (let* ((x0 (if initial-spacing (floor x-spacing 2) 0))
+           (y0 (if initial-spacing (floor y-spacing 2) 0))
+           (current-n 0)
+           (current-x x0)
+           (current-y y0)
+           (current-max-h 0)
+           (current-max-w 0)
+           (current-max-b 0)
+           (limit-s (if n-elements nil (and max-size (- max-size x0))))
+           (limit-n (or n-elements nil))
+           (this-slice (make-array 0 :adjustable t :fill-pointer t)))
+      (labels ((finish-slice ()
+                 (if row-wise-p
+                     (loop for (item cell-x cell-w) across this-slice
+                           do (adjust-cell* item
+                                            cell-x current-y
+                                            cell-w
+                                            current-max-h
+                                            current-max-b))
+                     (loop for (item cell-y cell-h) across this-slice
+                           do (adjust-cell* item
+                                            current-x cell-y
+                                            current-max-w
+                                            cell-h
+                                            (output-record-baseline item))))
+                 (setf current-n 0)
+                 (if row-wise-p
+                     (setf current-x x0
+                           current-y (+ current-y (+ current-max-h y-spacing)))
+                     (setf current-x (+ current-x (+ current-max-w x-spacing))
+                           current-y y0))
+                 (setf current-max-w 0)
+                 (setf current-max-h 0)
+                 (setf current-max-b 0)
+                 (setf (fill-pointer this-slice) 0))
+               (end-slice-p (cell-w cell-h)
+                 (or (and limit-n (>= current-n limit-n))
+                     (and limit-s (if row-wise-p
+                                      (>= (+ current-x cell-w) limit-s)
+                                      (>= (+ current-y cell-h) limit-s)))))
+               (parse-cell (item)
+                 (with-bounding-rectangle* (:width cell-w :height cell-h) item
+                   (when (end-slice-p cell-w cell-h)
+                     (finish-slice))
+                   (maxf current-max-w cell-w)
+                   (maxf current-max-h cell-h)
+                   (maxf current-max-b (output-record-baseline item))
+                   (incf current-n)
+                   (if row-wise-p
+                       (progn
+                         (vector-push-extend (list item current-x cell-w) this-slice)
+                         (incf current-x (+ cell-w x-spacing)))
+                       (progn
+                         (vector-push-extend (list item current-y cell-h) this-slice)
+                         (incf current-y (+ cell-h y-spacing)))))))
+        (map-over-item-list-cells #'parse-cell record)
+        (finish-slice)))))
+
+(defmethod adjust-item-list-cells ((record standard-item-list-output-record) stream)
+  (with-slots (x-spacing y-spacing initial-spacing row-wise
+               n-columns n-rows max-width max-height)
+      record
+    ;; The limit applies to each slice (a row or a column). If we can determine
+    ;; the number of elements in each slice, then the maximal size is ignored.
+    ;; When there are no limits, then:
+    ;; - row-wise: determine the maximal width based on the stream width
+    ;; - col-wise: all elements are put in a single column without wrapping
+    (flet ((compute-limits-for-rows ()
+             (cond (n-columns)
+                   (n-rows     (ceiling (output-record-count record) n-rows))
+                   (max-width  (values nil max-width))
+                   (t          (values nil (- (stream-text-margin stream)
+                                              (stream-cursor-position stream)
+                                              (if initial-spacing x-spacing 0))))))
+           (compute-limits-for-cols ()
+             (cond (n-rows)
+                   (n-columns  (ceiling (output-record-count record) n-columns))
+                   (max-height (values nil max-height))
+                   (t          (values nil nil)))))
+      (multiple-value-bind (n-elements max-size)
+          (if row-wise
+              (compute-limits-for-rows)
+              (compute-limits-for-cols))
+        (adjust-item-list-1 record n-elements max-size row-wise)))))
 
 (defun adjust-cell* (cell x y w h ascent)
   (setf (output-record-position cell)
