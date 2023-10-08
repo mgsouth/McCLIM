@@ -259,10 +259,10 @@ formatting protocol.
 
 
 \Defmacro {formatting-item-list} {(\optional stream
-                                   \key x-spacing y-spacing
+                                   \key (row-wise \cl{t})
+                                        initial-spacing x-spacing y-spacing
                                         n-columns n-rows
-                                        stream-width stream-height max-width max-height
-                                        initial-spacing (row-wise \cl{t})
+                                        max-width max-height
                                         (move-cursor \cl{t}) record-type \allow)
                                   \body body}
 
@@ -274,59 +274,67 @@ that its upper left corner is at the current text cursor position of
 then the text cursor will be moved so that it immediately follows the last cell
 of the item list.
 
-``Item list output'' is more strictly defined as: each row of the item list
-consists of a single cell.  Rows are placed with the first row on top, and each
-succeeding row has its top aligned with the bottom of the previous row (plus the
-specified \arg{y-spacing}).  Multiple rows and columns are constructed after
-laying the item list out in a single column.  Item list output takes place in a
-normalized +$y$-downward coordinate system.
+``Item list output'' is more strictly defined as: each block of the item list
+consists of a single cell.  Blocks are placed with the first element at the
+beginning, and each succeeding block has its side aligned with the opposite side
+of the previous block (plus the specified \arg{x-spacing} or \arg{y-spacing}).
+Multiple rows and columns are constructed by wrapping over the appropriate edge
+after the size threshold is met. Item list output takes place in a normalized
++$y$-downward coordinate system.
+
+Depending on the value \arg{row-wise} the algorithm for laying out children is
+different. The layout is different from the table layout in that cells are layed
+out sequentiall, so different rows (or columns) are not aligned vertically (or
+horizontally). Unless \arg{n-rows} or \arg{n-columns} is specified, each row
+(or column) may have a different number of elements.
 
 If \arg{row-wise} is \term{true} (the default) and the item list requires
-multiple columns, each successive element in the item list is layed out from
-left to right.  If \arg{row-wise} is \term{false} and the item list requires
-multiple columns, each successive element in the item list is layed out below
-its predecessor, like in a telephone book.
+multiple columns, then successive elements are layed one after another from
+the beginning to the end of the line, like in a text book. The end of the line
+is determined based on the first specified argument \arg{n-columns},
+\arg{n-rows}, or \arg{max-width}, and if none is present, then the parent
+width is used. \arg{x-spacing} specifies the space between consecutive items
+and \arg{y-spacing} specifies the space between rows.
 
-The returned value is the output record corresponding to the table.
+If \arg{row-wise} is \term{false} and the item list requires multiple rows,
+then successive elements are layed one after another in consecutive lines,
+like in a telephone book. The end of the page is determined based on the first
+specified argument \arg{n-rows}, \arg{n-columns} or \arg{max-height}, and if
+none is present, then the list has only one column and extends to fit all
+elements.  \arg{y-spacing} specifies the space between consecutive items and
+\arg{x-spacing} specifies the space between columns.
+
+The returned value is the output record corresponding to the item list.
 
 \arg{stream} is an output recording stream to which output will be done.  The
 \arg{stream} argument is not evaluated, and must be a symbol that is bound to a
 stream.  If \arg{stream} is \cl{t} (the default), \cl{*standard-output*} is
 used.  \arg{body} may have zero or more declarations as its first forms.
 
-\arg{x-spacing} specifies the number of units of spacing to be inserted between
-columns of the item list; the default is the width of a \verb+#\Space+ character
-in the current text style.  \arg{y-spacing} specifies the number of units of
-spacing to be inserted between rows in the item list; the default is default
-vertical spacing of the stream.  The format of these arguments is as for
-\cl{formatting-table}.
-
-When the boolean \arg{equalize-column-widths} is \term{true}, CLIM will make all
-of the columns have the same width (the width of the widest cell in any column
-in the entire item list).
+\arg{x-spacing} and \arg{y-spacing} specify the number of units of spacing to
+be inserted between consecutive elements and, depending on \arg{row-wise},
+rows or columns. The default value of \arg{x-spacing} is the width of a
+\verb+#\Space+ character in the current text style; the default value of
+\arg{y-spacing} is default vertical spacing of the stream. The format of these
+arguments is as for \cl{formatting-table}.
 
 \arg{n-columns} and \arg{n-rows} specify the number of columns or rows in the
-item list.  The default for both is \cl{nil}, which causes CLIM to pick an
-aesthetically pleasing layout, possibly constrained by the other options.  If
-both \arg{n-columns} and \arg{n-rows} are supplied and the item list contains
-more elements than will fit according to the specification, CLIM will format the
-item list as if \arg{n-rows} were supplied as \cl{nil}.
+item list. The default for both is \cl{nil}. When both are specified then one
+takes the priority depending on the value of \arg{row-wise}.
 
-\arg{max-width} and \arg{max-height} constrain the layout of the item list.
-CLIM will not make the item list any wider than \arg{max-width}, unless it is
-overridden by \arg{n-rows}.  It will not make the item list any taller than
-\arg{max-height}, unless it is overridden by \arg{n-columns}.
+\arg{max-width} and \arg{max-height} constrain the layout of the item list. The
+default for both is \cl{nil}. These arguments are used only when \arg{n-columns}
+and \arg{n-rows} is both \cl{nil}.
 
-\cl{formatting-item-list} normally spaces items across the entire width of the
-stream.  When \arg{initial-spacing} is \term{true}, it inserts some whitespace
-(about half as much space as is between each item) before the first item on each
-line.  When it is \term{false} (the default), the initial whitespace is not
-inserted.
+When \arg{initial-spacing} is \term{true}, \cl{formatting-item-list} inserts
+some whitespace (about half as much space as is between each item) before the
+the first row and the first column. When it is \term{false} (the default), the
+initial whitespace is not inserted.
 
 \arg{record-type} specifies the class of output record to create.  The default
-is \cl{standard-item-list-output-record}.  This argument should only be
-supplied by a programmer if there is a new class of output record that supports
-the item list formatting protocol.
+is \cl{standard-item-list-output-record}.  This argument should only be supplied
+by a programmer if there is a new class of output record that supports the item
+list formatting protocol.
 
 
 \Defun {format-items} {items \key stream printer presentation-type
