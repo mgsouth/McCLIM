@@ -286,6 +286,7 @@
           (let ((fm (frame-manager *application-frame*)))
             (with-look-and-feel-realization (fm *application-frame*)
               (with-output-as-gadget (stream)
+                (declare (ignore stream))
                 (make-pane 'push-button
                            :activate-callback
                            (lambda (&rest args)
@@ -377,7 +378,7 @@ Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed venenatis volutpat 
           (format stream "~4,'0d: " counter))
       (incf counter))))
 
-(define-misc-test "Text Formatting" (stream)
+(define-misc-test "Formatting: Text" (stream)
     "First case uses INDENTING-OUTPUT
 Second case uses FILLING-OUTPUT,
 Third case uses INDENTING-OUTPUT over FILLING-OUTPUT,
@@ -477,6 +478,27 @@ Sixth case exhibits vertical gap between paragraphs and margins."
                              (format stream "soft newline: "))))
                      :after-line-break-initially t)
       (format stream *lorem-ipsum*))))
+
+(define-misc-test "Formatting: Item List" (stream)
+    "Variants of FORMATTING-ITEM-LIST."
+  (macrolet ((format-list (n &rest args)
+               `(progn
+                  (surrounding-output-with-border (stream :shape :underline)
+                    (format stream "~s" ',args))
+                  (terpri stream)
+                  (formatting-item-list (stream ,@args)
+                    (loop for n from 0 below ,n
+                          for word = (lorem-ipsum:word)
+                          do (formatting-cell (stream)
+                               (format stream "~s: ~a" n word))))
+                  (terpri stream))))
+    (format-list 32 :initial-spacing t :row-wise t :x-spacing 15 :y-spacing 5)
+    (format-list 32 :initial-spacing t :row-wise t :x-spacing 15 :n-rows 3)
+    (format-list 32 :initial-spacing t :row-wise t :x-spacing 15 :n-columns 4)
+    (format-list 32 :initial-spacing t :row-wise t :x-spacing 15 :max-width 600)
+    (format-list 32 :initial-spacing t :row-wise nil :x-spacing 15 :n-rows 3)
+    (format-list 32 :initial-spacing t :row-wise nil :x-spacing 15 :n-columns 4)
+    (format-list 32 :initial-spacing t :row-wise nil :x-spacing 15 :max-height 200)))
 
 (defun misc-tests ()
   (let ((frame (make-application-frame 'misc-tests)))
