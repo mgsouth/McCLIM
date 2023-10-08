@@ -46,13 +46,17 @@
 ;;; "Other" gestures are defined only by the type and the qualifier -
 ;;; modifiers are ignored.
 (deftype other-gesture-type ()
-  '(member :timer))
+  '(member :timer :indirect))
 
 (deftype gesture-type ()
   '(or keyboard-gesture-type
        pointer-button-gesture-type
        pointer-motion-gesture-type
        other-gesture-type))
+
+(deftype event-data-type () t
+  '(or (eql :ignore)
+       (and gesture-type (not (eql :indirect)))))
 
 (deftype physical-gesture ()
   '(cons gesture-type (cons (or symbol character integer) (cons integer null))))
@@ -158,8 +162,31 @@
   (check-gesture-name name)
   (gethash name *gesture-names*))
 
+;; To calculate the pointer documentation only the pointer button events are
+;; necessary. It's necessary to cache them for performances. The cache is
+;; cleared everytime a new gesture is added or removed.
+;; -- admich 2023-08-21
+
+(defvar *gesture-for-pointer-documetation-cache* (make-hash-table))
+
+(defun gestures-for-pointer-documentation (gesture-name)
+  (check-gesture-name gesture-name)
+  (labels ((gestures-for-pointer-documentation-1 (gesture)
+             (typecase gesture
+               (symbol
+                (gestures-for-pointer-documentation-1 (find-gesture gesture)))
+               ((cons pointer-button-gesture-type)
+                (list gesture))
+               ((cons cons)
+                (mappend #'gestures-for-pointer-documentation-1 gesture))
+               ((cons (eql :indirect))
+                (gestures-for-pointer-documentation-1 (find-gesture (second gesture)))))))
+    (ensure-gethash gesture-name *gesture-for-pointer-documetation-cache*
+      (gestures-for-pointer-documentation-1 gesture-name))))
+
 (defun add-gesture-name (name type gesture-spec &key unique)
   (check-gesture-name name)
+  (clrhash *gesture-for-pointer-documetation-cache*)
   (let ((gesture-entry (multiple-value-list
                         (normalize-physical-gesture type gesture-spec))))
     (if unique
@@ -168,6 +195,7 @@
 
 (defun delete-gesture-name (name)
   (check-gesture-name name)
+  (clrhash *gesture-for-pointer-documetation-cache*)
   (remhash name *gesture-names*))
 
 ;;; Extension: GESTURE-SPEC can be an atom which is treated like a device name
@@ -181,23 +209,24 @@
                                                       `(:unique ',unique))))
 
 (defun ensure-physical-gesture (designator)
-  ;; Just to be nice, we special-case literal characters here.  We
-  ;; also special-case literal 'physical' gesture specs of the form
-  ;; (type device-name modifier-state).  The CLIM spec requires
-  ;; neither of these things.
+  ;; We special-case literal characters and special-case literal 'physical'
+  ;; gesture specs of the form: (type device-name modifier-state). Neither of
+  ;; these things is required by the CLIM specification.
   (flet ((make-keyboard-gesture (gesture-spec)
            (multiple-value-list
-            (normalize-physical-gesture :keyboard gesture-spec))))
-    (typecase designator
-      ((cons gesture-type) ; Physical gesture
+            (normalize-physical-gesture :keyboard gesture-spec)))
+         (make-indirect-gesture (gesture-spec)
+           (multiple-value-list
+            (normalize-physical-gesture :indirect gesture-spec))))
+    (etypecase designator
+      ((cons gesture-type)              ; Physical gesture
        designator)
-      ((or cons character symbol)
-       (make-keyboard-gesture designator)))))
-
-(defun ensure-gesture (designator)
-  (if (and (symbolp designator) (find-gesture designator))
-      designator
-      (ensure-physical-gesture designator)))
+      ((or cons character)
+       (make-keyboard-gesture designator))
+      (symbol
+       (if (find-gesture designator)
+           (make-indirect-gesture designator)
+           (make-keyboard-gesture designator))))))
 
 (defgeneric character-gesture-name (name)
   (:method ((name character))
@@ -212,20 +241,21 @@
 ;;; GESTURE is T or a list of normalized physical gestures.
 (defun event-data-matches-gesture-p
     (type device-name modifier-state physical-gestures)
-  (labels ((matches-with-wildcards-p (value gesture-value)
-             (or (eq gesture-value t)
-                 (eq value :ignore)
-                 (eql value gesture-value)))
+  (check-type type event-data-type)
+  (labels ((matches-with-wildcards-p (match-value gesture-value)
+             (or (eql gesture-value t)
+                 (eql match-value :ignore)
+                 (eql match-value gesture-value)))
            (physical-gesture-matches-p (gesture)
-             (destructuring-bind
-                 (gesture-type gesture-device-name gesture-modifier-state)
-                 gesture
-               (and (or (matches-with-wildcards-p type gesture-type)
-                        (and (eq gesture-type :pointer-button)
-                             (typep type 'pointer-button-gesture-type)))
-                    (matches-with-wildcards-p device-name gesture-device-name)
-                    (matches-with-wildcards-p
-                     modifier-state gesture-modifier-state)))))
+             (destructuring-bind (gtype gname gmods) gesture
+               (if (eq gtype :indirect)
+                   (event-data-matches-gesture-p
+                    type device-name modifier-state (find-gesture gname))
+                   (and (or (matches-with-wildcards-p type gtype)
+                            (and (eq gtype :pointer-button)
+                                 (typep type 'pointer-button-gesture-type)))
+                        (matches-with-wildcards-p device-name gname)
+                        (matches-with-wildcards-p modifier-state gmods))))))
     (or (eq physical-gestures t)
         (and (eq type :ignore)
              (eq device-name :ignore)
@@ -251,12 +281,15 @@
                                   (event-modifier-state event)
                                   physical-gestures))
   (:method ((event pointer-motion-event) physical-gestures)
-    (event-data-matches-gesture-p (event-type event)
-                                  (pointer-button-state event)
-                                  (event-modifier-state event)
-                                  physical-gestures))
+    ;; Only :POINTER-MOTION is recognized as a valid event data gesture type.
+    ;; Sending :POINTER-ENTER etc would signal an error.
+    (when (eq (event-type event) :pointer-motion)
+      (event-data-matches-gesture-p :pointer-motion
+                                    (pointer-button-state event)
+                                    (event-modifier-state event)
+                                    physical-gestures)))
   (:method ((event timer-event) physical-gestures)
-    (event-data-matches-gesture-p (event-type event)
+    (event-data-matches-gesture-p :timer
                                   (timer-event-qualifier event)
                                   :ignore
                                   physical-gestures)))
@@ -270,9 +303,12 @@
     (event-matches-gesture-p event physical-gestures)))
 
 (defun modifier-state-matches-gesture-name-p (modifier-state gesture-name)
-  (some (lambda (physical-gesture)
-          (eql modifier-state (third physical-gesture)))
-        (gethash gesture-name *gesture-names*)))
+  (labels ((match-1 (physical)
+             (destructuring-bind (type device-name mods) physical
+               (if (eql type :indirect)
+                   (some #'match-1 (find-gesture device-name))
+                   (eql modifier-state mods)))))
+    (some #'match-1 (find-gesture gesture-name))))
 
 ;;; Wrapper around event-matches-gesture-name-p to match against characters too.
 (defgeneric gesture-matches-spec-p (gesture spec)

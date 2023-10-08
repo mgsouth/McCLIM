@@ -15,6 +15,7 @@
 * Raster Images::
 * Drawing backends::
 * Additional arguments to drawing functions::
+* Gestures and Gesture Names extensions::
 @end menu
 
 @node Frame redefinition semantics
@@ -560,3 +561,77 @@ Functions @code{draw-arrow} and @code{draw-arrow*} can take a
 @code{:head-filled} keyword argument, which is a generalized boolean,
 and is false by default.  If true, any arrow heads are filled in;
 otherwise, they are drawn as lines.
+
+@c FIXME document wildcard specifications like (:KEYBOARD T T)
+@node Gestures and Gesture Names extensions
+@section Gestures and Gesture Names extensions
+
+@mcclim{} extends the set of gesture types and specs with the following:
+
+@itemize
+
+@item @code{:pointer-button}
+
+This gesture type is the same but the set of allowed buttons is extended
+with: @code{(member :wheel-up :wheel-down :wheel-left :wheel-right)}.
+When the user scrolls the pointer then the backend will send events
+matching types: @code{:pointer-scroll}, @code{:pointer-button-press} and
+@code{:ponter-button-release}.
+
+@item @code{:pointer-motion}
+
+This gesture type will match all pointer-motion events. The gesture spec
+accepts the same set of buttons as the @code{:pointer-button} but it may
+be a list. For example:
+
+@lisp
+(define-gesture-name whoosh :pointer-motion ((:left :right) :control))
+@end lisp
+
+@item @code{:pointer-scroll}
+
+This gesture type will match the scroll events. The gesture spec is
+similar to @code{:pointer-button}, but the name of a pointer button is
+of type @code{(member :wheel-up :wheel-down :wheel-left :wheel-right)}.
+
+@item @code{:timer}
+
+This gesture type will match the timer events. The gesture spec is a
+keyword that is the timer event qualifier to distinguish them.
+
+@lisp
+(define-gesture-name cookie :timer :cookie)
+(define-gesture-name school :timer :school)
+
+;;; cookie in 20s!
+(schedule-timer-event my-sheet :cookie 20)
+;;; school in 2 hours!
+(schedule-timer-event my-sheet :school (* 2 60 60))
+@end lisp
+
+@item @code{:indirect}
+
+This gesture type will match other gesture names. It is possible to
+create ``group'' gestures and configurable gesture sets for different
+programs.
+
+@lisp
+(defun use-wsad ()
+  (define-gesture-name move-north :indirect wsad-up)
+  (define-gesture-name move-south :indirect wsad-down)
+  (define-gesture-name move-west  :indirect wsad-left)
+  (define-gesture-name move-east  :indirect wsad-right))
+
+(defun use-arrows ()
+  (define-gesture-name move-north :indirect arrow-up)
+  (define-gesture-name move-south :indirect arrow-down)
+  (define-gesture-name move-west  :indirect arrow-left)
+  (define-gesture-name move-east  :indirect arrow-right))
+
+(define-gesture movement-group :indirect move-north :unique t)
+(define-gesture movement-group :indirect move-south :unique nil)
+(define-gesture movement-group :indirect move-west  :unique nil)
+(define-gesture movement-group :indirect move-east  :unique nil)
+@end lisp
+
+@end itemize

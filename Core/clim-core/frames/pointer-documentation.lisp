@@ -99,14 +99,13 @@
                    (setf (assoc-value result button)
                          (list presentation translator context size)))))
              (consider-translator (translator presentation context)
-               (let ((gesture (gesture translator)))
-                 (unless (eq gesture t)
+               (let ((gesture (gestures-for-pointer-documentation (gesture translator))))
                    (loop with size = (presentation-size presentation)
                          for (nil button modifier) in gesture
                          do (if (or (eql modifier t) (eql modifier current-modifier))
                                 (consider-gesture translator presentation context
                                                   button size)
-                                (pushnew modifier other-modifiers))))))
+                                (pushnew modifier other-modifiers)))))
              (map-translators (history)
                (map-applicable-translators
                 #'consider-translator history

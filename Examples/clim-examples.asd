@@ -67,6 +67,7 @@
                (:file "asynchronous-commands")
                (:file "reinitialize-frame")
                (:file "nested-clipping")
+               (:file "indirect-gestures")
                (:file "demodemo")
                (:module "images"
                 :components ((:static-file "glider.png")

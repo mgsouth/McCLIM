@@ -106,7 +106,7 @@
   (make-instance '%menu-item
                  :menu-name name :type type :value value
                  :documentation documentation
-                 :keystroke (when keystroke (ensure-gesture keystroke))
+                 :keystroke keystroke
                  :text-style (or text-style *default-text-style*)
                  :command-name command-name
                  :command-line-name command-line-name))

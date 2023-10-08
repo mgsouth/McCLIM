@@ -167,9 +167,7 @@ and used to ensure that presentation-translators-caches are up to date.")
     `(:name ',name
       :from-type ',real-from-type
       :to-type ',real-to-type
-      :gesture ,(if (eq gesture t)
-                    t
-                    `(find-gesture ',gesture))
+      :gesture ',gesture
       :tester ,(if (symbolp tester)
                    `',tester
                    `(function ,(make-translator-fun (car tester) (cdr tester))))
@@ -407,7 +405,7 @@ and used to ensure that presentation-translators-caches are up to date.")
          (if for-menu :ignore gesture-type)
          (if for-menu :ignore button)
          (if for-menu :ignore modifier-state)
-         (gesture translator))
+         `((:indirect ,(gesture translator) t)))
     (let ((from-type (from-type translator))
           (to-type (to-type translator))
           (ptype (presentation-type presentation))
