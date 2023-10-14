@@ -10,6 +10,8 @@
 
 (in-package #:clim-internals)
 
+(defparameter *tab-string* "        ")
+
 ;;; Standard-Output-Stream class
 (defclass standard-output-stream (output-stream) ())
 
@@ -275,9 +277,10 @@ produces no more than one line of output i.e., doesn't wrap."))
 
 (defmethod stream-write-char ((stream standard-extended-output-stream) char)
   (with-cursor-off stream
-    (if (char= #\Newline char)
-        (seos-write-newline stream)
-        (seos-write-string stream (string char)))))
+    (case char
+      (#\newline (seos-write-newline stream))
+      (#\tab     (seos-write-string stream *tab-string*))
+      (otherwise (seos-write-string stream (string char))))))
 
 (defmethod stream-write-string ((stream standard-extended-output-stream) string
                                 &optional (start 0) end)
@@ -285,11 +288,15 @@ produces no more than one line of output i.e., doesn't wrap."))
         (end (or end (length string))))
     (with-cursor-off stream
       (loop for i from start below end do
-        (when (char= #\Newline
-                     (char string i))
-          (seos-write-string stream string seg-start i)
-          (seos-write-newline stream)
-          (setq seg-start (1+ i))))
+        (case (char string i)
+          (#\newline
+           (seos-write-string stream string seg-start i)
+           (seos-write-newline stream)
+           (setq seg-start (1+ i)))
+          (#\tab
+           (seos-write-string stream string seg-start i)
+           (seos-write-string stream *tab-string*)
+           (setq seg-start (1+ i)))))
       (seos-write-string stream string seg-start end)))
   string)
 
