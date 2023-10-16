@@ -144,6 +144,9 @@
     (destroy-process (port-event-process port))
     (setf (port-event-process port) nil)))
 
+(defmethod graft ((port basic-port))
+  (first (port-grafts port)))
+
 
 ;;; Mirrors
 
@@ -379,7 +382,8 @@
 ;;; We focus a sheet in the CLIM thread.
 (defmethod handle-event ((sheet top-level-sheet-mixin)
                          (event window-manager-focus-event))
-  (setf (port-keyboard-input-focus (port sheet)) sheet))
+  (when-let ((port (port sheet)))
+    (setf (port-keyboard-input-focus port) sheet)))
 
 ;;; In the most general case we can't tell whether all sheets are mirrored or
 ;;; not. So this default method for pointer-events operates under the

@@ -60,7 +60,7 @@
    (sheet :initarg :sheet :reader event-sheet))
   (:default-initargs :timestamp nil
                      :source nil
-                     :sheet (alexandria:required-argument :sheet)))
+                     :sheet (required-argument :sheet)))
 
 (defmethod initialize-instance :after ((event standard-event) &rest initargs)
   (declare (ignore initargs))
@@ -106,7 +106,10 @@
    (x :initarg :x :reader device-event-native-x)
    (y :initarg :y :reader device-event-native-y)
    (sheet-x :reader device-event-x)
-   (sheet-y :reader device-event-y)))
+   (sheet-y :reader device-event-y))
+  (:default-initargs :modifier-state (required-argument :modifier-state)
+                     :x (required-argument :x)
+                     :y (required-argument :y)))
 
 ;;; This function is responsible for transforming the sheet of the event
 ;;; coordinates into target-sheet coordinates. Sheets may be cousins.

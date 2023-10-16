@@ -85,9 +85,6 @@
   (declare (ignore font-name text-style character-set))
   nil)
 
-(defmethod graft ((port null-port))
-  (map-over-grafts (lambda (g) (return-from graft g)) port))
-
 (defmethod port-modifier-state ((port null-port))
   nil)
 

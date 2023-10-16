@@ -37,14 +37,13 @@
    #:blend-image
    #:fill-image)
   (:import-from #:alexandria
-                #:minf
-                #:maxf
                 #:when-let
                 #:when-let*
                 #:ensure-gethash)
   (:import-from #:clim-internals
                 #:standard-color
-                #:standard-flipping-ink)
+                #:standard-flipping-ink
+                #:maxf #:minf #:nconcf #:orf #:clampf)
   (:import-from #:clim-backend
                 #:set-mirror-geometry
                 #:medium-native-transformation

@@ -127,7 +127,7 @@
              ;; Pointer scroll generates button press and button
              ;; release event. We ignore the latter. -- jd 2019-09-01
              (when (eq event-key :button-press)
-               (make-instance 'climi::pointer-scroll-event
+               (make-instance 'pointer-scroll-event
                               :pointer (port-pointer *clx-port*)
                               :button button :x x :y y
                               :sheet sheet

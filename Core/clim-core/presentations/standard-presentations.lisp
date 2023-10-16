@@ -183,7 +183,7 @@
   (if (null sheet)
       *null-presentation*
       (let ((event (or event
-                       (make-instance 'pointer-event :sheet sheet :x x :y y))))
+                       (make-instance 'pointer-event :modifier-state +no-key+ :sheet sheet :x x :y y))))
         (multiple-value-bind (x1 y1 x2 y2) (bounding-rectangle* sheet)
           (make-instance 'standard-presentation
                          :object event

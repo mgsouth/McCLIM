@@ -45,14 +45,16 @@
   (let ((window (clim-clx::realize-mirror-aux port sheet
                                               :map nil
                                               :width (bounding-rectangle-width sheet)
-                                              :height (bounding-rectangle-height sheet))))
+                                              :height (bounding-rectangle-height sheet)))
+        (pname (clime:sheet-pretty-name sheet))
+        (uname (clime:sheet-name sheet)))
     (setf (xlib:wm-hints window) (xlib:make-wm-hints :input :on))
-    (setf (xlib:wm-name window) (clime:sheet-pretty-name sheet))
-    (setf (xlib:wm-icon-name window) (clime:sheet-pretty-name sheet))
+    (setf (xlib:wm-name window) pname)
+    (setf (xlib:wm-icon-name window) pname)
     (xlib:set-wm-class
      window
-     (string-downcase (clime:sheet-name sheet))
-     (string-capitalize (string-downcase (clime:sheet-name sheet))))
+     (string-downcase uname)
+     (string-capitalize (string-downcase uname)))
     (setf (xlib:wm-protocols window) `(:wm_delete_window))
     (xlib:change-property window
                           :WM_CLIENT_LEADER (list (xlib:window-id window))
@@ -68,12 +70,3 @@
 (defmethod port-force-output ((port clx-fb-port))
   (map nil #'%mirror-force-output (all-mirrors port))
   (xlib:display-force-output (clx-port-display port)))
-
-(defmethod distribute-event :before
-    ((port clx-fb-port) (event window-configuration-event))
-  (with-bounding-rectangle* (:width width :height height)
-      (window-event-native-region event)
-    (when-let ((mirror (sheet-direct-mirror (event-sheet event))))
-      (with-image-locked (mirror)
-        (mcclim-render::%set-image-region
-         mirror (make-bounding-rectangle 0 0 width height))))))

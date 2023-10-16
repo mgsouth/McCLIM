@@ -1903,6 +1903,9 @@
    #:schedule-timer-event
    #:timer-event-qualifier
    #:window-manager-focus-event
+   #:pointer-scroll-event
+   #:pointer-event-delta-x
+   #:pointer-event-delta-y
    ;; frame managers
    #:headless-frame-manager
    ;; frames
@@ -2069,6 +2072,10 @@
    #:window-map-event
    #:window-unmap-event
    #:pointer-scroll-event
+   #:pointer-event-delta-x
+   #:pointer-event-delta-y
+   #:text-input-event
+   #:text-input-event-string
    ;; ~
    #:with-port
    #:invoke-with-port

@@ -541,18 +541,19 @@ record."))
 
 (defmethod display-drei :after ((drei drei) &key redisplay-minibuffer)
   (when (and *minibuffer* redisplay-minibuffer)
-    ;; We need to use :force-p t to remove any existing output from
-    ;; the pane.
-    (redisplay-frame-pane (pane-frame *minibuffer*) *minibuffer* :force-p t)))
+    ;; We need to use :force-p t to remove any existing output from the pane.
+    (redisplay-frame-pane (pane-frame *minibuffer*) *minibuffer* :force-p t))
+  (let ((pane (editor-pane drei)))
+    (when pane
+      (dispatch-repaint pane +everywhere+))))
 
 ;;; Programmer interface stuff
 ;;;
 ;;; We want it to be dead-easy to integrate Drei in CLIM applications.
 
-;;; XXX This is brittle. If an :around method, that does funky
-;;; (side-effecting) stuff, runs before this method, things might
-;;; break. Let's hope nothing of that sort happens (this works in
-;;; McCLIM. The method, not the hoping.)
+;;; XXX This is brittle. If an :around method, that does funky (side-effecting)
+;;; stuff, runs before this method, things might break. Let's hope nothing of
+;;; that sort happens (this works in McCLIM. The method, not the hoping.)
 (defmethod make-pane-1 :around (fm (frame application-frame)
                                 (type (eql :drei))
                                 &rest args

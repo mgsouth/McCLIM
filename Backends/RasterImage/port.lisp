@@ -39,9 +39,6 @@
                                        :width       width
                                        :height      height)))
 
-(defmethod graft ((port raster-image-port))
-  (first (port-grafts port)))
-
 ;;; medium
 
 (defclass raster-image-medium (render-medium-mixin basic-medium)

@@ -16,7 +16,8 @@
 (test stream-read-gesture.smoke
   "Smoke test for `stream-read-gesture'."
 
-  (let ((lame-event (make-instance 'pointer-event :sheet nil))
+  (let ((lame-event (make-instance 'pointer-event :sheet nil :x 0 :y 0
+                                                  :modifier-state climi::+no-key+))
         (sis        (make-instance 'standard-input-stream))
         (seis       (make-instance 'standard-extended-input-stream)))
     ;; Initially nothing available.
