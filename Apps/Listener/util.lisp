@@ -42,7 +42,7 @@
   `(with-text-face (,stream :italic)
      ,@body))
 
-(defmacro bordering ((stream shape) &body body)
+(defmacro bordering* ((stream shape) &body body)
   `(surrounding-output-with-border (,stream :shape ,shape :move-cursor t)
      ,@body))
 
