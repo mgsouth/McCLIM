@@ -76,9 +76,9 @@
                      #'input-context-button-press-handler)
                    (*input-wait-test* #'input-context-wait-test)
                    (*input-wait-handler* #'input-context-event-handler))
+               (highlight-current-presentation *application-frame* *input-context*)
                (return-from ,return-block ,form )))
          (declare (ignorable ,@vars))
-         (highlight-current-presentation *application-frame* *input-context*)
          (cond ,@(mapcar #'(lambda (pointer-case)
                              (destructuring-bind (case-type &body case-body)
                                  pointer-case
