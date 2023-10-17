@@ -74,17 +74,20 @@
       (untransform-region (sheet-native-transformation sheet)
                           (sheet-native-region* sheet))))
 
+(defun sheet-repaint-region (sheet region)
+  (let ((visible (sheet-visible-region sheet)))
+    (region-intersection visible region)))
+
 (defmethod repaint-sheet ((sheet basic-sheet) region)
-  (let* ((visible (sheet-visible-region sheet))
-         (clipped (region-intersection visible region)))
-    (unless (region-equal clipped +nowhere+)
-      (with-output-buffered (sheet)
-        (handle-repaint sheet clipped)
-        (loop for child in (sheet-children sheet)
-              unless (sheet-direct-mirror child)
-                do (let* ((tr (sheet-transformation child))
-                          (cr (untransform-region tr region)))
-                     (repaint-sheet child cr)))))))
+  (setf region (sheet-repaint-region sheet region))
+  (unless (region-equal region +nowhere+)
+    (with-output-buffered (sheet)
+      (handle-repaint sheet region)
+      (loop for child in (sheet-children sheet)
+            unless (sheet-direct-mirror child)
+              do (let* ((tr (sheet-transformation child))
+                        (cr (untransform-region tr region)))
+                   (repaint-sheet child cr))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -126,12 +129,12 @@
 (defmethod dispatch-repaint ((sheet immediate-repainting-mixin) region)
   ;; Only repaint when the sheet has a mirror. Repaint directly from the mirror
   ;; to ensure, that transparent parts are rendered correctly.
+  (setf region (sheet-repaint-region sheet region))
   (when-let ((msheet (sheet-mirrored-ancestor sheet)))
     (if (eq msheet sheet)
         (repaint-sheet sheet region)
-        (let* ((delta (sheet-delta-transformation sheet msheet))
-               (mregion (transform-region delta region)))
-          (repaint-sheet msheet mregion)))))
+        (let ((transf (sheet-delta-transformation sheet msheet)))
+          (dispatch-repaint msheet (transform-region transf region))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
