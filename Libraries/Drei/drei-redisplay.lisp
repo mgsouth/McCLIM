@@ -526,7 +526,7 @@ any actual output takes place."
                        (t
                         (draw-text* stream stroke-string (+ cursor-x width)
                                     cursor-y
-                                    :start start :end end
+                                    :start start :end (min end (length stroke-string))
                                     :text-style merged-text-style
                                     :ink (face-ink (drawing-options-face drawing-options))
                                     :align-y :baseline)))))

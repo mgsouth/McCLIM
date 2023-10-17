@@ -62,7 +62,7 @@ activated with GESTURE"))
   (let ((real-stream (encapsulating-stream-stream stream))
         (record (drei:drei-instance stream)))
     (cond (input-sensitizer
-           (erase-output-record record real-stream)
+           (erase-output-record record real-stream nil)
            (funcall input-sensitizer
                     real-stream
                     #'(lambda ()

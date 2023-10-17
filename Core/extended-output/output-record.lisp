@@ -443,7 +443,6 @@ the associated sheet can be determined."
 (defmethod clear-output-record :around ((record compound-output-record))
   (multiple-value-bind (x1 y1 x2 y2) (bounding-rectangle* record)
     (call-next-method)
-    (assert (null-bounding-rectangle-p record))
     (when-let ((parent (output-record-parent record)))
       (recompute-extent-for-changed-child parent record x1 y1 x2 y2))))
 
