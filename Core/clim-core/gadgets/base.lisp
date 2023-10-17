@@ -154,22 +154,11 @@
                 :align-y (pane-align-y pane)
                 :text-style (pane-text-style pane))))
 
-(defclass basic-gadget (;; sheet-leaf-mixin ; <- this cannot go here...
-                        ;; These are inherited from pane, via
-                        ;; clim-sheet-input-mixin and clim-repainting-mixin
-                        ;; immediate-sheet-input-mixin
-                        ;; immediate-repainting-mixin
-                        basic-pane
-                        gadget)
+(defclass basic-gadget (gadget basic-pane)
   ((id                :initarg :id                :accessor gadget-id)
    (client            :initarg :client            :accessor gadget-client)
    (armed-callback    :initarg :armed-callback    :reader gadget-armed-callback)
    (disarmed-callback :initarg :disarmed-callback :reader gadget-disarmed-callback)
-   ;; I'm not so sure about the value for :initform. Maybe T is
-   ;; better? Or maybe we should call ACTIVATE-GADGET after creating a
-   ;; gadget? -- AL
-   ;;
-   ;; I think, T is correct here --GB
    (active-p          :initarg :active            :reader gadget-active-p)
    (armed             :initform nil               :reader gadget-armed-p))
   (:default-initargs :text-style (make-text-style :sans-serif nil nil)
