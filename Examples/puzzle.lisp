@@ -47,7 +47,7 @@
      (with-bounding-rectangle* (x1 y1 x2 y2) record
        (draw-rectangle* stream x1 y1 x2 y2 :ink +flipping-ink+)))
     (:unhighlight
-     (repaint-sheet stream record))))
+     (dispatch-repaint stream record))))
 
 (defun encode-puzzle-cell (row column)
   (+ (* row 4) column))

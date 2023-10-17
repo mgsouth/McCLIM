@@ -435,11 +435,11 @@
                                 (with-output-recording-options (stream :draw t :record nil)
                                   (draw-circle* stream x1 y1 32 :ink ink)))))
                            (:unhighlight
-                            (repaint-sheet stream (make-rectangle*
-                                                   (- x1 32)
-                                                   (- y1 32)
-                                                   (+ x1 32)
-                                                   (+ y1 32))))))
+                            (dispatch-repaint stream (make-rectangle*
+                                                      (- x1 32)
+                                                      (- y1 32)
+                                                      (+ x1 32)
+                                                      (+ y1 32))))))
              :tester
              ((object) ; XXX: fix-args should allow i.e &rest args
               (let ((frame *application-frame*))

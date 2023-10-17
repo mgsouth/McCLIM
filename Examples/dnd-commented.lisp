@@ -45,13 +45,13 @@
     (setf color (make-contrasting-inks 8 (random 8)))
     (setf dragp t)
     (incf counter 1))
-  (repaint-sheet client +everywhere+))
+  (dispatch-repaint client +everywhere+))
 
 ;;; Releasing button anywhere stops dragging.
 (defmethod handle-event ((client custom-pane) (event pointer-button-release-event))
   (with-slots (dragp) client
     (setf dragp nil))
-  (repaint-sheet client +everywhere+))
+  (dispatch-repaint client +everywhere+))
 
 ;;; When dragging is T and pointer is moving around then we update the
 ;;; circle position to follow the cursor.
@@ -60,7 +60,7 @@
     (when dragp
       (setf pos-x (pointer-event-x event)
             pos-y (pointer-event-y event))
-      (repaint-sheet client +everywhere+))))
+      (dispatch-repaint client +everywhere+))))
 
 
 ;;; We define multiple sheets for testing what happens when dragging

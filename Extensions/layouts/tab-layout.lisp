@@ -367,7 +367,7 @@ as :PRESENTATION-TYPE to pane creation forms that specify no type themselves."
 
 (define-presentation-method highlight-presentation
     ((type tab-page) record stream (state (eql :unhighlight)))
-  (repaint-sheet stream (bounding-rectangle record)))
+  (dispatch-repaint stream (bounding-rectangle record)))
 
 (defclass tab-layout-pane (tab-layout)
   ((header-pane :accessor tab-layout-header-pane

@@ -64,10 +64,10 @@
 (defmethod initialize-instance :after ((instance canvas) &key state)
   (setf (hook state) (lambda (state)
                        (declare (ignore state))
-                       (repaint-sheet instance (sheet-region instance)))))
+                       (dispatch-repaint instance (sheet-region instance)))))
 
 (defmethod resize-sheet :after ((sheet canvas) width height)
-  (repaint-sheet sheet (sheet-region sheet)))
+  (dispatch-repaint sheet (sheet-region sheet)))
 
 (defmethod handle-repaint ((sheet canvas) region)
   (draw-text-size-info sheet (state sheet)))

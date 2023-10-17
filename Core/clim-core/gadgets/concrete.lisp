@@ -337,6 +337,9 @@
 ;;;; Redisplay
 
 (defun scroll-bar/update-display (scroll-bar)
+  (dispatch-repaint scroll-bar +everywhere+))
+
+(defun %scroll-bar/update-display (scroll-bar)
   (flet ((draw-sb-arrow (pg armedp)
            (multiple-value-bind (ink style)
                (if armedp
@@ -474,7 +477,7 @@
 
 (defmethod handle-repaint ((pane scroll-bar-pane) region)
   (declare (ignore region))
-  (scroll-bar/update-display pane))
+  (%scroll-bar/update-display pane))
 
 
 ;;; ---------------------------------------------------------------------------
@@ -1561,7 +1564,7 @@ if INVOKE-CALLBACK is given."))
     (multiple-value-bind (ox oy) (output-record-position record)
       (if (or (/= ox gx) (/= oy gy))
           (move-sheet (gadget record) ox oy)
-          (repaint-sheet (gadget record) region)))))
+          (dispatch-repaint (gadget record) region)))))
 
 (defun setup-gadget-record (sheet record)
   (let* ((child (gadget record))

@@ -104,7 +104,7 @@ this point, increment it by SPACING, which defaults to zero."
                                     2))
                           (+ ry0 vpad))))))
     (add-output-record record (stream-output-history stream-pane))
-    (repaint-sheet stream-pane record)))
+    (dispatch-repaint stream-pane record)))
 
 ;;; Pathnames are awful.
 

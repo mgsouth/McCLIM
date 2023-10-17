@@ -153,7 +153,7 @@
         (setf (redo-list *application-frame*) nil)
         (disable-commands frame 'com-redo)
         (enable-commands frame 'com-undo 'com-clear)
-        (repaint-sheet pane +everywhere+))
+        (dispatch-repaint pane +everywhere+))
       (change-space-requirements pane))))
 
 (defun handle-move-object (pane figure first-point-x first-point-y)

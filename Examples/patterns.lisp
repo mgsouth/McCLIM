@@ -225,7 +225,7 @@ right-trimmed for spaces."
          (setf *draw* :pattern)
          #1=(map-over-sheets (lambda (sheet)
                                (redisplay-frame-pane *application-frame* sheet :force-p t)
-                               (repaint-sheet sheet +everywhere+))
+                               (dispatch-repaint sheet +everywhere+))
                              (frame-top-level-sheet *application-frame*)))
        (define-pattern-design-test-command (ddesign :keystroke #\2) ()
          (setf *draw* :design)

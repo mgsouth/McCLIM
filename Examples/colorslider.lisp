@@ -27,7 +27,7 @@
 
 (defmethod (setf colored-gadget-color) :after
     ((new-value t) (gadget generic-colored-gadget))
-  (repaint-sheet gadget +everywhere+))
+  (dispatch-repaint gadget +everywhere+))
 
 (defmethod handle-repaint ((gadget generic-colored-gadget) region)
   (with-bounding-rectangle* (x1 y1 x2 y2) region

@@ -56,7 +56,7 @@
       (show-time 0))))
 
 (defun repaint-all-sheets ()
-  (map-over-sheets (lambda (sheet) (repaint-sheet sheet +everywhere+))
+  (map-over-sheets (lambda (sheet) (dispatch-repaint sheet +everywhere+))
                    (frame-top-level-sheet *application-frame*)))
 
 (defun callback-red (gadget value)
@@ -82,7 +82,7 @@
 
 (defun callback-time-left (gadget value)
   (declare (ignore value))
-  (repaint-sheet gadget +everywhere+))
+  (dispatch-repaint gadget +everywhere+))
 
 ;;; test functions
 

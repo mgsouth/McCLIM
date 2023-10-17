@@ -399,11 +399,11 @@
                             :ink +black+ :align-y :top)
                 (draw-text* pane win-message 10 10 :text-style text-style
                             :ink +white+ :align-y :top)))
-        (repaint-sheet pane (sheet-region pane))
+        (dispatch-repaint pane (sheet-region pane))
         (sleep 0.01)))                  ;)
   (generate-better-cube-puzzle pane)
   (cleanup-cube pane)
-  (repaint-sheet pane (sheet-region pane)))
+  (dispatch-repaint pane (sheet-region pane)))
 
 (defun drag-on-square (pane cell)
   (if (and (null (second cell)) (drag-color pane))
@@ -415,7 +415,7 @@
     (symbol-macrolet ((cell (aref (playfield cube) side i j)))
       (when (not (equalp cell (setf cell (drag-on-square cube cell)))) ; when we've genuinely changed the state..
         (when (check-victory cube)  ; .. check for win
-          (repaint-sheet cube (sheet-region cube))
+          (dispatch-repaint cube (sheet-region cube))
           (won-logic-cube cube))))))
 
 (defmethod handle-event ((pane logic-cube-pane) (event pointer-motion-event))
@@ -424,7 +424,7 @@
     (when (dragging pane) (multiple-value-call #'touch-square pane (find-poly-under-point pane x y)))
     (setf (yaw pane)   (- (* (/ pi 4) (max -1.0 (min 1.0 x))) (/ pi 4))
           (pitch pane) (min 0.0 (- (* (/ pi 4) (max -1.0 (min 1.0 y))) (/ pi 8))))
-    (repaint-sheet pane (sheet-region pane))))
+    (dispatch-repaint pane (sheet-region pane))))
 
 (defmethod handle-event ((pane logic-cube-pane) (event pointer-button-press-event))
   (multiple-value-bind (side i j)
@@ -435,7 +435,7 @@
         (touch-square pane side i j)
         (setf (dragging pane) t
               (drag-color pane) (if (eql type 'terminal) color (drag-color pane))))))
-  (repaint-sheet pane (sheet-region pane)))
+  (dispatch-repaint pane (sheet-region pane)))
 
 (defun find-cube () (find-pane-named *application-frame* 'logic-cube))
 

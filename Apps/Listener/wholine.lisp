@@ -37,7 +37,7 @@
 ;; regions, because the decoration within the previous region must move.
 ;; Likewise, shrinking the pane requires repainting some of the interior.
 (defmethod allocate-space :after ((pane wholine-pane) width height)
-  (repaint-sheet pane (sheet-region pane)))
+  (dispatch-repaint pane (sheet-region pane)))
 
 (defun print-package-name (stream)
   (let ((foo (package-name *package*)))

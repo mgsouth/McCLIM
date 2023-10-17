@@ -205,9 +205,9 @@
                (setf region (region-union region new-region))))
            record :count count)
           (unless (eq region +nowhere+)
-            (repaint-sheet stream region))))
+            (dispatch-repaint stream region))))
       ;; Repaint region occupied by textual note.
       (when (plusp omitted)
         (let ((region (with-output-to-output-record (stream)
                         (draw-occurrence-count stream record omitted))))
-          (repaint-sheet stream region))))))
+          (dispatch-repaint stream region))))))

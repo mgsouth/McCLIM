@@ -53,7 +53,7 @@
         (with-output-to-pixmap (medium sheet :width 100 :height  100)
           (medium-clear-area medium 0 0 100 100)
           (draw-grid nil medium)))
-  (repaint-sheet sheet +everywhere+))
+  (dispatch-repaint sheet +everywhere+))
 
 (defmethod note-sheet-grafted :after ((sheet pixmap-sheet))
   (reset-pixmap sheet))
@@ -141,7 +141,7 @@
          (with-output-recording-options (stream :record nil)
            (with-bounding-rectangle* (x0 y0 x y) region
              (draw-rectangle* stream x0 y0 x y :ink (pane-background stream))))
-         (repaint-sheet stream region))))))
+         (dispatch-repaint stream region))))))
 
 (defun paste-tester (object &key &allow-other-keys)
   (member (pane-name (event-sheet object)) '(app1 app2 pix1 pix2)))
@@ -190,7 +190,7 @@
   (let ((sheet (event-sheet object)))
     (when (typep sheet 'pixmap-sheet)
       (reset-pixmap sheet))
-    (repaint-sheet sheet +everywhere+)))
+    (dispatch-repaint sheet +everywhere+)))
 
 (define-pixmaps-command (com-copy :name "Copy")
     ((arg1 '(member app1 app2 pix1 pix2))
@@ -213,7 +213,7 @@
     (medium-copy-area medium1 from-x from-y width height medium2 to-x to-y)
     (mapc (lambda (p)
             (when (typep p 'pixmap-sheet)
-              (repaint-sheet p +everywhere+)))
+              (dispatch-repaint p +everywhere+)))
           (remove-duplicates (list pane1 pane2)))))
 
 (defun pixmaps (&key (new-process t))

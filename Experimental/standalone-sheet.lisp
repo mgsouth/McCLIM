@@ -142,7 +142,7 @@
 (defmethod handle-event ((sheet plain-sheet) (event text-input-event))
   (setf (getf *extra* :str) (text-input-event-string event))
   (when (string= " " (text-input-event-string event))
-    (repaint-sheet sheet +everywhere+))
+    (dispatch-repaint sheet +everywhere+))
   (update-title sheet))
 
 (defmethod handle-event ((sheet plain-sheet) (event pointer-motion-event))
