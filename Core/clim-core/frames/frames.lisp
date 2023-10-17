@@ -433,7 +433,7 @@
             (erase-pane))
           (funcall cont))
         (seos-finish-output pane)
-        (repaint-sheet pane +everywhere+)))))
+        (dispatch-repaint pane +everywhere+)))))
 
 (defmethod redisplay-frame-pane :around
     ((frame application-frame) pane &key force-p)
