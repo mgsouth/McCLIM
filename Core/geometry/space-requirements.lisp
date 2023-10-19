@@ -33,13 +33,16 @@
   (eql bound +null-bound+))
 
 (defmethod print-object ((object bound) stream)
-  (print-unreadable-object (object stream :type nil :identity nil)
-    (format stream "~s [~s ~s]"
-            (bound-val object) (bound-min object) (bound-max object))))
+  (flet ((fix (val) (if (= val +fill+) '+fill+ val)))
+    (print-unreadable-object (object stream :type nil :identity nil)
+      (format stream "~a [~a ~a]"
+              (fix (bound-val object))
+              (fix (bound-min object))
+              (fix (bound-max object))))))
 
 (defun make-bound (val &optional (min val) (max val))
   (clampf min 0 max)
-  (clampf max min max)
+  (clampf max min +fill+)
   (clampf val min max)
   (if (and (zerop val) (zerop min) (zerop max))
       +null-bound+
@@ -461,3 +464,72 @@
                                     (make-bound margins-x2 min-margins-x2 max-margins-x2)
                                     (make-bound margins-y2 min-margins-y2 max-margins-y2))))
         (make-space-requirements measure padding margins))))
+
+
+(defclass legacy-space-requirement (space-requirement)
+  ((width      :initform 1
+               :initarg :width
+               :reader space-requirement-width)
+   (max-width  :initform 1
+               :initarg :max-width
+               :reader space-requirement-max-width)
+   (min-width  :initform 1
+               :initarg :min-width
+               :reader space-requirement-min-width)
+   (height     :initform 1
+               :initarg :height
+               :reader space-requirement-height)
+   (max-height :initform 1
+               :initarg :max-height
+               :reader space-requirement-max-height)
+   (min-height :initform 1
+               :initarg :min-height
+               :reader space-requirement-min-height) ) )
+
+(defmethod print-object ((space legacy-space-requirement) stream)
+  (with-slots (width height min-width max-width min-height max-height) space
+    (print-unreadable-object (space stream :type t :identity nil)
+      (format stream "width: ~S [~S,~S] height: ~S [~S,~S]"
+              width
+              min-width
+              max-width
+              height
+              min-height
+              max-height))))
+
+(defun make-legacy-space-requirement (&key (min-width 0) (min-height 0)
+                                           (width min-width) (height min-height)
+                                           (max-width +fill+) (max-height +fill+))
+  ;; Defensive programming. For instance SPACE-REQUIREMENT-+ may cause
+  ;; max-{width,height} to be (+ +fill+ +fill+), what exceeds our biggest
+  ;; allowed values. We fix that here.
+  (clampf min-width 0 +fill+)
+  (clampf max-width 0 +fill+)
+  (clampf width min-width  max-width)
+  (clampf min-height 0 +fill+)
+  (clampf max-height 0 +fill+)
+  (clampf height min-height max-height)
+  (assert (<= min-width  max-width)  (min-width  max-width))
+  (assert (<= min-height max-height) (min-height max-height))
+  (make-instance 'legacy-space-requirement
+                 :width width
+                 :max-width max-width
+                 :min-width min-width
+                 :height height
+                 :max-height max-height
+                 :min-height min-height))
+
+(defun make-legacy-space-requirement* (sr &key
+                                            (width (space-requirement-width sr))
+                                            (min-width (space-requirement-min-width sr))
+                                            (max-width (space-requirement-max-width sr))
+                                            (height (space-requirement-height sr))
+                                            (min-height (space-requirement-min-height sr))
+                                            (max-height (space-requirement-max-height sr)))
+  (make-legacy-space-requirement
+   :width width :min-width min-width :max-width max-width
+   :height height :min-height min-height :max-height max-height))
+
+(defmethod space-requirement-components ((space-req legacy-space-requirement))
+  (with-slots (width min-width max-width height min-height max-height) space-req
+    (values width min-width max-width height min-height max-height)))
