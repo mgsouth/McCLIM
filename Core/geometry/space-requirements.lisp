@@ -38,8 +38,8 @@
             (bound-val object) (bound-min object) (bound-max object))))
 
 (defun make-bound (val &optional (min val) (max val))
-  (clampf min 0 +fill+)
-  (clampf max min +fill+)
+  (clampf min 0 max)
+  (clampf max min max)
   (clampf val min max)
   (if (and (zerop val) (zerop min) (zerop max))
       +null-bound+
