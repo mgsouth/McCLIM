@@ -400,12 +400,19 @@
 
 ;;; Don't upset the standard.
 (defun make-space-requirement
-    (&key (width  0) (min-width  width)  (max-width  +fill+)
-          (height 0) (min-height height) (max-height +fill+))
+    (&rest args
+     &key (width  0) (min-width  0)  (max-width  +fill+)
+          (height 0) (min-height 0) (max-height +fill+))
+  (declare (ignorable args))
   (let ((measure (make-size-req (make-bound width  min-width  max-width)
                                 (make-bound height min-height max-height)))
         (padding +null-fill-req+)
         (margins +null-fill-req+))
+    #+ (or)
+    (let ((old (apply #'make-legacy-space-requirement args))
+          (new (make-space-requirements measure padding margins)))
+      (assert (space-requirement-equal old new))
+      new)
     (make-space-requirements measure padding margins)))
 
 ;;; The almighty constructor.
