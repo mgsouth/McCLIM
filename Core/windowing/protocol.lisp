@@ -474,3 +474,29 @@ size.  If size is nil, the resulting text style does not specify a size."))
   (:documentation "Ungrab the specified pointer."))
 (defgeneric set-sheet-pointer-cursor (port sheet cursor)
   (:documentation "Sets the cursor associated with SHEET. CURSOR is a symbol, as described in the Franz user's guide."))
+
+;;; 29.3.4 The Layout Protocol (space requirements)
+
+(define-protocol-class space-requirement ())
+
+(pledge :function make-space-requirement
+        &key (width 0) (min-width width) (max-width width)
+             (height 0) (min-height height) (max-height height))
+
+(defgeneric space-requirement-width (space-req))
+(defgeneric space-requirement-min-width (space-req))
+(defgeneric space-requirement-max-width (space-req))
+(defgeneric space-requirement-height (space-req))
+(defgeneric space-requirement-min-height (space-req))
+(defgeneric space-requirement-max-height (space-req))
+(defgeneric space-requirement-components (space-req))
+
+(defgeneric space-requirement-equal (sr1 sr2) ; McCLIM extension
+  (:documentation
+   "Return true if the components of SR1 and SR2 are EQL."))
+
+(pledge :function space-requirement-combine function sr1 sr2)
+
+;;; These two functions are not really interesting.
+(pledge :function space-requirement+ sr1 sr2)
+(pledge :function space-requirement+* sr1 &rest space-reqs)

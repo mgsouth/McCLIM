@@ -57,6 +57,7 @@
     :components ((:file "protocol")
                  (:file "standard-keys")
                  (:file "events")
+                 (:file "space-req")
                  (:file "output")
                  (:file "pointer")
                  (:file "sheets")
