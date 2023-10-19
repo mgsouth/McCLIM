@@ -85,7 +85,7 @@
 
 (defmethod pointer-position ((pointer clx-basic-pointer))
   (let* ((port (port pointer))
-         (graft (graft port))
+         (graft (find-graft :port port))
          (mirror (sheet-mirror graft))
          (window (window mirror)))
     (multiple-value-bind (x y same-screen-p)
@@ -95,7 +95,7 @@
 
 (clim-sys:defmethod* (setf pointer-position) (x y (pointer clx-basic-pointer))
   (let* ((port (port pointer))
-         (graft (graft port))
+         (graft (find-graft :port port))
          (mirror (sheet-mirror graft))
          (window (window mirror)))
     (multiple-value-bind (x y)

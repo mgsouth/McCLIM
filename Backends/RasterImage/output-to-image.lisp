@@ -36,7 +36,7 @@
      &rest args
      &key (width :compute) (height :compute) (target nil) (recording-p nil)
      &allow-other-keys)
-  (let* ((graft (graft port))
+  (let* ((graft (find-graft :port port))
          (top-level-sheet (make-raster-top-level-sheet port))
          (stream (climi::with-keywords-removed
                      (args (:width :height :target :recording-p))

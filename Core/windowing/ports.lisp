@@ -144,9 +144,6 @@
     (destroy-process (port-event-process port))
     (setf (port-event-process port) nil)))
 
-(defmethod graft ((port basic-port))
-  (first (port-grafts port)))
-
 
 ;;; Mirrors
 
@@ -243,8 +240,8 @@
 ;;; Synthesizing the pointer motion event (a portable method).
 (defmethod synthesize-pointer-motion-event ((port basic-port) (pointer pointer))
   (multiple-value-bind (screen-x screen-y) (pointer-position pointer)
-    (let* ((sheet (or (pointer-sheet pointer) (graft port)))
-           (graft (or (graft sheet) (setf sheet (graft port))))
+    (let* ((sheet (or (pointer-sheet pointer) (find-graft :port port)))
+           (graft (or (graft sheet) (setf sheet (find-graft :port port))))
            (window (sheet-mirrored-ancestor sheet))
            (graft-transformation (sheet-native-transformation graft))
            (window-transformation (sheet-delta-transformation window graft)))
