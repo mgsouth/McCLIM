@@ -1261,15 +1261,15 @@ SCROLLER-PANE appear on the ergonomic left hand side, or leave set to
                            (bounding-rectangle-width viewport-child)))
              (max-height (+ (space-requirement-max-height viewport-sr)
                             (bounding-rectangle-height viewport-child))))
-        (setq req (space-requirement-combine* #'min req
-                                              :width max-width
+        (setq req (space-requirement-combine #'min req
+                      (make-space-requirement :width max-width
                                               :min-width max-width
                                               :max-width max-width
                                               :height max-height
                                               :min-height max-height
-                                              :max-height max-height)
-              req (make-space-requirement* req :max-width max-width
-                                               :max-height max-height)))
+                                              :max-height max-height))
+              req (fuse-space-requirement req :max-measure-ws max-width
+                                              :max-measure-hs max-height)))
 
       req)))
 

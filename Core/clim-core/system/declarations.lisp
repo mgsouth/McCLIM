@@ -394,39 +394,28 @@ to computed distance to scroll in response to mouse wheel events."))
 
 ;;;; 29.3.4 The Layout Protocol
 
-;; (define-protocol-class space-requirement ())
 
-;; make-space-requirement &key (width 0) (max-width 0) (min-width 0) (height 0) (max-height 0) (min-height 0) [Function]
-
-(defgeneric space-requirement-width (space-req))
-(defgeneric space-requirement-min-width (space-req))
-(defgeneric space-requirement-max-width (space-req))
-(defgeneric space-requirement-height (space-req))
-(defgeneric space-requirement-min-height (space-req))
-(defgeneric space-requirement-max-height (space-req))
-(defgeneric space-requirement-components (space-req))
-
-(defgeneric space-requirement-equal (sr1 sr2) ; McCLIM extension
-  (:documentation
-   "Return true if the components of SR1 and SR2 are EQL."))
-;; space-requirement-combine function sr1 sr2 [Function]
-;; space-requirement+ sr1 sr2 [Function]
-;; space-requirement+* space-req &key width min-width max-width height min-height max-height [Function]
-
-(defgeneric compose-space (pane &key width height)
-  (:documentation "During the space composition pass, a composite pane will
-typically ask each of its children how much space it requires by calling COMPOSE-SPACE.
-They answer by returning space-requirement objects. The composite will then form
-its own space requirement by composing the space requirements of its children
-according to its own rules for laying out its children.
+(defgeneric compose-space (node &key width height)
+  (:documentation "~
+During the space composition pass nodes are asked about their space requirements
+with optional proposed defaults WIDTH and HEIGHT. The returned space requirement
+is used by the caller to synthesize space requirements and layout of its scions.
 
 Returns a SPACE-REQUIREMENT object."))
-(defgeneric allocate-space (pane width height))
-(defgeneric change-space-requirements
-    (pane &rest space-req-keys &key resize-frame width height
-          min-width min-height max-width max-height))
+
+(defgeneric allocate-space (node width height)
+  (:documentation "~
+During the space allocation pass scions are informed about their new size. The
+caller ensures that each node has sufficient size to accomodate dimensions."))
+
+(defgeneric change-space-requirements (pane &rest space-req-keys
+                                            &key resize-frame
+                                                 width min-width min-height
+                                                 height max-width max-height))
+
 (defgeneric note-space-requirements-changed (sheet pane))
-;; changing-space-requirements (&key resize-frame layout) &body body [Macro]
+
+(pledge :macro changing-space-requirements (&key resize-frame layout) &body body)
 
 ;;;; 29.4.4 CLIM Stream Pane Functions
 
