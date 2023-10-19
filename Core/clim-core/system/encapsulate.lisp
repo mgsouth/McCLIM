@@ -371,6 +371,14 @@
     (apply #'invoke-with-temporary-page
            (slot-value stream 'stream) #'trampoline args)))
 
+(defmethod invoke-with-pristine-viewport ((stream standard-encapsulating-stream)
+                                          continuation)
+  (flet ((trampoline (old-stream)
+           (declare (ignore old-stream))
+           (funcall continuation stream)))
+    (declare (dynamic-extent #'trampoline))
+    (invoke-with-pristine-viewport (slot-value stream 'stream) #'trampoline)))
+
 (def-stream-method medium-buffering-output-p
     ((stream standard-encapsulating-stream)))
 
