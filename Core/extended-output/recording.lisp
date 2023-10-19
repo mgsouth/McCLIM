@@ -2048,10 +2048,7 @@ according to the flags RECORD and DRAW."
 (defmethod invoke-with-output-to-output-record :around
     ((stream standard-page-layout) continuation record-type &rest initargs)
   (declare (ignore continuation record-type initargs))
-  (with-temporary-margins (stream :left   '(:absolute 0)
-                                  :top    '(:absolute 0)
-                                  :right  '(:relative 0)
-                                  :bottom '(:relative 0))
+  (with-pristine-viewport (stream)
     (call-next-method)))
 
 (defmethod invoke-with-output-to-output-record

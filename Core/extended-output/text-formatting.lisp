@@ -112,6 +112,21 @@
                  (margin))
              (invoke-with-temporary-page ,stream #',continuation :margins ,margins ,@args)))))))
 
+(defun invoke-with-pristine-viewport (sheet cont)
+  (letf (((stream-text-margins sheet) '(:left   (:absolute 0)
+                                        :top    (:absolute 0)
+                                        :right  (:relative 0)
+                                        :bottom (:relative 0)))
+         ((stream-cursor-position sheet) (stream-cursor-initial-position sheet))
+         ((stream-cursor-height sheet) (text-style-height (stream-text-style sheet) sheet)))
+    (funcall cont sheet)))
+
+(defmacro with-pristine-viewport ((stream) &body body)
+  (let ((cont (gensym)))
+    `(flet ((,cont (,stream) ,@body))
+       (declare (dynamic-extent (function ,cont)))
+       (invoke-with-pristine-viewport ,stream (function ,cont)))))
+
 
 ;;; Mixin is used to store text-style and ink when filling-output it is invoked.
 

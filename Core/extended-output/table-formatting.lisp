@@ -171,9 +171,8 @@
                  :transform (parse-space stream min-height :vertical)))
   ((stream record)
    (declare (ignore record))
-   (with-temporary-margins (stream :left '(:absolute 0))
-     (letf (((stream-cursor-position stream) (values 0 0)))
-       (funcall continuation stream)))))
+   (with-pristine-viewport (stream)
+     (funcall continuation stream))))
 
 
 ;;; Generic block formatting
