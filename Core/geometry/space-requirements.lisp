@@ -18,6 +18,9 @@
 (defconstant +fill+
   (expt 10 (floor (log most-positive-fixnum 10))))
 
+(defun fillp (val)
+  (= val +fill+))
+
 ;;; To be implemented later.
 (defmacro amb (&rest elements) `(or ,@elements))
 
@@ -25,7 +28,7 @@
   ((val :initarg :val :reader bound-val)
    (min :initarg :min :reader bound-min)
    (max :initarg :max :reader bound-max))
-  (:default-initargs :val 0 :min 0 :max 0))
+  (:default-initargs :val 0 :min 0 :max +fill+))
 
 (defvar +null-bound+ (make-instance 'bound))
 
@@ -33,18 +36,18 @@
   (eql bound +null-bound+))
 
 (defmethod print-object ((object bound) stream)
-  (flet ((fix (val) (if (= val +fill+) '+fill+ val)))
+  (flet ((fix (val) (if (fillp val) '+fill+ val)))
     (print-unreadable-object (object stream :type nil :identity nil)
       (format stream "~a [~a ~a]"
               (fix (bound-val object))
               (fix (bound-min object))
               (fix (bound-max object))))))
 
-(defun make-bound (val &optional (min val) (max val))
-  (clampf min 0 max)
+(defun make-bound (val &optional (min 0) (max +fill+))
+  (clampf min 0 (min max +fill+))
   (clampf max min +fill+)
   (clampf val min max)
-  (if (and (zerop val) (zerop min) (zerop max))
+  (if (and (zerop val) (zerop min) (fillp max))
       +null-bound+
       (make-instance 'bound :val val :min min :max max)))
 
