@@ -386,6 +386,9 @@
     (space-requirement+ sr new-req)))
 
 ;;; McCLIM extension.
+(defmethod equals ((a space-requirement) (b space-requirement))
+  (space-requirement-equal a b))
+
 (defmethod space-requirement-equal ((sr1 space-requirement)
                                     (sr2 space-requirement))
   (and (size-equal (space-requirement-measure sr1) (space-requirement-measure sr2))

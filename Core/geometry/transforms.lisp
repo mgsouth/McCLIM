@@ -287,6 +287,9 @@ real numbers, and default to 0."
                            x2-image y2-image
                            x3-image y3-image)))))
 
+(defmethod region-equals ((a transformation) (b transformation))
+  (transformation-equal a b))
+
 (defmethod transformation-equal ((transformation1 standard-transformation)
                                  (transformation2 standard-transformation))
   (every #'coordinate=

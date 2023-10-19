@@ -62,6 +62,12 @@
   (:documentation "The stream encapsulated by an encapsulating stream"))
 
 
+;;; Extra operators
+(defgeneric equals (a b)
+  (:method (a b)
+    (equalp a b)))
+
+
 ;;; KLUDGE both PORT and SHEET are referenced through the codebase so we need to
 ;;; define protocol classes early.
 

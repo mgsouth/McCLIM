@@ -54,6 +54,9 @@
 ;;; [1] or even a code position
 ;;; --GB
 
+(defmethod equals ((style1 text-style) (style2 text-style))
+  (text-style-equalp style1 style2))
+
 (eval-when (:compile-toplevel :load-toplevel :execute)
 
   (defmethod text-style-equalp ((style1 text-style) (style2 text-style))

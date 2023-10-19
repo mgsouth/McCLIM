@@ -45,12 +45,14 @@
 
 ;;; Design <-> Region Equivalences
 ;;;
-;;; As Gilbert points in his notes, transparent ink is in every
-;;; respect interchangable with the nowhere region, and likewise
-;;; foreground ink is interchangable with the everywhere region.
-;;; By defining the following mixins and adding them to the
-;;; appropriate ink/region class pairs, we can reduce the number
-;;; of methods necessary (in design.lisp).
+;;; As Gilbert points in his notes, transparent ink is in every respect
+;;; interchangable with the nowhere region, and likewise foreground ink is
+;;; interchangable with the everywhere region.  By defining the following mixins
+;;; and adding them to the appropriate ink/region class pairs, we can reduce the
+;;; number of methods necessary (in design.lisp).
+
+(defmethod equals ((a region) (b region))
+  (region-equal a b))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defclass everywhere-mixin () ())

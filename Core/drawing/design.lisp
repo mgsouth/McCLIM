@@ -915,6 +915,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;; Comparison of designs.
+(defmethod equals ((a design) (b design))
+  (design-equalp a b))
 
 (defmethod design-equalp :around ((design1 t) (design2 t))
   (or (eql design1 design2)

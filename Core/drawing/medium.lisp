@@ -321,6 +321,9 @@
 (defmethod medium-miter-limit ((medium medium))
   #.(* 2 single-float-epsilon))
 
+(defmethod equals ((a line-style) (b line-style))
+  (line-style-equalp a b))
+
 (defmethod line-style-equalp ((style1 standard-line-style)
                               (style2 standard-line-style))
   (and (eql (line-style-unit style1) (line-style-unit style2))
