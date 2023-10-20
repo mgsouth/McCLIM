@@ -30,7 +30,7 @@
    (max :initarg :max :reader bound-max))
   (:default-initargs :val 0 :min 0 :max +fill+))
 
-(defvar +null-bound+ (make-instance 'bound))
+(defvar +null-bound+ (make-instance 'bound :val 0 :min 0 :max 0))
 
 (defun null-bound-p (bound)
   (eql bound +null-bound+))
@@ -47,7 +47,7 @@
   (clampf min 0 (min max +fill+))
   (clampf max min +fill+)
   (clampf val min max)
-  (if (and (zerop val) (zerop min) (fillp max))
+  (if (and (zerop val) (zerop min) (zerop max))
       +null-bound+
       (make-instance 'bound :val val :min min :max max)))
 
