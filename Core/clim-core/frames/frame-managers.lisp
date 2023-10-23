@@ -150,7 +150,7 @@
 
 (defmethod make-pane-1
     ((fm standard-frame-manager) (frame standard-application-frame) (type class) &rest args)
-  (apply #'make-instance type :frame frame :manager fm :port (port fm) args))
+  (apply #'make-instance type :frame frame :manager fm args))
 
 (defmethod make-pane-1
     ((fm standard-frame-manager) (frame standard-application-frame) type &rest args)
@@ -215,8 +215,7 @@
                        (frame-pointer-documentation-output frame) stream)))
              (if (or menu pdoc)
                  (make-pane-1 fm frame 'vrack-pane
-                                :contents (remove nil (list menu root pdoc))
-                                :port (port frame))
+                                :contents (remove nil (list menu root pdoc)))
                  root))))
     (let ((tpl-sheet (frame-top-level-sheet frame))
           (new-root (maybe-add-auxiliary-panes frame)))
