@@ -183,7 +183,7 @@ are :TITLE, :PANE (required) and :PRESENTATION-TYPE,:DRAWING-OPTIONS
     ;; remove old pages first, because sheet-disown-child still needs access
     ;; to the original page list:
     (dolist (page remove)
-      (sheet-disown-child parent (tab-page-pane page)))
+      (remove-page page))
     ;; install the pages before adding their sheets (matters for gtkairo)
     (setf (slot-value parent 'pages) newval)
     ;; add new pages:
@@ -193,14 +193,6 @@ are :TITLE, :PANE (required) and :PRESENTATION-TYPE,:DRAWING-OPTIONS
       (setf (sheet-enabled-p (tab-page-pane page)) nil))
     ;; ensure that at least one page is enabled
     (when (null (tab-layout-enabled-page parent))
-      (setf (tab-layout-enabled-page parent) (car (tab-layout-pages parent))))))
-
-(defmethod sheet-disown-child :before ((parent tab-layout) child &key errorp)
-  (declare (ignore errorp))
-  (when-let ((page (sheet-to-page child)))
-    (setf (slot-value parent 'pages) (remove page (tab-layout-pages parent))
-          (tab-page-tab-layout page) nil)
-    (when (eq page (tab-layout-enabled-page parent))
       (setf (tab-layout-enabled-page parent) (car (tab-layout-pages parent))))))
 
 (defun sheet-to-page (sheet)
@@ -254,11 +246,13 @@ can also be called directly."
   (setf (tab-layout-enabled-page (tab-page-tab-layout page)) page))
 
 (defun remove-page (page)
-  "Remove PAGE from its tab layout.  This is a convenience wrapper around
-SHEET-DISOWN-CHILD, which can also be used directly to remove the page's
-pane with the same effect."
-  (sheet-disown-child (tab-page-tab-layout page)
-                      (tab-page-pane page)))
+  "Remove PAGE from its tab layout."
+  (let ((parent (tab-page-tab-layout page)))
+    (setf (slot-value parent 'pages) (remove page (tab-layout-pages parent))
+          (tab-page-tab-layout page) nil)
+    (when (eq page (tab-layout-enabled-page parent))
+      (setf (tab-layout-enabled-page parent) (car (tab-layout-pages parent))))
+    (sheet-disown-child parent (tab-page-pane page))))
 
 (defun remove-page-named (title tab-layout)
   "Remove the tab page with the specified TITLE from TAB-LAYOUT.
