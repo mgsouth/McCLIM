@@ -261,7 +261,10 @@
                  (loop
                    (if first-time
                        (setq first-time nil)
+                       ;; XXX currently redisplay is broken for
+                       ;; accpeting-values. Waits for a rewrite.
                        (when resynchronize-every-pass
+                         #+ (or)
                          (redisplay arecord stream)))
                    (repaint-sheet stream +everywhere+)
                    (with-input-context ('(command :command-table accept-values))
