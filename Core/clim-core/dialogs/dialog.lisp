@@ -259,43 +259,42 @@
         (unwind-protect
              (handler-case
                  (loop
-                    (if first-time
-                        (setq first-time nil)
-                        (when resynchronize-every-pass
-                          (redisplay arecord stream)))
-                    (with-input-context
-                        ('(command :command-table accept-values))
-                      (object)
-                      (progn
-                        (when (and select-first-query
-                                   (not initially-select-p))
-                          (setf current-command
-                                `(com-select-query
-                                  ,(query-identifier
-                                    (first
-                                     (queries *accepting-values-stream*))))
-                                select-first-query nil))
-                        (handler-case
-                            (progn
-                              (apply (command-name current-command)
-                                     (command-arguments current-command))
-                              ;; If current command returns without throwing a
-                              ;; command, go back to the default command
-                              (setq current-command *default-command*))
-                          (accelerator-gesture (c)
-                            (let ((command (lookup-keystroke-command-item
-                                            (accelerator-gesture-event c) command-table)))
-                              (if (listp command)
-                                  (setq current-command
-                                        (if (clim:partial-command-p command)
-                                            (funcall clim:*partial-command-parser*
-                                                     command-table stream command
-                                                     (position clim:*unsupplied-argument-marker* command))
-                                            command))
-                                  ;; may be it is a gesture of the frame's command-table
-                                  (signal c))))))
-                      (t (setq current-command object)))
-                    (redisplay arecord stream))
+                   (if first-time
+                       (setq first-time nil)
+                       (when resynchronize-every-pass
+                         (redisplay arecord stream)))
+                   (repaint-sheet stream +everywhere+)
+                   (with-input-context ('(command :command-table accept-values))
+                       (object)
+                       (progn
+                         (when (and select-first-query
+                                    (not initially-select-p))
+                           (setf current-command
+                                 `(com-select-query
+                                   ,(query-identifier
+                                     (first
+                                      (queries *accepting-values-stream*))))
+                                 select-first-query nil))
+                         (handler-case
+                             (progn
+                               (apply (command-name current-command)
+                                      (command-arguments current-command))
+                               ;; If current command returns without throwing a
+                               ;; command, go back to the default command
+                               (setq current-command *default-command*))
+                           (accelerator-gesture (c)
+                             (let ((command (lookup-keystroke-command-item
+                                             (accelerator-gesture-event c) command-table)))
+                               (if (listp command)
+                                   (setq current-command
+                                         (if (clim:partial-command-p command)
+                                             (funcall clim:*partial-command-parser*
+                                                      command-table stream command
+                                                      (position clim:*unsupplied-argument-marker* command))
+                                             command))
+                                   ;; may be it is a gesture of the frame's command-table
+                                   (signal c))))))
+                     (t (setq current-command object))))
                (av-exit ()
                  (finalize-query-records *accepting-values-stream*)
                  (setf (last-pass *accepting-values-stream*) t)
@@ -303,8 +302,7 @@
           (dolist (query (queries *accepting-values-stream*))
             (finalize (editing-stream (record query)) nil))
           (erase-output-record arecord stream)
-          (setf (stream-cursor-position stream)
-                (values cx cy))))
+          (setf (stream-cursor-position stream) (values cx cy))))
       (apply 'values return-values))))
 
 (defmethod display-exit-boxes (frame stream (view textual-dialog-view))
