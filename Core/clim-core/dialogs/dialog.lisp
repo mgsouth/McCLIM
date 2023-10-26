@@ -252,7 +252,10 @@
                                        (keystrokes command-table)
                                      keystrokes)))
       (letf (((frame-command-table *application-frame*)
-              (find-command-table command-table)))
+              (make-command-table nil :inherit-from (list
+                                                     (find-command-table command-table)
+                                                     (frame-command-table *application-frame*))
+                                      :inherit-menu t)))
         (unwind-protect
              (handler-case
                  (loop
