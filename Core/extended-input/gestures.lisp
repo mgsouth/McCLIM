@@ -181,8 +181,9 @@
                 (mappend #'gestures-for-pointer-documentation-1 gesture))
                ((cons (eql :indirect))
                 (gestures-for-pointer-documentation-1 (find-gesture (second gesture)))))))
-    (ensure-gethash gesture-name *gesture-for-pointer-documetation-cache*
-      (gestures-for-pointer-documentation-1 gesture-name))))
+    (when gesture-name
+      (ensure-gethash gesture-name *gesture-for-pointer-documetation-cache*
+        (gestures-for-pointer-documentation-1 gesture-name)))))
 
 (defun add-gesture-name (name type gesture-spec &key unique)
   (check-gesture-name name)
