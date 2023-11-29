@@ -1575,9 +1575,11 @@ SCROLLER-PANE appear on the ergonomic left hand side, or leave set to
            distance))
     (with-bounding-rectangle* (x1 y1 x2 y2) (sheet-visible-region pane)
       (with-bounding-rectangle* (tx1 ty1 tx2 ty2) thing
-        (let ((x0 (snap x1 x2 tx1 tx2))
-              (y0 (snap y1 y2 ty1 ty2)))
-          (scroll-extent pane (- x1 x0) (- y1 y0)))))))
+        (let ((nx (- x1 (snap x1 x2 tx1 tx2)))
+              (ny (- y1 (snap y1 y2 ty1 ty2))))
+          (unless (and (<= x1 nx x2)
+                       (<= y1 ny y2))
+            (scroll-extent pane nx ny)))))))
 
 
 ;;; LABEL PANE
