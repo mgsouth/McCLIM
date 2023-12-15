@@ -254,6 +254,12 @@ index being halfway between INDEX-1 and INDEX-2."
          (#\newline :hard)
          (#\space   :soft)
          (otherwise nil))))
+    ((eql :none)
+     (lambda (string start index)
+       (declare (ignore start))
+       (case (char string index)
+         (#\newline :hard)
+         (otherwise nil))))
     ;; In case of sequences we assume
     ;; that the string is a single line
     ;; without any hard line breaks
@@ -326,7 +332,7 @@ COUNT specifies how many breaks we want to collect."
   (when (and count (zerop count))
     (return-from line-breaks))
   ;; Margin explicitly specified as NIL (break only on hard breaks).
-  (when (null margin)
+  (when (or (null margin) (eq break-strategy :none))
     (collect (break-line)
       (loop (multiple-value-bind (index break)
                 (line-end string break-fn start end t)
