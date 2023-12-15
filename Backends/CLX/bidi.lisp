@@ -360,22 +360,22 @@ direction, those of type L, EN or AN go up one level."
 (defun directions (string r2l-context)
   (let ((dirdata (bidi-resolve-implicit-levels (bidi-resolve-weak-types (bidi-get-types string) r2l-context))))
     (assert (alexandria:length= string dirdata))
-    (labels ((number-to-type (n)
-               (if (evenp n)
-                   :ltr
-                   :rtl)))
-     (let ((result nil))
-       (loop
-         with start = 0
-         with i = 0
-         for prev = nil then dir
-         for dir in dirdata
-         if (and prev (not (eql prev dir)))
-           do (progn
-                (push (cons (number-to-type prev) (subseq string start i)) result)
-                (setq start i)
-                (setq prev dir))
-         do (incf i)
-         finally (when (> i start)
-                   (push (cons (number-to-type prev) (subseq string start i)) result)))
-       result))))
+    (let ((result nil))
+      (flet ((add-substring (dir start end)
+               (push (cons (if (evenp dir) :ltr :rtl)
+                           (subseq string start end))
+                     result)))
+        (loop
+          with start = 0
+          with i = 0
+          for prev = nil then dir
+          for dir in dirdata
+          if (and prev (not (eql prev dir)))
+            do (progn
+                 (add-substring prev start i)
+                 (setq start i)
+                 (setq prev dir))
+          do (incf i)
+          finally (when (> i start)
+                    (add-substring prev start i)))
+        (nreverse result)))))
