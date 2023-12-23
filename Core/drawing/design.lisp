@@ -183,6 +183,29 @@
         until (eq old-design new-design)
         finally (return new-design)))
 
+;;; Transforming between formats.
+(defun argb32-to-ink (rgba-value)
+  (flet ((color ()
+           (make-rgb-color (/ (ldb (byte 8 16) rgba-value) 255.0)
+                           (/ (ldb (byte 8  8) rgba-value) 255.0)
+                           (/ (ldb (byte 8  0) rgba-value) 255.0))))
+    (let ((alpha (ldb (byte 8 24) rgba-value)))
+      (case alpha
+        (0 +transparent-ink+)
+        (255 (color))
+        (t (make-uniform-compositum (color) (/ alpha 255.0)))))))
+
+(declaim (ftype (function (t) (values (unsigned-byte 32) &optional nil)) %argb32-from-ink))
+(defun argb32-from-ink (uniform)
+  (flet ((transform (parameter)
+           (logand (truncate (* parameter 255)) 255)))
+    (multiple-value-bind (red green blue opacity)
+        (color-rgba uniform)
+      (logior (ash (transform opacity) 24)
+              (ash (transform red)     16)
+              (ash (transform green)    8)
+              (ash (transform blue)     0)))))
+
 ;;;
 ;;; Below is a literal translation from Dylan's DUIM source code,
 ;;; which was itself probably literal translation from some Lisp code.
@@ -373,6 +396,7 @@
   (:method ((design standard-flipping-ink))
     t)
   (:method (design)
+    (declare (ignore design))
     nil)
   (:method ((design indirect-ink))
     (flipping-ink-p (indirect-ink-ink design))))

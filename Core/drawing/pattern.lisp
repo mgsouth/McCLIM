@@ -110,16 +110,7 @@ pattern, stencil, image etc)."))
   (let ((array (pattern-array pattern)))
     (declare (type (array (unsigned-byte 32) 2) array))
     (if (array-in-bounds-p array y x)
-        (let* ((rgba-value (aref array y x))
-               (alpha (ldb (byte 8 24) rgba-value)))
-          (flet ((color ()
-                   (make-rgb-color (/ (ldb (byte 8 16) rgba-value) 255.0)
-                                   (/ (ldb (byte 8  8) rgba-value) 255.0)
-                                   (/ (ldb (byte 8  0) rgba-value) 255.0))))
-            (case alpha
-              (0 +transparent-ink+)
-              (255 (color))
-              (t (make-uniform-compositum (color) (/ alpha 255.0))))))
+        (argb32-to-ink (aref array y x))
         +transparent-ink+)))
 
 
@@ -336,22 +327,15 @@ Returns a pattern representing this file."
 (declaim (ftype (function (t) (values (unsigned-byte 32) &optional nil)) %rgba-value))
 (defun %rgba-value (element)
   "Helper function collapsing uniform design into 4-byte RGBA value."
-  (flet ((transform (parameter)
-           (logand (truncate (* parameter 255)) 255)))
-    (etypecase element
-      ((unsigned-byte 32) element)
-      ;; Uniform-compositium is a masked-compositum rgb + opacity
-      ((or color opacity uniform-compositum)
-       (multiple-value-bind (red green blue opacity)
-           (color-rgba element)
-         (logior (ash (transform opacity) 24)
-                 (ash (transform red)     16)
-                 (ash (transform green)    8)
-                 (ash (transform blue)     0))))
-      (indirect-ink
-       (%rgba-value (indirect-ink-ink element)))
-      (everywhere-region
-       (%rgba-value *foreground-ink*)))))
+  (etypecase element
+    ((unsigned-byte 32) element)
+    ;; Uniform-compositium is a masked-compositum rgb + opacity
+    ((or color opacity uniform-compositum)
+     (argb32-from-ink element))
+    (indirect-ink
+     (%rgba-value (indirect-ink-ink element)))
+    (everywhere-region
+     (%rgba-value *foreground-ink*))))
 
 (defun %pattern-rgba-value (pattern x y)
   (let ((ink (design-ink pattern x y)))
