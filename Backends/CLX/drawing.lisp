@@ -20,6 +20,27 @@
           (clamp (truncate (* #xffff a b)) 0 #xffff)
           (clamp (truncate (* #xffff a)) 0 #xffff)))
 
+(defun make-clx-render-image/argb32 (pattern)
+  (flet ((premultiply-alpha (val)
+           (let ((a (ldb (byte 8 24) val))
+                 (r (ldb (byte 8 16) val))
+                 (g (ldb (byte 8 8) val))
+                 (b (ldb (byte 8 0) val)))
+             (logior (ash a 24)
+                     (ash (truncate (* a r) #xff) 16)
+                     (ash (truncate (* a g) #xff) 8)
+                     (ash (truncate (* a b) #xff) 0)))))
+    (let* ((w (ceiling (pattern-width pattern)))
+           (h (ceiling (pattern-height pattern)))
+           (array (make-array (list w h) :element-type '(unsigned-byte 32))))
+      (loop for i from 0 below w
+            for x from 0 do
+              (loop for j below h
+                    for y from 0
+                    for value = (climi::%pattern-rgba-value pattern x y) do
+                      (setf (aref array j i) (premultiply-alpha value))))
+      array)))
+
 (defparameter +transparent-black+
   (make-clx-render-color 0 0 0 0))
 

@@ -84,7 +84,7 @@
   (let* ((drawable (clx-drawable medium))
          (width  (ceiling (pattern-width pattern)))
          (height (ceiling (pattern-height pattern)))
-         (idata  (climi::%collapse-pattern pattern 0 0 width height))
+         (idata  (make-clx-render-image/argb32 pattern))
          (pixmap (xlib:create-pixmap :drawable drawable
                                      :width width
                                      :height height
@@ -94,7 +94,7 @@
                                       :height height
                                       :depth 32
                                       :bits-per-pixel 32
-                                      :data (pattern-array idata))))
+                                      :data idata)))
     (put-image-recursively pixmap gcontext ximage width height 0 0)
     (xlib:free-gcontext gcontext)
     pixmap))
