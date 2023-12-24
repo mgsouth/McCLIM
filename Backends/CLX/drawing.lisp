@@ -32,7 +32,7 @@
                      (ash (truncate (* a b) #xff) 0)))))
     (let* ((w (ceiling (pattern-width pattern)))
            (h (ceiling (pattern-height pattern)))
-           (array (make-array (list w h) :element-type '(unsigned-byte 32))))
+           (array (make-array (list h w) :element-type '(unsigned-byte 32))))
       (loop for i from 0 below w
             for x from 0 do
               (loop for j below h
