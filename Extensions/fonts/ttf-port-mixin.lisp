@@ -29,11 +29,14 @@
    ;; DPI (for font scaling)
    (font-dpi :initarg :dpi :accessor font-dpi)))
 
-(defmethod initialize-instance :after ((port ttf-port-mixin) &key dpi)
-  (unless dpi
-    (setf (slot-value port 'font-dpi)
-          (or *dpi*
-              (clim:graft-pixels-per-inch (clim:find-graft :port port))))))
+;;; We can't initialize FONT-DPI in INITIALIZE-INSTANCE :AFTER method, because
+;;; some ports can create grafts only after their own initialization.
+(defmethod slot-unbound (class (port ttf-port-mixin) (slot (eql 'font-dpi)))
+  (setf (slot-value port 'font-dpi)
+        (or *dpi*
+            (ignore-errors
+             (clim:graft-pixels-per-inch (clim:find-graft :port port)))
+            72)))
 
 (defun invalidate-port-font-cache (port)
   (with-slots (font-loader-cache font-family-cache font-direct-cache text-style-cache) port
