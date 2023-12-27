@@ -48,12 +48,9 @@ McCLIM
 @macro fmacro{NAME}
 @b{\NAME\}
 @end macro
-@macro macroref{NAME}
-@ref{Macro \NAME\,@b{\NAME\}}
-@end macro
 @ifhtml
 @macro codemacroref{NAME}
-@macroref{\NAME\}
+@ref{Macro \NAME\,@b{\NAME\}}
 @end macro
 @end ifhtml
 @ifnothtml

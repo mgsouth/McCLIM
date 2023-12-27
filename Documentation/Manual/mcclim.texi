@@ -13,7 +13,7 @@
 @setfilename mcclim
 @settitle McCLIM User's Manual
 
-@set MCCLIMVERSION 0.9.7-dev
+@set MCCLIMVERSION 0.9.8
 
 @copying
 Copyright @copyright{} 2004,2005,2006,2007,2008,2017,2019 the McCLIM hackers.

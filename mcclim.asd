@@ -26,6 +26,7 @@
 (defsystem "mcclim"
   :author ("Alessandro Serra"
            "Alexey Dejneka"
+           "Andrea Demichele"
            "Andreas Fuchs"
            "Andy Hefner"
            "Arnaud Rouanet"

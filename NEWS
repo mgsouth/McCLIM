@@ -1,3 +1,92 @@
+* Changes in mcclim-0.9.8 relative to 0.9.7:
+** Listener UX improvements
+** Refactor command tables and commands parsing
+** Refactor of the sheet and the mirror implementation
+** Numerous new examples
+** Unification of CLX backends into a single system
+** bugfix: TTF font caches do not overlap between backends
+** Add an alternative (not default) TTF renderer based on FFI to FreeType
+** bugfix: address numerous issues in tab-layout
+** Improved support for text transformations
+** Bundle cl-dejavu fonts as a dependency
+** Portability fixes for CL implementations
+** Better separation of responsibilities between sheets and mediums
+** TABLE-FORMATTING improvements
+** Support for system clipboard and for internal selection
+** Remove invalid assumptions about the sheet coordinates while scrolling
+** Full rewrite of CLX renderer to use XRender (transparency, transformations, clipping)
+** Incremental redisplay partial rewrite and bug fixes
+** UX imrovements for gadget states with regard to pointer events
+** Bug fixes and conformity improvements for PS and PDF backends
+** Pull bezier curve and bezier area extensions as core regions
+** Improved set of colors for MAKE-CONTRASTING-INKS
+** Improved set of patterns for MAKE-CONTRASTING-DASH-PATTERNS
+** A new protocol for handling patterns, transformations and arbitrary designs
+** Rewrite mcclim-render extension
+** Enable rendering directly to the pattern or a raster file
+** Flesh out the protocol to implement indrect inks
+** Remove obsolete backend "beagle"
+** Rewrite of the demo DRAWING-TESTS
+** Improved support for arcs, angles and ellipses
+** Geometry module partial rewrite - conformance and performance improvements
+** Improved class hierarchy for input events
+** Space requirements rewrite to allow specification of padding and margins
+** Menu bar rewrite to handle keyboard accelerators and arrows
+** Remove runtime overhead from protocol classes
+** More conforming handling of line style unit
+** Introduce the concept of a page with four margins
+** Implement word wrap and extend FILLING-OUTPUT and INDENTING-OUTPUT macros
+** Rewrite PRESENTATION-SUBTYPEP and PRESENTATION-TYPEP for conformance
+** Much faster TTF renderer, implement kerning and tracking, thread safe rendering
+** Pixel-perfect FONT-TEXT-EXTENT implementation for the TTF renderer, transformations
+** Gadgets UX improvements for both space composition and event handling
+** Better PRINT-OBJECT methods for numerous internal objects
+** Rewrite EVENT-QUEUE for thread safety and performance, extend TIMEOUT interface
+** Fix McCLIM regression to work on non-SMP systems
+** Improved parsing for space requirements
+** Rewrite the implementastion of mapping between text styles and fonts
+** Refactor of the EXTENDED-INPUT-STREAM
+** Add numerous missing ACCEPT-PRESENT-DEFAULT methods for dialog-views
+** Improved repaint-sheet handling (less repaints, more performant)
+** Improvements to numerous presentation methods in functions ACCEPT and PRESENT
+** Presentation translator lookup rewrite
+** Selection API can carry arbitrary presentations with "paste" translators
+** Extensions documentation in manual, various fixups and improvements
+** Specification clarifications in the bundled latex source code
+** Implement double buffering in the CLX backend
+** New protocols to set the frame (and sheet) pretty name and icon
+** Refactor mirrored/non-mirrored event distribution and add synthetic events
+** Rewrite pointer tracking, pointer grabbing and drag&drop support
+** Include the new inspector "Clouseau" with bundled applications, remove old the inspector
+** Put Franz-specific extensions to the system "mcclim-franz"
+** A new command parameter OUTPUT-DESTINATION to redirect the command output
+** Improve frame and panes definitions to allow dynamic reinitialization
+** Improve PROCESS-NEXT-EVENT specification and implementations for clarity and completness
+** It is possible to define a presentation to command translator with the argument
+** Rework accepting values to remove a few kludges
+** Refactor FORMAT-GRAPH-FROM-ROOT and the layout algorithm for correctness
+** Numerous cleanups to avoid accessing internal symbols and have a clean file structure
+** Introduce the presentation BLANK-AREA (similar to NULL-PRESENTATION) that allows parameters
+** Provide an uniform interface for mapping over command table menu items and keystrokes
+** Improve the protocol for defining new ports (backends)
+** Allow for existance of ungrafted mediums
+** Allow runtime replacement of the menu bar in the frame
+** Better spearation of responsibilities between frames and frame managers
+** Improvemed gesture and event matching that allows wildcards
+** Minor integrations between CLIM-DEBUGGER and Clouseau
+** Removal of numerous internal obsolete interfaces
+** Thread-safe implementation of the function EXECUTE-FRAME-COMMAND
+** Better support for repeated grafting and degrafting sheets (migrating frames between backends)
+** Implement a new backend that creates SVG documents
+** Introduce a new macro for drawing backends CLIME:WITH-OUTPUT-TO-DRAWING-STREAM
+** Include a new extension "mcclim-tooltips"
+** Include a new extension "mcclim-dot"
+** Write new implementation of text-field and text-editor gadgets (with pointer selection etc)
+** Allow for preloaded fonts in the application image
+** Flesh out important protocols useful for writing new backends
+** Add a new gesture types :TIMER, :INDIRECT, :POINTER-MOTION and :POINTER-SCROLL
+** TTF renderer consults the graft DPI to decide on the font scaling
+
 * Changes in mcclim-0.9.7 relative to 0.9.6:
 ** Bug fix: Many! (and some regressions).
 ** Bug fix: tab-layout fixes.
@@ -52,7 +141,7 @@
    a fix to the Xrender support of CLX, available in Christophe Rhodes's
    current CLX distribution from darcs.
 ** Improvement: Look up arbitrary truetype fonts by name via fontconfig.
-** New extension: mcclim-truetype: provides a 100% lisp path for 
+** New extension: mcclim-truetype: provides a 100% lisp path for
    AA fonts with CLX using cl-vectors and zpb-ttf, as an alternative
    to mcclim-freetype.
 ** Bug fix: correct computation of bounding rectangle after
@@ -61,43 +150,43 @@
 * Changes in mcclim-0.9.5 relative to 0.9.4:
 ** Installation: the systems clim-listener, clim-examples,
    and clouseau can now be loaded without loading the system mcclim
-   first. Users with existing McCLIM installations should use the 
+   first. Users with existing McCLIM installations should use the
    provided script:
-   		./symlink-asd-files.sh /path/to/asdf-central-registry/
-** New extension: tab-layout. This extension allows keeping a stack of panes 
-   whose foreground pane is controlled by a tab bar. This layout can be 
+                ./symlink-asd-files.sh /path/to/asdf-central-registry/
+** New extension: tab-layout. This extension allows keeping a stack of panes
+   whose foreground pane is controlled by a tab bar. This layout can be
    customized in backends and frame managers. For examples, see the
    gtkairo backend and the pixie frame manager.
-** New extension function: SHEET-RGB-IMAGE: makes a screenshot of a sheet 
+** New extension function: SHEET-RGB-IMAGE: makes a screenshot of a sheet
    in the CLX backend. (Supported on truecolor visuals only for now.)
 ** New experimental extension: tree-with-cross-edges are an extension to
    the graph formatter.
-** New experimental backend: clim-graphic-forms: native widgets on Windows. 
+** New experimental backend: clim-graphic-forms: native widgets on Windows.
    This backend is still very experimental (it doesn't run demos yet).
 ** New inspector feature: The inspector now displays more useful information
    about hash tables and generic functions.
 ** Specification compliance: Various layout panes no longer quite as
    aggressive at eating the space requirements of their children.
-** Specification compliance: There is now a rudimentary implementation of 
+** Specification compliance: There is now a rudimentary implementation of
    NOTIFY-USER
 ** Usability: Text editors and text input panes now use click-to-focus.
-** Improvement: the ACCEPTING-VALUES command table was renamed to 
-   ACCEPT-VALUES (as this is the name that the other clim-2 implementation 
+** Improvement: the ACCEPTING-VALUES command table was renamed to
+   ACCEPT-VALUES (as this is the name that the other clim-2 implementation
    uses)
 ** Improvement: the CLX backend should no longer cause focus stealing
    when an application has text-editor panes.  This change comes with
    a rudimentary click-to-focus-keyboard widget policy.
 ** Improvement: define-application-frame now allows a :default-initargs
-   option. (This is not exactly a "specification compliance" fix, as 
+   option. (This is not exactly a "specification compliance" fix, as
    d-a-frame is not defined to accept this option.).
 ** Improvement: menu-choose menus now look a little prettier.
 ** Improvement: added more styles for bordered-output: :rounded, :ellipse
 ** Improvement: Toggle button values now default to NIL.
-** Improvement: Frame layouts are now inherited from the frame's 
+** Improvement: Frame layouts are now inherited from the frame's
    superclass.
-** Improvement: The Lisp Syntax is much improved: now recognizes 
+** Improvement: The Lisp Syntax is much improved: now recognizes
    delimiter characters, and more types of Lambda lists.
-** Bug fix: Bezier designs should now draw in the right place in all 
+** Bug fix: Bezier designs should now draw in the right place in all
    backends.
 ** Bug fix: Text in Drei no longer "walks" to the left.
 ** Bug fix: Drei now has better support for delimiter gestures.
