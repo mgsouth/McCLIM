@@ -35,7 +35,7 @@
 
 
 (defvar *zpb-font-lock* (clim-sys:make-lock "zpb-font"))
-(defparameter *dpi* 72)
+
 
 (defclass truetype-font-family (font-family)
   ((all-faces :initform nil
@@ -80,17 +80,19 @@
    (units->pixels                    :reader zpb-ttf-font-units->pixels))
   ;; Parameters TRACKING and LEADING are specified in [em]. Internally we keep
   ;; them in [units].
-  (:default-initargs :fixed nil :kerning t :tracking 0.0 :leading 1.2))
+  (:default-initargs :fixed nil :dpi 72 :kerning t :tracking 0.0 :leading 1.2))
 
 (defgeneric font-port (font)
   (:method ((font truetype-font))
     (font-family-port (font-face-family (font-face font)))))
 
-(defmethod initialize-instance :after ((font truetype-font) &key tracking leading &allow-other-keys)
+(defmethod initialize-instance :after
+    ((font truetype-font) &key dpi tracking leading &allow-other-keys)
   (with-slots (face size ascent descent font-loader) font
     (let* ((loader (zpb-ttf-font-loader face))
            (em->units (zpb-ttf:units/em loader))
-           (units->pixels (/ (* size (/ *dpi* 72)) em->units)))
+           (dpi-factor (/ dpi 72))
+           (units->pixels (/ (* size dpi-factor) em->units)))
       (setf ascent  (+ (* units->pixels (zpb-ttf:ascender loader)))
             descent (- (* units->pixels (zpb-ttf:descender loader)))
             (slot-value font 'tracking) (* units->pixels (* em->units tracking))
@@ -265,7 +267,7 @@
 (defun font-glyph-info (font code)
   (with-slots (char->glyph-info) font
     (ensure-gethash code char->glyph-info
-                    (font-generate-glyph (font-port font) font code))))
+      (font-generate-glyph (font-port font) font code))))
 
 (defgeneric font-generate-glyph (port font code &key &allow-other-keys)
   (:documentation "Truetype TTF renderer internal interface.")

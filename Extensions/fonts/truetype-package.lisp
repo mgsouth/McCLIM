@@ -9,6 +9,7 @@
                 #:assoc-value
                 #:read-file-into-byte-vector
                 #:maphash-values)
+  ;; Fontconfig
   (:export #:*truetype-font-path*
            #:*families/faces*
            #:*zpb-font-lock*
@@ -18,10 +19,12 @@
            #:make-fontconfig-font-name
            #:find-fontconfig-font
            #:invoke-with-truetype-path-restart)
+  ;; Implementation classes
   (:export #:truetype-font
            #:truetype-font-family
            #:truetype-face
            #:cached-truetype-font)
+  ;; Atlas implementgation
   (:export #:font-glyph-id
            #:font-glyph-dx
            #:font-glyph-info
@@ -30,6 +33,7 @@
            #:font-generate-glyph
            #:glyph-pixarray
            #:font-string-glyph-codes)
+  ;; Glyph metrics
   (:export #:glyph-info
            #:glyph-info-id
            #:glyph-info-pixarray
@@ -41,5 +45,6 @@
            #:glyph-info-advance-height*
            #:glyph-info-advance-width
            #:glyph-info-advance-height)
+  ;; Consumer exports
   (:export #:ttf-port-mixin
            #:ttf-medium-mixin))

@@ -12,6 +12,9 @@
 
 (in-package #:mcclim-truetype)
 
+(defparameter *dpi* nil
+  "The value of DPI used to overwrite the default font scaling.")
+
 (defclass ttf-port-mixin ()
   ((back-memory-cache :initform (make-hash-table :test #'equal) :allocation :class)
    ;; source -> loader (the source may be a filename or a memory block)
@@ -24,7 +27,13 @@
    ;; All registered families. Populated by ensure-truetype-font.
    (font-families :initform '() :accessor font-families)
    ;; DPI (for font scaling)
-   (font-dpi :initform *dpi* :initarg :dpi :reader font-dpi)))
+   (font-dpi :initarg :dpi :accessor font-dpi)))
+
+(defmethod initialize-instance :after ((port ttf-port-mixin) &key dpi)
+  (unless dpi
+    (setf (slot-value port 'font-dpi)
+          (or *dpi*
+              (clim:graft-pixels-per-inch (clim:find-graft :port port))))))
 
 (defun invalidate-port-font-cache (port)
   (with-slots (font-loader-cache font-family-cache font-direct-cache text-style-cache) port
@@ -57,15 +66,16 @@
       (let* ((loader (or loader (zpb-ttf:open-font-loader source)))
              (f1-name (zpb-ttf:family-name loader))
              (f2-name (zpb-ttf:subfamily-name loader))
-             (text-style (make-text-style f1-name f2-name size)))
+             (text-style (make-text-style f1-name f2-name size))
+             (font-dpi (font-dpi port)))
         (flet ((make-family ()
                  (make-instance 'truetype-font-family :name f1-name :port port))
                (make-face (family)
                  (make-instance 'truetype-face :family family :name f2-name
                                                :loader loader :preloaded preload))
                (make-font (face size)
-                 (let ((*dpi* (font-dpi port)))
-                   (make-instance 'cached-truetype-font :face face :size size))))
+                 (make-instance 'cached-truetype-font
+                                :face face :size size :dpi font-dpi)))
           (when loader-foundp
             (return-from ensure-truetype-font
               (destructuring-bind (face fonts) (gethash loader font-direct-cache)

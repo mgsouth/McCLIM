@@ -10,6 +10,10 @@
 (in-package #:clim-clx)
 
 ;;; CLX-GRAFT class
+;;;
+;;; Note that GRAFT-WIDTH and GRAFT-HEIGHT are _not_ reliable for physical size
+;;; on X11. It defaults to 96 DPI unless explicitly configured to say otherwise,
+;;; disregarding of the real display size. -- jd 2023-12-27
 
 (defclass clx-graft (graft) ())
 
