@@ -94,7 +94,9 @@
 (pledge :class standard-rectangle (rectangle))
 (declfun make-rectangle (point1 point2))
 (declfun make-rectangle* (x1 y1 x2 y2))
-(defgeneric rectangle-edges* (rectangle))
+;;; The setter is McCLIM extension. STANDARD-RECTANGLES are immutable and all
+;;; that, but we still need to set output record positions and dimensions.
+(define-accessor rectangle-edges* (x1 y1 x2 y2 rectangle))
 (defgeneric rectangle-min-point (rectangle))
 (defgeneric rectangle-max-point (rectangle))
 (defgeneric rectangle-min-x (rectangle))

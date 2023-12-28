@@ -1211,11 +1211,8 @@ SCROLLER-PANE appear on the ergonomic left hand side, or leave set to
    :width 300
    :height 300))
 
-(defgeneric scroll-bar-values (scroll-bar)
-  (:documentation "Returns the min value, max value, thumb size, and value of a
-  scroll bar. When Setf-ed, updates the scroll bar graphics"))
-
-(defgeneric* (setf scroll-bar-values) (min-value max-value thumb-size value scroll-bar))
+(define-accessor scroll-bar-values (min-value max-value thumb-size value scroll-bar)
+  (:documentation "The accessor for min/max values, thumb size and current value."))
 
 (defmacro scrolling ((&rest options) &body contents)
   `(let ((viewport (make-pane 'viewport-pane :contents (list ,@contents))))
@@ -1709,10 +1706,6 @@ SCROLLER-PANE appear on the ergonomic left hand side, or leave set to
                                           (+ x1 border-margin) (+ y1 border-margin)
                                           (- x2 border-margin) (- y2 border-margin)
                                           :style :groove)))))))))
-
-;;; GENERIC FUNCTIONS
-
-(defgeneric* (setf window-viewport-position) (x y clim-stream-pane))
 
 ;;; Mixin for panes which want the mouse wheel to scroll.
 

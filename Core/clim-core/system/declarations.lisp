@@ -23,14 +23,10 @@
 
 ;;; 23.2 Presentations
 
-(defgeneric presentation-object (presentation))
-(defgeneric (setf presentation-object) (object presentation))
-(defgeneric presentation-type (presentation))
-(defgeneric (setf presentation-type) (type presentation))
-(defgeneric presentation-view (presentation))
-(defgeneric (setf presentation-view) (view presentation))
-(defgeneric presentation-single-box (presentation))
-(defgeneric (setf presentation-single-box) (single-box presentation))
+(define-accessor presentation-object (value presentation))
+(define-accessor presentation-type (value presentation))
+(define-accessor presentation-view (value presentation))
+(define-accessor presentation-single-box (value presentation))
 (defgeneric presentation-modifier (presentation))
 
 (declfun make-blank-area-presentation (sheet x y event))
@@ -77,30 +73,8 @@ encapsulated by the input editing stream `stream'."))
 
 ;;; 24.1.1 The Input Editing Stream Protocol
 
-(defgeneric stream-insertion-pointer (stream)
-  (:documentation "Returns an integer corresponding to the
-current input position in the input editing stream `stream's
-buffer, that is, the point in the buffer at which the next user
-input gesture will be inserted. The insertion pointer will always
-be less than (fill-pointer (stream-input-buffer stream)). The
-insertion pointer can also be thought of as an editing cursor."))
-
-(defgeneric (setf stream-insertion-pointer) (pointer stream)
-  (:documentation "Changes the input position of the input
-editing stream `stream' to `pointer'. `Pointer' is an integer,
-and must be less than (fill-pointer (stream-input-buffer stream))"))
-
-(defgeneric stream-scan-pointer (stream)
-  (:documentation "Returns an integer corresponding to the
-current scan pointer in the input editing stream `stream's
-buffer, that is, the point in the buffer at which calls to
-`accept' have stopped parsing input. The scan pointer will always
-be less than or equal to (stream-insertion-pointer stream)."))
-
-(defgeneric (setf stream-scan-pointer) (pointer stream)
-  (:documentation "Changes the scan pointer of the input editing
-stream `stream' to `pointer'. `Pointer' is an integer, and must
-be less than or equal to (stream-insertion-pointer stream)"))
+(define-accessor stream-insertion-pointer (value stream))
+(define-accessor stream-scan-pointer (value stream))
 
 (defgeneric stream-rescanning-p (stream)
   (:documentation "Returns the state of the input editing stream
@@ -186,10 +160,8 @@ standardised form."))
 
 ;;; 27.2 Command Tables
 (defgeneric command-table-name (command-table))
-(defgeneric command-table-inherit-from (command-table))
-
-;;; Franz user manual says that this slot is setf-able
-(defgeneric (setf command-table-inherit-from) (inherit-from table))
+;;; Franz user manual defines a setter.
+(define-accessor command-table-inherit-from (inherit-from command-table))
 
 ;;; 27.3 Command Menus
 
@@ -216,27 +188,9 @@ standardised form."))
 ;;; 28.3 Application Frame Functions
 
 (defgeneric frame-name (frame))
-(defgeneric frame-pretty-name (frame))
-(defgeneric (setf frame-pretty-name) (name frame))
-(defgeneric frame-icon (frame)
-  (:documentation "McMCLIM extension: Return the icon or icons of FRAME.
-The return value is either a `clim-extensions:image-pattern' or
-a sequence of those.
-These icons are typically used - via the top-level sheet of FRAME - by
-window managers to represent windows that are not currently visible or
-added to other representations of windows to make them more easily
-recognizable."))
-(defgeneric (setf frame-icon) (new-value frame)
-  (:documentation "McMCLIM extension: Set icon or icons of FRAME to NEW-VALUE.
-NEW-VALUE must be a `clim-extensions:image-pattern' or a sequence of
-those. If a sequence is supplied, the window manager is instructed to
-prefer the first element, if possible. Some window managers select
-different icons for different purposes based on the icon sizes.
-This function also sets NEW-VALUE as the icon(s) of the top-level
-sheet of FRAME."))
-
-(defgeneric frame-command-table (frame))
-(defgeneric (setf frame-command-table) (command-table frame))
+(define-accessor frame-pretty-name (name frame))
+(define-accessor frame-icon (icon frame))
+(define-accessor frame-command-table (command-table frame))
 
 (defgeneric frame-standard-output (frame)
   (:documentation "Returns the stream that will be used for
@@ -252,9 +206,8 @@ is exposed in the current layout."))
 (defgeneric frame-pointer-documentation-output (frame))
 (defgeneric frame-calling-frame (frame))
 (defgeneric frame-parent (frame))
-(defgeneric frame-panes (frame))
-;;; missing in the CLIM 2 spec, probably omission
-(defgeneric (setf frame-panes) (panes frame))
+;;; The setter is missing in the CLIM 2 spec (omission?)
+(define-accessor frame-panes (panes frame))
 (defgeneric frame-top-level-sheet (frame))
 (defgeneric frame-current-panes (frame))
 (defgeneric get-frame-pane (frame pane-name))
@@ -264,14 +217,12 @@ is exposed in the current layout."))
 `pane-name'. This can return any type of pane, not just CLIM stream
 panes."))
 
-(defgeneric frame-current-layout (frame))
-(defgeneric (setf frame-current-layout) (layout frame))
+(define-accessor frame-current-layout (layout frame))
 (defgeneric frame-all-layouts (frame))
 (defgeneric layout-frame (frame &optional width height))
 (defgeneric frame-exit-frame (condition))
 (defgeneric frame-exit (frame))
-(defgeneric pane-needs-redisplay (pane))
-(defgeneric (setf pane-needs-redisplay) (value pane))
+(define-accessor pane-needs-redisplay (value pane))
 (defgeneric redisplay-frame-pane (frame pane &key force-p))
 (defgeneric redisplay-frame-panes (frame &key force-p))
 (defgeneric frame-replay (frame stream &optional region))
@@ -320,8 +271,7 @@ and `cell-align-y' are as for `formatting-item-list'."))
 
 ;;;; 28.5.2 Frame Manager Operations
 
-(defgeneric frame-manager (frame))
-(defgeneric (setf frame-manager) (frame-manager frame))
+(define-accessor frame-manager (frame-manager frame))
 (defgeneric frame-manager-frames (frame-manager))
 (defgeneric adopt-frame (frame-manager frame))
 (defgeneric disown-frame (frame-manager frame))
@@ -423,8 +373,8 @@ caller ensures that each node has sufficient size to accomodate dimensions."))
 (defgeneric window-refresh (window))
 (defgeneric window-viewport (window))
 (defgeneric window-erase-viewport (window))
-(defgeneric window-viewport-position (window))
-;; (defgeneric (setf* window-viewport-position) (x y window))
+;;; The setter is McCLIM extension.
+(define-accessor window-viewport-position (x y window))
 
 ;;; 29.4.5 Creating a Standalone CLIM Window
 (declfun open-window-stream
@@ -436,10 +386,8 @@ caller ensures that each node has sufficient size to accomodate dimensions."))
 
 ;;; 30.3 Basic gadgets
 
-(defgeneric gadget-id (gadget))
-(defgeneric (setf gadget-id) (value gadget))
-(defgeneric gadget-client (gadget))
-(defgeneric (setf gadget-client) (value gadget))
+(define-accessor gadget-id (value gadget))
+(define-accessor gadget-client (value gadget))
 (defgeneric gadget-armed-callback (gadget))
 (defgeneric gadget-disarmed-callback (gadget))
 (defgeneric armed-callback (gadget client gadget-id)
@@ -461,16 +409,11 @@ caller ensures that each node has sufficient size to accomodate dimensions."))
 (defgeneric activate-callback (gadget client gadget-id)
   (:argument-precedence-order client gadget-id gadget))
 (defgeneric gadget-orientation (gadget))
-(defgeneric gadget-label (gadget))
-(defgeneric (setf gadget-label) (value gadget))
-(defgeneric gadget-label-align-x (gadget))
-(defgeneric (setf gadget-label-align-x) (value gadget))
-(defgeneric gadget-label-align-y (gadget))
-(defgeneric (setf gadget-label-align-y) (value gadget))
-(defgeneric gadget-min-value (gadget))
-(defgeneric (setf gadget-min-value) (value gadget))
-(defgeneric gadget-max-value (gadget))
-(defgeneric (setf gadget-max-value) (value gadget))
+(define-accessor gadget-label (value gadget))
+(define-accessor gadget-label-align-x (value gadget))
+(define-accessor gadget-label-align-y (value gadget))
+(define-accessor gadget-min-value (value gadget))
+(define-accessor gadget-max-value (value gadget))
 (defgeneric gadget-range (gadget)
   (:documentation
    "Returns the difference of the maximum and minimum value of RANGE-GADGET."))
@@ -505,11 +448,9 @@ caller ensures that each node has sufficient size to accomodate dimensions."))
 (defgeneric slider-drag-callback (slider))
 (defgeneric drag-callback (gadget client gadget-id value)
   (:argument-precedence-order client gadget-id gadget value))
-(defgeneric radio-box-current-selection (gadget))
-(defgeneric (setf radio-box-current-selection) (value gadget))
+(define-accessor radio-box-current-selection (value gadget))
 (defgeneric radio-box-selections (gadget))
-(defgeneric check-box-current-selection (gadget))
-(defgeneric (setf check-box-current-selection) (value gadget))
+(define-accessor check-box-current-selection (value gadget))
 (defgeneric check-box-selections (gadget))
 
 

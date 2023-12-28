@@ -130,10 +130,6 @@
   (with-standard-rectangle* (x1 y1 x2 y2) rect
     (values x1 y1 x2 y2)))
 
-;;; standard-rectangles are immutable and all that, but we still need
-;;; to set their positions and dimensions (in output recording)
-(defgeneric* (setf rectangle-edges*) (x1 y1 x2 y2 rectangle))
-
 (defmethod* (setf rectangle-edges*)
   (x1 y1 x2 y2 (rectangle standard-rectangle))
   (let ((coords (slot-value rectangle 'coordinates)))
