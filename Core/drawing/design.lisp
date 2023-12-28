@@ -459,6 +459,9 @@
 (defmethod pattern-height ((design masked-compositum))
   (pattern-height (compositum-ink design)))
 
+(defmethod bounding-rectangle* ((design masked-compositum))
+  (bounding-rectangle* (compositum-mask design)))
+
 (defclass in-compositum (masked-compositum) ())
 
 (defmethod compose-in ((ink design) (mask design))

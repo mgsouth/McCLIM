@@ -25,31 +25,26 @@
 ;; :sheet [Initarg for cursor]
 ;; standard-text-cursor [class]
 (defgeneric cursor-sheet (cursor))
-(defgeneric cursor-position (cursor))
-(defgeneric* (setf cursor-position) (x y cursor))
-(defgeneric cursor-active (cursor))
-(defgeneric (setf cursor-active) (value cursor))
-(defgeneric cursor-state (cursor))
-(defgeneric (setf cursor-state) (value cursor))
 (defgeneric cursor-focus (cursor))
-(defgeneric cursor-visibility (cursor))
-(defgeneric (setf cursor-visibility) (visibility cursor))
+(define-accessor cursor-position (x y cursor))
+(define-accessor cursor-active (value cursor))
+(define-accessor cursor-state (value cursor))
+(define-accessor cursor-visibility (value cursor))
 
 ;;; 15.3.2 Stream Text Cursor Protocol [complete]
 
-(defgeneric stream-text-cursor (stream))
-(defgeneric (setf stream-text-cursor) (cursor stream))
-(defgeneric stream-cursor-position (stream))
-(defgeneric* (setf stream-cursor-position) (x y stream))
-(defgeneric stream-set-cursor-position (stream x y)) ; This is actually in 19.3.1 in CLIM 2.2
+(define-accessor stream-text-cursor (cursor stream))
+(define-accessor stream-cursor-position (x y stream))
+
+;; This is actually in 19.3.1 in CLIM 2.2
+(defgeneric stream-set-cursor-position (stream x y))
 (defgeneric stream-increment-cursor-position (stream dx dy))
 
 ;;; 15.4 Text Protocol [complete]
 
 (defgeneric stream-character-width (stream character &key text-style))
 (defgeneric stream-string-width (stream character &key start end text-style))
-(defgeneric stream-text-margin (stream))
-(defgeneric (setf stream-text-margin) (margin stream))
+(define-accessor stream-text-margin (margin stream))
 (defgeneric stream-line-height (stream &key text-style))
 (defgeneric stream-line-width (stream)
   (:documentation "McCLIM extension which returns a space between left and right margin for text output."))
@@ -71,11 +66,9 @@
 
 ;;; 15.4.2 Wrapping of Text Lines [complete]
 
-(defgeneric stream-end-of-line-action (stream))
-(defgeneric (setf stream-end-of-line-action) (action stream))
+(define-accessor stream-end-of-line-action (action stream))
 ;; with-end-of-line-action (stream action) &body body [Macro]
-(defgeneric stream-end-of-page-action (stream))
-(defgeneric (setf stream-end-of-page-action) (action stream))
+(define-accessor  stream-end-of-page-action (action stream))
 ;; with-end-of-page-action (stream action) &body body [Macro]
 
 ;;; 16.2 Output Records
@@ -86,67 +79,19 @@
   ())
 
 ;;; 16.2.1. The Basic Output Record Protocol
-(defgeneric output-record-position (record)
-  (:documentation
-   "Returns the x and y position of RECORD. The position is the
-position of the upper-left corner of its bounding rectangle. The
-position is relative to the stream, where (0,0) is (initially) the
-upper-left corner of the stream."))
+(define-accessor output-record-position (x y record))
+(define-accessor output-record-start-cursor-position (x y record))
+(define-accessor output-record-end-cursor-position (x y record))
 
-(defgeneric* (setf output-record-position) (x y record)
-  (:documentation
-   "Changes the x and y position of the RECORD to be X and Y, and
-updates the bounding rectangle to reflect the new position (and saved
-cursor positions, if the output record stores it). If RECORD has any
-children, all of the children (and their descendants as well) will be
-moved by the same amount as RECORD was moved. The bounding rectangles
-of all of RECORD's ancestors will also be updated to be large enough
-to contain RECORD."))
+;;; The setter is McCLIM extension.
+(define-accessor output-record-parent (new-value record))
 
-(defgeneric output-record-start-cursor-position (record)
-  (:documentation
-   "Returns the x and y starting cursor position of RECORD. The
-positions are relative to the stream, where (0,0) is (initially) the
-upper-left corner of the stream."))
-
-(defgeneric* (setf output-record-start-cursor-position) (x y record))
-
-(defgeneric output-record-end-cursor-position (record)
-  (:documentation
-   "Returns the x and y ending cursor position of RECORD. The
-positions are relative to the stream, where (0,0) is (initially) the
-upper-left corner of the stream."))
-
-(defgeneric* (setf output-record-end-cursor-position) (x y record))
-
-(defgeneric output-record-parent (record)
-  (:documentation
-   "Returns the output record that is the parent of RECORD, or NIL if
-RECORD has no parent."))
-
-(defgeneric replay-output-record (record stream
-                                  &optional region x-offset y-offset)
-  (:documentation "Displays the output captured by RECORD on the
-STREAM, exactly as it was originally captured. The current user
-transformation, line style, text style, ink and clipping region of
-STREAM are all ignored. Instead, these are gotten from the output
-record.
-
-Only those records that overlap REGION are displayed."))
+(defgeneric replay-output-record (record stream &optional region x-offset y-offset))
 
 (defgeneric output-record-hit-detection-rectangle* (record))
-
 (defgeneric output-record-refined-position-test (record x y))
-
 (defgeneric highlight-output-record (record stream state))
-
 (defgeneric displayed-output-record-ink (displayed-output-record))
-
-;;; 16.2.1. The Basic Output Record Protocol (extras)
-
-(defgeneric (setf output-record-parent) (parent record)
-  (:documentation "Additional protocol generic function. PARENT may be
-an output record or NIL."))
 
 ;;; 16.2.2. Output Record "Database" Protocol
 
@@ -248,13 +193,10 @@ FUNCTION-ARGS as APPLY arguments."
 
 ;;; 16.4.1. The Output Recording Stream Protocol
 
-(defgeneric stream-recording-p (stream))
-(defgeneric (setf stream-recording-p) (recording-p stream))
-(defgeneric stream-drawing-p (stream))
-(defgeneric (setf stream-drawing-p) (drawing-p stream))
+(define-accessor stream-recording-p (value stream))
+(define-accessor stream-drawing-p (value stream))
 (defgeneric stream-output-history (stream))
-(defgeneric stream-current-output-record (stream))
-(defgeneric (setf stream-current-output-record) (record stream))
+(define-accessor stream-current-output-record (record stream))
 (defgeneric stream-add-output-record (stream record))
 (defgeneric stream-replay (stream &optional region))
 (defgeneric erase-output-record (record stream &optional errorp))
@@ -378,10 +320,14 @@ corresponding to a table cell within the column."))
 
 ;;; 21.4 Incremental Redisplay Stream Protocol
 (defgeneric redisplayable-stream-p (stream)
-  (:method (stream) nil))
+  (:method (stream)
+    (declare (ignore stream))
+    nil))
 
 (defgeneric stream-redisplaying-p (stream)
-  (:method (stream) nil))
+  (:method (stream)
+    (declare (ignore stream))
+    nil))
 
 (defgeneric incremental-redisplay
     (stream position erases moves draws erase-overlapping move-overlapping))

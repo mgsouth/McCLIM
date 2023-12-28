@@ -31,76 +31,11 @@
 (defvar *input-editor-commands*
   (make-hash-table :test #'equal))
 
-;;; Clipboard integration:
-;;; - kill puts the text line in :clipboard
-;;; - yank uses the clipboard if available but does not modify the killring
-(defparameter *killring-uses-clipboard* t)
-
 (defgeneric input-editor-table (sheet)
   (:documentation "Returns the input editor command table.")
   (:method (sheet)
     (declare (ignore sheet))
     *input-editor-commands*))
-
-;;; Another singletons for naive implementations. Also implements killring.
-
-(defparameter *input-editor-last-command* nil)
-(defparameter *input-editor-kill-history*
-  ;; Who doesn't like a good metacircular implementation of the kill buffer?
-  (nth-value 1 (make-kluffer)))
-
-(macrolet ((def-reader (name variable)
-             `(defgeneric ,name (editor)
-                (:method (editor) ,variable)))
-           (def-writer (name variable)
-             `(defgeneric (setf ,name) (new-value editor)
-                (:method (new-value editor)
-                  (setf ,variable new-value))))
-           (def-accessor (name variable)
-             `(progn
-                (def-reader ,name ,variable)
-                (def-writer ,name ,variable))))
-  (def-accessor input-editor-last-command *input-editor-last-command*)
-  (def-reader   input-editor-kill-history *input-editor-kill-history*))
-
-(defun input-editor-kill-object (editor object merge)
-  (check-type merge (member :front :back nil))
-  (when (zerop (length object))
-    (beep editor)
-    (return-from input-editor-kill-object nil))
-  (let ((history (input-editor-kill-history editor))
-        (cmdtype (input-editor-last-command editor)))
-    (if (eq cmdtype :kill)
-        (smooth-kill-object history object merge)
-        (smooth-kill-object history object nil))
-    (when *killring-uses-clipboard*
-      (clime:publish-selection editor :clipboard
-                               (line-string history) 'string))))
-
-(defun input-editor-yank-kill (editor)
-  (let* ((history (input-editor-kill-history editor))
-         (items (smooth-yank-kill history)))
-    (when *killring-uses-clipboard*
-      (when-let ((clipboard (clime:request-selection editor :clipboard 'string)))
-        ;; ensure that yank-next won't drop the top-most entry.
-        (smooth-yank-kill history +1)
-        (setf items clipboard)))
-    (when (zerop (length items))
-      (beep editor)
-      (return-from input-editor-yank-kill nil))
-    items))
-
-(defun input-editor-yank-next (editor)
-  (unless (eq (input-editor-last-command editor) :yank)
-    (beep editor)
-    (setf (input-editor-last-command editor) :abort)
-    (return-from input-editor-yank-next nil))
-  (let* ((history (input-editor-kill-history editor))
-         (items (smooth-yank-next history)))
-    (when (zerop (length items))
-      (beep editor)
-      (return-from input-editor-yank-next nil))
-    items))
 
 ;;; GESTURES - gestures that must be typed in order to invoke the command
 ;;; FUNCTION - lambda list: (sheet buffer event numeric-argument)
@@ -125,7 +60,7 @@
       #'ie-insert-object
       nil))
 
-(defun handle-editor-event (client event)
+(defun handle-input-editor-event (client event)
   "This function returns true when the editor command was executed."
   (if-let ((command (find-input-editor-command event (input-editor-table client))))
     (let ((buffer (input-editor-buffer client))
@@ -150,10 +85,10 @@
                              (list sheet buffer event))
                      numeric-argument))
            (:method :after (sheet buffer event numeric-argument)
-             (if (eq (input-editor-last-command sheet) :abort)
-                 (setf (input-editor-last-command sheet) nil)
-                 (setf (input-editor-last-command sheet) ,type))
-             (when (input-editor-last-command sheet)
+             (if (eq (last-command sheet) :abort)
+                 (setf (last-command sheet) nil)
+                 (setf (last-command sheet) ,type))
+             (when (last-command sheet)
                (note-input-editor-command-executed sheet ,type)))
            (:method ((stream encapsulating-stream) buffer event num-arg)
              (,name (encapsulating-stream-stream stream) buffer event num-arg))

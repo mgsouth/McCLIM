@@ -744,6 +744,12 @@ be forms containing FORM."
 
        ',name)))
 
+(defmacro define-accessor (name args &rest options)
+  `(progn (defgeneric ,name ,(last args) ,@options)
+          ,(if (= 2 (length args))
+               `(defgeneric  (setf ,name) ,args)
+               `(defgeneric* (setf ,name) ,args))))
+
 ;; Since the declaim form for functions looks clumsy and is syntax-wise
 ;; different from defun, we define us a new declfun, which fixes this.
 

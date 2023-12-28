@@ -7,7 +7,8 @@
 
 ;;; TODO split the file "protocol" for each module separately.
 (defsystem "clim-core/system"
-  :depends-on ("bordeaux-threads" "trivial-gray-streams" "trivial-features" "closer-mop")
+  :depends-on ("bordeaux-threads" "trivial-gray-streams" "trivial-features"
+               "closer-mop" "cluffer")
   :components ((:module "system"
                 :components
                 ((:file "patch")    ;first possible patches
@@ -21,6 +22,7 @@
                 ((:file "utilities")
                  (:file "protocol")
                  (:file "resources")
+                 (:file "internal-buffer")
                  (:file "encapsulating-streams" :depends-on ("protocol"))))
                (:module "geometry"
                 :depends-on ("system")
@@ -100,7 +102,7 @@
 
 ;;; TODO separate modules, move directories toplevel aftwards.
 (defsystem "clim-core/frames"
-  :depends-on ("clim-core/silex" "cluffer" (:feature :sbcl "sb-introspect"))
+  :depends-on ("clim-core/silex" (:feature :sbcl "sb-introspect"))
   :pathname "clim-core"
   :components
   ((:module "system"
@@ -127,7 +129,6 @@
                  (:file "parsing-conditions")
                  (:file "input-editing")
                  (:file "completion")
-                 (:file "buffer")
                  (:file "editor")
                  (:file "edward")
                  (:file "gadgets")))
