@@ -217,7 +217,9 @@
            #:stream-advance-to-column
            #:stream-clear-output
            #:stream-read-byte
-           #:stream-write-byte ))
+           #:stream-write-byte
+           #:stream-read-sequence
+           #:stream-write-sequence))
         (gray-packages '(#:trivial-gray-streams)))
     ;;
     (labels ((seek-symbol (name packages)
