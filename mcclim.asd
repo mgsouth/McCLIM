@@ -56,7 +56,7 @@
            "Rudi Schlatte"
            "Timothy Moore")
   :license "LGPL-2.1+"
-  :version "0.9.7"
+  :version "0.9.8"
   :description "McCLIM is an implementation of the CLIM 2.0 specification."
   :long-description "McCLIM is an implementation of the CLIM 2.0 specification.
 
