@@ -1,99 +1,91 @@
-(in-package #:clim-demo)
+(defpackage "CLIM-DEMO.SEOS-BASELINE"
+  (:use "CLIM-LISP" "CLIM" "CLIME")
+  (:export "SEOS-BASELINE"))
+(in-package "CLIM-DEMO.SEOS-BASELINE")
 
 (define-application-frame seos-baseline ()
   ()
-  (:menu-bar seos-command-table)
-  (:pane :application
-         :width 400
-         :height 400
-         :display-function #'display
-         :end-of-line-action :allow
-         :end-of-page-action :allow
-         :text-margins '(:left (:absolute 30)
-                         :right (:relative 30)
-                         :top (:relative 30)
-                         :bottom (:absolute 370))))
+  (:panes (app :application
+               :width 400
+               :height 400
+               :display-function #'display
+               :end-of-line-action :wrap*
+               :end-of-page-action :allow
+               :text-margins '(:left (:relative 50)
+                               :right (:relative 50)
+                               :top (:relative 50)
+                               :bottom (:relative 50))))
+  (:reinitialize-frames t))
 
-(defun show-line (stream &rest args)
-  (loop for (size text) on args by #'cddr do
-       (with-drawing-options (stream :text-size size)
-         (format stream text)))
-  (terpri stream))
+(defvar *data1*)
+(defvar *data2*)
+(defvar *data3*)
+(defvar *size2*)
+(defvar *inks2*)
 
-(defmethod display ((frame seos-baseline) pane)
-  (declare (ignore frame))
-  (show-line pane :normal "Hello " :huge "world!")
-  (show-line pane
-             :normal "Hello world "
-             :normal "hiho" :large "hiho" :huge "hiho" :tiny "hiho" :normal "hiho"
-             :normal "hiho" :large "hiho" :huge "hiho" :tiny "hiho" :normal "hiho"
-             :normal "hiho" :large "hiho" :huge "hiho" :tiny "hiho" :normal "hiho"
-             :normal "hiho" :large "hiho" :huge "hiho" :tiny "hiho" :normal "hiho")
-  (show-line pane :huge "Third " :normal "line " :tiny "hello " :huge "world!")
-  (show-line pane :normal "Last " :huge "line " :normal "bam bam")
+(define-seos-baseline-command (com-new-data :keystroke (#\r :control)) ()
+  (setf *data1* (lorem-ipsum:paragraph :word-count 32)
+        *data2* (lorem-ipsum:words 32)
+        *data3* (lorem-ipsum:paragraphs 3 :word-count 32)
+        *size2* (loop with elts = '(:tiny :small :normal :large :huge)
+                      repeat 32 collect (elt elts (random (length elts))))
+        *inks2* (loop with inks = (make-contrasting-inks 8)
+                      repeat 32 collect (elt inks (random (length inks))))))
 
-  (terpri pane)
-  (with-bounding-rectangle* (:x1 x1 :x2 x2) (clime:stream-page-region pane)
-    (let ((y (nth-value 1 (stream-cursor-position pane))))
-      (draw-line* pane x1 y x2 y :ink +blue+ :line-dashes t)))
-  (terpri pane)
-  (format pane "All lines should have text aligned on the same baseline. Likely failures:
-
-1. Parts of the text with different size aligned to the top (not baseline).
-2. Pressing space cause redisplay and schedules repaint after 1s. This may exhibit different outlook of displayed and repainted output.
-3. All lines in this description are long. Use menu to change end of line action. Current action is ~s.
-4. When viewport is smaller than the whole scrolling area ALT scrolls to the very bottom.
-6. There is one line below these points. Stream height may not be recalculated to take it into account because it doesn't have newline character in the end. When wrapped part of the text may not be rendered. Try pressing space.
-7. Said last line may be rendered and recorded, but not scrolled to the end despite :SCROLL contract.
-8. Some lines here are lengthy to test different wrapping scenarios. Page end action :WRAP is not very useful - it is not a bug that text is drawn on top of the previous one. Here comes a lot of letters with random spaces: AAA BBBBBBBBBBBBBBB CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD.
-
-See the introduction in \"15.3 The Text Cursor\"."
-          (stream-end-of-line-action pane))
-  (draw-design pane (clime:stream-page-region pane)
-               :ink +red+ :line-dashes t :filled nil))
+(com-new-data)
 
 (define-seos-baseline-command (com-redisplay :keystroke #\space) ()
-  (schedule-event *standard-output*
-                  (make-instance 'window-repaint-event
-                                 :region +everywhere+
-                                 :sheet *standard-output*)
-                  1))
+  (setf *inks2* (loop with inks = (make-contrasting-inks 8)
+                      repeat 32 collect (elt inks (random (length inks)))))
+  (let ((repaint (make-instance 'window-repaint-event
+                                :region +everywhere+
+                                :sheet *standard-output*)))
+    (schedule-event *standard-output* repaint 1)))
 
-(make-command-table 'seos-command-table
-                    :errorp nil
-                    :menu '(("Line" :menu line-ct)
-                            ("Page" :menu page-ct)))
+(define-seos-baseline-command (com-line-action :menu t) ()
+  (setf (stream-end-of-line-action *standard-output*)
+        (or (menu-choose '(:allow :scroll :wrap :wrap*))
+            (stream-end-of-line-action *standard-output*))))
 
-(make-command-table 'line-ct :errorp nil
-                    :menu '(("Allow" :command com-allow-line)
-                            ("Scroll" :command com-scroll-line)
-                            ("Wrap" :command com-wrap-line)
-                            ("Wrap word" :command com-wrap*-line)))
+(define-seos-baseline-command (com-page-action :menu t) ()
+  (setf (stream-end-of-page-action *standard-output*)
+        (or (menu-choose '(:allow :scroll :wrap :wrap*))
+            (stream-end-of-page-action *standard-output*))))
 
-(make-command-table 'page-ct :errorp nil
-                    :menu '(("Allow" :command com-allow-page)
-                            ("Scroll" :command com-scroll-page)
-                            ("Wrap" :command com-wrap-page)))
+(defun print-header (text stream)
+  (fresh-line stream)
+  (with-drawing-options (stream :text-size :large :text-face :bold)
+    (princ text stream))
+  (terpri stream))
 
-(define-seos-baseline-command (com-allow-line :keystroke #\1) ()
-  (setf (stream-end-of-line-action *standard-output*) :allow))
+(defmethod display ((frame seos-baseline) stream)
+  (draw-design stream (stream-page-region stream) :ink +light-grey+)
+  (setf (frame-pretty-name frame)
+        (format nil "line ~s, page ~s"
+                (stream-end-of-line-action stream)
+                (stream-end-of-page-action stream)))
+  (print-header "1. One paragraph:" stream)
+  (princ *data1* stream)
+  (print-header "2. Long line, varying size:" stream)
+  (loop for iter from 0
+        for word in *data2*
+        for size in *size2*
+        for ink  in *inks2*
+        do (with-drawing-options (stream :text-size size :ink ink)
+             (format stream "~a " word)))
+  (print-header "3. Long line, varying size, without spaces:" stream)
+  (loop for iter from 0
+        for word in *data2*
+        for size in *size2*
+        for ink  in *inks2*
+        do (with-drawing-options (stream :text-size size :ink ink)
+             (format stream "~a" word)))
+  (print-header "4. Mean scenario for word wrap:" stream)
+  (format stream "AAA BBBBBBBBBBBBBBB CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD EEE FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
+  (print-header "5. Three paragraphs:" stream)
+  (format stream "~{~a~%~}" *data3*)
+  (print-header "6. Mean scenario for the last line's size" stream)
+  (with-drawing-options (stream :text-size :huge)
+    (format stream "Good bye with a twist!")))
 
-(define-seos-baseline-command (com-scroll-line :keystroke #\2) ()
-  (setf (stream-end-of-line-action *standard-output*) :scroll))
-
-(define-seos-baseline-command (com-wrap-line :keystroke #\3) ()
-  (setf (stream-end-of-line-action *standard-output*) :wrap))
-
-(define-seos-baseline-command (com-wrap*-line :keystroke #\4) ()
-  (setf (stream-end-of-line-action *standard-output*) :wrap*))
-
-(define-seos-baseline-command (com-allow-page :keystroke #\q) ()
-  (setf (stream-end-of-page-action *standard-output*) :allow))
-
-(define-seos-baseline-command (com-scroll-page :keystroke #\w) ()
-  (setf (stream-end-of-page-action *standard-output*) :scroll))
-
-(define-seos-baseline-command (com-wrap-page :keystroke #\e) ()
-  (setf (stream-end-of-page-action *standard-output*) :wrap))
-
-;(run-frame-top-level (make-application-frame 'seos-baseline))
+;; (find-application-frame 'seos-baseline)
