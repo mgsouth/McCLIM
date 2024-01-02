@@ -1103,16 +1103,7 @@ calculated by `drei-bounding-rectangle*'."
           (recompute-extent-for-changed-child (output-record-parent drei) drei
                                               old-x1 old-y1 old-x2 old-y2))))
     (when (and (point-cursor drei) (active drei))
-      (with-bounding-rectangle* (x1 y1 x2 y2) (point-cursor drei)
-        (alexandria:when-let ((viewport (pane-viewport stream)))
-          (with-bounding-rectangle* (:height height :width width) viewport
-            (let ((region (pane-viewport-region stream)))
-              ;; Scroll if point went outside the visible area.
-              (when (and (not (region-contains-position-p region x2 y2))
-                         (not (region-contains-position-p region x1 y1)))
-                (scroll-extent stream
-                               (max 0 (- x2 width))
-                               (max 0 (- y2 height)))))))))
+      (climi::scroll-extent* stream (point-cursor drei)))
     (finish-output stream)))
 
 ;;; Drei pane redisplay.

@@ -162,9 +162,10 @@
   (window-erase-viewport pane)
   (stream-replay pane))
 
-(defmethod window-viewport ((pane clim-stream-pane))
-  (or (pane-viewport-region pane)
-      (sheet-region pane)))
+(defmethod window-viewport ((pane sheet))
+  (if-let ((viewport (pane-viewport pane)))
+    (sheet-region viewport)
+    (sheet-region pane)))
 
 (defmethod window-erase-viewport ((pane clim-stream-pane))
   (with-bounding-rectangle* (x1 y1 x2 y2) (window-viewport pane)

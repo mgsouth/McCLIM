@@ -43,7 +43,7 @@
                   (chw (text-style-width  text-style stream))
                   (chh (text-style-height text-style stream)))
              (make-rectangle* 0 0 (* 80 chw) (* 43 chh)))))
-    (let ((region (pane-viewport-region stream))
+    (let ((region (window-viewport stream))
           (cached (slot-value stream '%page-region)))
       (with-bounding-rectangle* (x1 y1 x2 y2)
           (if (region-equal region +everywhere+)

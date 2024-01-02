@@ -19,8 +19,7 @@ value of the gadget is the image being displayed.")
 
 (defmethod (setf gadget-value) :after (new-value (gadget image-viewer-gadget)
                                                  &key &allow-other-keys)
-  (handle-repaint gadget (or (pane-viewport-region gadget)
-                             (sheet-region gadget))))
+  (handle-repaint gadget (pane-viewport-region gadget)))
 
 (defclass image-viewer-pane (image-viewer-gadget basic-gadget)
   ()
