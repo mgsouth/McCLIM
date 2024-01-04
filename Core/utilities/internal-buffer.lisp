@@ -259,7 +259,7 @@
          (cluffer:item-after-cursor cursor))))
 
 (defun smooth-insert-item (cursor item)
-  (if (char= item #\newline)
+  (if (eql item #\newline)
       (cluffer:split-line cursor)
       (cluffer:insert-item cursor item)))
 
