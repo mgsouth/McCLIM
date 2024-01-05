@@ -113,15 +113,6 @@
 (defmethod note-sheet-grafted :after ((stream standard-extended-output-stream))
   (reset-stream-cursor stream (stream-text-cursor stream)))
 
-;; In next few functions we can't call (setf stream-cursor-position) because
-;; that would close the text-output-record unnecessarily. Using underlying
-;; text-cursor with (setf cursor-position) is fine when the cursor is "off".
-;; Otherwise output record would be closed anyway. -- jd 2019-01-07
-
-(defmacro with-cursor-off (stream &body body)
-  `(letf (((cursor-visibility (stream-text-cursor ,stream)) nil))
-     ,@body))
-
 (defmacro with-end-of-line-action ((stream action) &body body)
   (when (eq stream t)
     (setq stream '*standard-output*))
@@ -265,28 +256,26 @@ the cursor after the operation. This function does not wrap.")
                   do (stream-write-object stream object))))
 
 (defmethod stream-write-char ((stream standard-extended-output-stream) char)
-  (with-cursor-off stream
-    (case char
-      (#\newline (seos-write-newline stream nil))
-      (#\tab     (seos-write-vector stream *tab-string* 0 (length *tab-string*)))
-      (otherwise (seos-write-vector stream (string char) 0 1)))))
+  (case char
+    (#\newline (seos-write-newline stream nil))
+    (#\tab     (seos-write-vector stream *tab-string* 0 (length *tab-string*)))
+    (otherwise (seos-write-vector stream (string char) 0 1))))
 
 (defmethod stream-write-string ((stream standard-extended-output-stream) string
                                 &optional (start 0) end)
   (let ((seg-start start)
         (end (or end (length string))))
-    (with-cursor-off stream
-      (loop for i from start below end do
-        (case (char string i)
-          (#\newline
-           (seos-write-vector stream string seg-start i)
-           (seos-write-newline stream nil)
-           (setq seg-start (1+ i)))
-          (#\tab
-           (seos-write-vector stream string seg-start i)
-           (seos-write-vector stream *tab-string* 0 (length *tab-string*))
-           (setq seg-start (1+ i)))))
-      (seos-write-vector stream string seg-start end)))
+    (loop for i from start below end do
+      (case (char string i)
+        (#\newline
+         (seos-write-vector stream string seg-start i)
+         (seos-write-newline stream nil)
+         (setq seg-start (1+ i)))
+        (#\tab
+         (seos-write-vector stream string seg-start i)
+         (seos-write-vector stream *tab-string* 0 (length *tab-string*))
+         (setq seg-start (1+ i)))))
+    (seos-write-vector stream string seg-start end))
   string)
 
 (defmethod stream-character-width ((stream standard-extended-output-stream) char

@@ -102,3 +102,12 @@
   (with-slots (width height) cursor
     (setf (values width height)
           (values (or new-w width) (or new-h height)))))
+
+;;; This macro is used to ensure that the cursor is restored to its old state
+;;; after the operation. -- jd 2024-01-05
+(defmacro with-cursor-off ((cursor) &body body)
+  `(letf (((cursor-visibility ,cursor) nil)
+          ((cursor-position ,cursor) (values 0 0))
+          ((cursor-baseline ,cursor) (values 0 0))
+          ((cursor-size ,cursor)     (values 0 0)))
+     ,@body))
