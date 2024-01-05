@@ -290,6 +290,10 @@ Note:
                                              collect (pop q))))))))
           result-type))))
 
+(defun sequence= (seq1 seq2 &optional (test 'equal))
+  (and (= (length seq1) (length seq2))
+       (every test seq1 seq2)))
+
 (defmacro do-sequence ((vars sequence &optional result-form) &body body)
   "Iterate over SEQUENCE.  VARS is a list of symbols (or a single
 symbol).  At each iteration the variables in VARS are bound to the

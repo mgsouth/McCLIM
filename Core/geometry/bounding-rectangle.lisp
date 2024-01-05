@@ -135,6 +135,18 @@
                       (ceiling (+ x2 0.5))
                       (ceiling (+ y2 0.5)))))
 
+;;; XXX Dunno about this definition... -- moore
+;;;
+;;; Your apprehension is justified, but we lack a better means by which to
+;;; distinguish "empty" compound records (roots of trees of compound records,
+;;; containing no non-compound records). Such subtrees should not affect
+;;; bounding rectangles.  -- Hefner
+(defun null-bounding-rectangle-p (bbox)
+  (with-bounding-rectangle* (x1 y1 x2 y2) bbox
+    (and (= x1 x2)
+         (= y1 y2)
+         t)))
+
 ;;; Bounding rectangles are special in that they are not canonicalized
 ;;; to +nowhere+ when they have no width or height. When the result may
 ;;; be represented by a standard-bounding-rectangle then instance of

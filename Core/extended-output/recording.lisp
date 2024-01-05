@@ -511,18 +511,6 @@ the associated sheet can be determined."
                          (apply function child function-args)))
        (output-record-children record)))
 
-;;; XXX Dunno about this definition... -- moore
-;;;
-;;; Your apprehension is justified, but we lack a better means by which to
-;;; distinguish "empty" compound records (roots of trees of compound records,
-;;; containing no non-compound records). Such subtrees should not affect
-;;; bounding rectangles.  -- Hefner
-(defun null-bounding-rectangle-p (bbox)
-  (with-bounding-rectangle* (x1 y1 x2 y2) bbox
-    (and (= x1 x2)
-         (= y1 y2)
-         t)))
-
 ;;; 16.2.3. Output Record Change Notification Protocol
 (defmethod recompute-extent-for-new-child
     ((record compound-output-record) child)
@@ -1039,10 +1027,6 @@ were added."
                               (incf val dx))
                         (setf odd (not odd))))
                     coords))))))
-
-(defun sequence= (seq1 seq2 &optional (test 'equal))
-  (and (= (length seq1) (length seq2))
-       (every test seq1 seq2)))
 
 (defmethod match-output-records-1 and ((record coord-seq-mixin)
                                        &key (coord-seq nil coord-seq-p))

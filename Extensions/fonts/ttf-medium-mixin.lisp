@@ -20,18 +20,19 @@ a font implementing the protocol defined below."))
 (defmethod text-style-character-width (text-style (medium ttf-medium-mixin) char)
   (font-character-width (text-style-mapping (port medium) text-style) char))
 
-(defmethod text-bounding-rectangle* ((medium ttf-medium-mixin) string
+(defmethod text-bounding-rectangle* ((medium ttf-medium-mixin) (text string)
      &key text-style (start 0) end (align-x :left) (align-y :baseline) (direction :ltr)
-     &aux (end (or end (length string))))
+     &aux (end (or end (length text))))
   (when (= start end)
     (return-from text-bounding-rectangle* (values 0 0 0 0)))
-  (let ((text (string string))
-        (font (text-style-mapping (port medium)
-                                  (merge-text-styles text-style
-                                                     (medium-merged-text-style medium)))))
+  (let* ((medium-text-style (medium-merged-text-style medium))
+         (merged-text-style (merge-text-styles text-style medium-text-style))
+         (font (text-style-mapping (port medium) merged-text-style)))
     (multiple-value-bind (xmin ymin xmax ymax)
         (font-text-extents font text :start start :end end
-                                 :align-x align-x :align-y align-y :direction direction)
+                                     :align-x align-x
+                                     :align-y align-y
+                                     :direction direction)
       (values xmin ymin xmax ymax))))
 
 (defmethod text-size ((medium ttf-medium-mixin) string &key text-style (start 0) end)

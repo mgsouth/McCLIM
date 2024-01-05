@@ -30,6 +30,13 @@
                      :width 4
                      :height 16))
 
+(defmethod equals ((a standard-text-cursor) (b standard-text-cursor))
+  (and (coordinate= (slot-value a 'x) (slot-value b 'x))
+       (coordinate= (cursor-offset-x a) (cursor-offset-x b))
+       (coordinate= (cursor-offset-y a) (cursor-offset-y b))
+       (coordinate= (cursor-width a) (cursor-width b))
+       (coordinate= (cursor-height a) (cursor-height b))))
+
 (defmethod initialize-instance :after
     ((object standard-text-cursor) &key (visibility :on))
   (setf (cursor-visibility object) visibility))
