@@ -77,6 +77,7 @@
                  (:file "extra-colors")
                  (:file "utilities"        :depends-on ("protocol"))
                  (:file "views"            :depends-on ("protocol"))
+                 (:file "output-buffer"    :depends-on ("protocol" "utilities"))
                  (:file "text-formatting"  :depends-on ("protocol" "utilities"))
                  (:file "text-cursor"      :depends-on ("protocol"))
                  (:file "stream-output"    :depends-on ("protocol" "utilities" "views" "text-formatting" "text-cursor"))
