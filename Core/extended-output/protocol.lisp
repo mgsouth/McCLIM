@@ -31,6 +31,12 @@
 (define-accessor cursor-state (value cursor))
 (define-accessor cursor-visibility (value cursor))
 
+;;; Extra:
+(define-accessor cursor-baseline (offset-y offset-x cursor))
+(define-accessor cursor-size (width height cursor))
+(define-accessor cursor-width (value cursor))
+(define-accessor cursor-height (value cursor))
+
 ;;; 15.3.2 Stream Text Cursor Protocol [complete]
 
 (define-accessor stream-text-cursor (cursor stream))
