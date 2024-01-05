@@ -54,8 +54,12 @@
 (defgeneric stream-line-height (stream &key text-style))
 (defgeneric stream-line-width (stream)
   (:documentation "McCLIM extension which returns a space between left and right margin for text output."))
-(defgeneric stream-vertical-spacing (stream))
-(defgeneric stream-baseline (stream))
+
+;;; McCLIM extends these protocols to allow for multidirectional pages.
+(define-accessor stream-baseline (base-y base-x stream))
+(define-accessor stream-vertical-spacing (value stream))
+(define-accessor stream-horizontal-spacing (value stream))
+
 (defgeneric stream-text-style (stream)
   (:documentation "McCLIM extension returning a default text style of the stream."))
 
@@ -68,6 +72,9 @@
 (defgeneric invoke-with-room-for-graphics
     (cont stream &key first-quadrant width height move-cursor record-type))
 
+;;; Extra
+
+;;; Returns two values - horizontal line baseline and vertical line baseline.
 (defgeneric output-record-baseline (record))
 
 ;;; 15.4.2 Wrapping of Text Lines [complete]
@@ -76,6 +83,10 @@
 ;; with-end-of-line-action (stream action) &body body [Macro]
 (define-accessor  stream-end-of-page-action (action stream))
 ;; with-end-of-page-action (stream action) &body body [Macro]
+
+;;; McCLIM extensions.
+(define-accessor sheet-line-direction (direction stream))
+(define-accessor sheet-page-direction (direction stream))
 
 ;;; 16.2 Output Records
 (define-protocol-class output-record (bounding-rectangle)

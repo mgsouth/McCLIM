@@ -28,7 +28,6 @@
    (background :initarg :background :reader background)
    (text-style :initarg :text-style :reader stream-text-style)
    (view :initarg :default-view :accessor stream-default-view)
-   (baseline :initform 0 :reader stream-baseline)
    (vspace :initarg :vertical-spacing :accessor stream-vertical-spacing)
    (hspace :initarg :horizontal-spacing :accessor stream-horizontal-spacing)
    (end-of-line-action :accessor stream-end-of-line-action)
@@ -48,9 +47,11 @@
                (output-recording-stream-p stream))
       (stream-close-text-output-record (cursor-sheet cursor)))))
 
-;;; FIXME remove this funciton.
-(defun stream-page-region (stream)
-  (sheet-page-region stream))
+(defmethod stream-baseline ((sheet standard-extended-output-stream))
+  (cursor-baseline (stream-text-cursor sheet)))
+
+(defmethod* (setf stream-baseline) (y x (stream standard-extended-output-stream))
+  (setf (cursor-baseline (stream-text-cursor stream)) (values y x)))
 
 (defmethod stream-cursor-size ((stream standard-extended-output-stream))
   (let ((cursor (stream-text-cursor stream)))
@@ -128,10 +129,6 @@
   `(letf (((stream-end-of-line-action ,stream) ,action))
      ,@body))
 
-(defgeneric %note-stream-end-of-line (stream action new-width)
-  (:method (stream action new-width)
-    (declare (ignore stream action new-width))))
-
 (defmacro with-end-of-page-action ((stream action) &body body)
   (when (eq stream t)
     (setq stream '*standard-output*))
@@ -139,149 +136,140 @@
   `(letf (((stream-end-of-page-action ,stream) ,action))
      ,@body))
 
-(defgeneric maybe-end-of-page-action (stream y)
-  (:method ((stream standard-extended-output-stream) y)
-    ;; fixme: remove assumption about page vertical direction -- jd 2019-03-02
-    (let ((bottom-margin (nth-value 1 (stream-cursor-final-position stream)))
-          (end-of-page-action (stream-end-of-page-action stream)))
-      (when (> y bottom-margin)
-        (%note-stream-end-of-page stream end-of-page-action y)
-        (ecase end-of-page-action
-          ((:scroll :allow)  nil)
-          ((:wrap :wrap*)
-           (setf (cursor-position (stream-text-cursor stream))
-                 (values (nth-value 0 (stream-cursor-position stream))
-                         (nth-value 1 (stream-cursor-initial-position stream))))))))))
-
-(defgeneric %note-stream-end-of-page (stream action new-height)
-  (:method (stream action new-height)
-    (declare (ignore stream action new-height))))
-
-(defgeneric seos-write-newline (stream &optional soft-newline-p)
-  (:method :after ((stream filling-output-mixin) &optional soft-newline-p)
-    (when-let ((after-line-break-fn (after-line-break stream)))
-      (funcall after-line-break-fn stream soft-newline-p)))
-  (:method ((stream standard-extended-output-stream) &optional soft-newline-p)
-    (declare (ignorable soft-newline-p))
-    (let* ((current-cy       (nth-value 1 (stream-cursor-position stream)))
-           (vertical-spacing (stream-vertical-spacing stream))
-           (updated-cy       (+ current-cy
-                                (stream-cursor-height stream)
-                                vertical-spacing)))
-      (setf (cursor-position (stream-text-cursor stream))
-            (values (stream-cursor-initial-position stream)
-                    updated-cy))
-      ;; this will close the output record if recorded
-      (unless nil ;soft-newline-p
-        (force-output stream))
-      (let* ((medium       (sheet-medium stream))
-             (text-style   (medium-text-style medium))
-             (new-baseline (text-style-ascent text-style medium))
-             (new-height   (text-style-height text-style medium)))
-        ;; For new lines we reset the char height to 0 in case of the text
-        ;; style change after the line break. -- jd 2020-08-07
-        (maybe-end-of-page-action stream (+ updated-cy new-height))
-        (setf (slot-value stream 'baseline) new-baseline
-              (stream-cursor-height stream)  new-height)))))
-
-(defun seos-write-string (stream string &optional (start 0) end)
-  (setq end (or end (length string)))
-  (when (>= start end)
-    (return-from seos-write-string))
-  (with-bounding-rectangle* (left-margin top-margin right-margin bottom-margin)
-      (stream-page-region stream)
-    (declare (ignore top-margin bottom-margin))
-    (multiple-value-bind (cx cy) (stream-cursor-position stream)
-      (let* ((medium (sheet-medium stream))
-             (text-style (medium-text-style medium))
-             ;; fixme: remove assumption about the text direction (LTR).
-             (text-style-height (text-style-height text-style medium))
-             (text-style-ascent (text-style-ascent text-style medium))
-             (text-width (stream-string-width stream string
-                                              :start start :end end
-                                              :text-style text-style))
-             (text-height (stream-cursor-height stream)))
-        (maxf (slot-value stream 'baseline) text-style-ascent)
-        (maxf (stream-cursor-height stream) text-style-height)
-        (maybe-end-of-page-action stream (+ cy text-height))
-        (let* ((eol-action (stream-end-of-line-action stream))
-               (eol-p (> (+ cx text-width) right-margin)))
-          (when (or (null eol-p) (member eol-action '(:allow :scroll)))
-            (stream-write-output stream string start end)
-            (incf cx text-width)
-            (setf (cursor-position (stream-text-cursor stream)) (values cx cy))
-            (when (> cx right-margin)
-              (%note-stream-end-of-line stream eol-action cx))
-            (return-from seos-write-string))
-          ;; All new lines from here on are soft new lines, we could skip
-          ;; closing the text-output-record and have multiline records to
-          ;; allow gimmics like a dynamic reflow). Also text-style doesn't
-          ;; change until the end of this function. -- jd 2019-01-10
-          ;;
-          ;; Writing a newline may cause the cursor increment, so we
-          ;; need to compute split for each line after the soft newline
-          ;; has been written. -- jd 2020-03-01
-          (loop with width = (if (text-style-fixed-width-p text-style medium)
-                                 (text-style-width text-style medium)
-                                 (lambda (string start end)
-                                   (text-size medium string
-                                              :text-style text-style
-                                              :start start :end end)))
-                with margin = (- right-margin left-margin)
-                with cursor = (stream-text-cursor stream)
-                with break  = (ecase eol-action
-                                (:wrap nil)
-                                (:wrap* t))
-                for cursor-x = (cursor-position cursor)
-                for offset   = (- cursor-x left-margin)
-                for split    = (car (line-breaks string width
-                                                 :count 1
-                                                 :initial-offset offset
-                                                 :margin margin
-                                                 :break-strategy break
-                                                 :start start :end end))
-                do (maxf (stream-cursor-height stream) text-style-height)
-                   (stream-write-output stream string start split)
-                   (when (= split end)
-                     ;; FIXME we don't know what will be the continuation, so
-                     ;; until the text record is closed we should not be eager
-                     ;; to print the last line. Otherwise we may be forced to
-                     ;; break in a middle the word that would be wrapped to a
-                     ;; new line otherwise. -- jd 2022-08-21
-                     ;;
-                     ;; XXX should we break after /all/ trailing spaces, even if
-                     ;; they'd take more space than a line?
-                     (setf (cursor-position cursor)
-                           (values (+ cursor-x
-                                      (stream-string-width stream string
-                                                           :start start :end split
-                                                           :text-style text-style))
-                                   (nth-value 1 (cursor-position cursor))))
-                     (return))
-                   (seos-write-newline stream t)
-                   (setf start split)))))))
-
-(defgeneric stream-write-output (stream line &optional start end)
+(defgeneric stream-write-output (stream line &rest args)
   (:documentation
-   "Writes the character or string LINE to STREAM. This function
-produces no more than one line of output i.e., doesn't wrap."))
+   "Writes the object on the current line of the STREAM. The caller is responsible
+for estabilishing an appropriate drawing system with origin at (0,0) and updating
+the cursor after the operation. This function does not wrap.")
+  (:method ((stream standard-extended-output-stream) (line string) &rest args)
+    (apply #'draw-text* stream line 0 0 args))
+  (:method ((stream standard-extended-output-stream) (item bounding-rectangle) &rest args)
+    (apply #'draw-design stream item args)))
 
-;;; The cursor is in stream coordinates.
-(defmethod stream-write-output ((stream standard-extended-output-stream) line
-                                &optional (start 0) end)
-  ;; Do not capture medium transformation - this is a stream operation and we
-  ;; draw at the current cursor position. -- jd 2019-01-04
-  (with-identity-transformation (stream)
-    (multiple-value-bind (cx cy) (stream-cursor-position stream)
-      (draw-text* stream line cx (+ cy (stream-baseline stream))
-                  :start start :end end))))
+;;; FIXME implement extending and scrolling the stream.
+(defun stream-perform-page-actions (stream)
+  (declare (ignore stream))
+  ;; (change-stream-space-requirements stream :width new-width :height new-neight)
+  ;; (when (or (eq (stream-end-of-line-action stream) :scroll)
+  ;;           (eq (stream-end-of-page-action stream) :scroll))
+  ;;   (scroll-extent* stream (stream-text-cursor stream)))
+  )
+
+(defun seos-write-newline (stream soft-newline-p)
+  (nest
+   (let ((cursor (stream-text-cursor stream))
+         (hspace (stream-horizontal-spacing stream))
+         (vspace (stream-vertical-spacing stream))))
+   (multiple-value-bind (x0 y0) (stream-cursor-initial-position stream))
+   ;; (multiple-value-bind (xn yn) (stream-cursor-final-position stream))
+   (multiple-value-bind (cx cy) (cursor-position cursor))
+   (multiple-value-bind (hsize vsize) (cursor-size cursor))
+   (multiple-value-bind (updated-cx updated-cy)
+       (ecase (sheet-page-direction stream)
+         (:top-to-bottom (values x0 (+ cy vsize vspace)))
+         (:bottom-to-top (values x0 (- cy vsize vspace)))
+         (:left-to-right (values (+ cx hsize hspace) y0))
+         (:right-to-left (values (- cx hsize hspace) y0)))
+     (unless nil                      ; soft-newline-p
+       ;; This will close the output record if the stream is recorded.
+       (reset-stream-cursor stream cursor)
+       (force-output stream))
+     (setf (cursor-position cursor) (values updated-cx updated-cy))))
+  (when-let ((after-line-break-fn (after-line-break stream)))
+    (funcall after-line-break-fn stream soft-newline-p))
+  (stream-perform-page-actions stream))
+
+(defun seos-write-object (stream object)
+  (nest
+   (with-identity-transformation (stream))
+   (with-sheet-medium (medium stream))
+   (let* ((cursor (stream-text-cursor stream))
+          (end-of-page-action (stream-end-of-page-action stream))
+          (end-of-line-action (stream-end-of-line-action stream))
+          (wrapl (member end-of-line-action '(:wrap :wrap*)))))
+   (tagbody
+      (go :start-line)
+    :break-page
+      (stream-perform-page-actions stream)
+      (setf (stream-cursor-position stream)
+            (stream-cursor-initial-position stream))
+      (go :start-line)
+    :break-line
+      (seos-write-newline stream t)
+    :start-line
+      (multiple-value-bind (dx dy fx fy bx by cw ch eol-p eop-p)
+          (sheet-cursor-motion stream cursor object)
+        (setf (cursor-baseline cursor) (values by bx))
+        (setf (cursor-size cursor) (values cw ch))
+        (when (and eop-p (member end-of-page-action '(:wrap :wrap*)))
+          (go :break-page))
+        (when (and eol-p wrapl (plusp (sheet-text-offset stream cursor)))
+          (go :break-line))
+        (with-translation (stream dx dy)
+          (stream-write-output stream object))
+        (setf (cursor-position cursor) (values fx fy))))))
+
+;;; This function is responsible for managing the cursor and invoking drawing.
+;;; Text wrapping and sheet dimensions are updated as we go, while scrolling
+;;; (when applicable) is performed in the end (if needed).
+(defun seos-write-vector (stream vector start end)
+  (when (>= start end)
+    (return-from seos-write-vector))
+  (nest
+   (with-identity-transformation (stream))
+   (with-sheet-medium (medium stream))
+   (let* ((cursor (stream-text-cursor stream))
+          (end-of-page-action (stream-end-of-page-action stream))
+          (end-of-line-action (stream-end-of-line-action stream))
+          (text-style (medium-text-style medium))
+          (split end)
+          (wrapl (member end-of-line-action '(:wrap :wrap*)))))
+   (tagbody
+      (go :start-line)
+    :break-page
+      (stream-perform-page-actions stream)
+      (setf (stream-cursor-position stream)
+            (stream-cursor-initial-position stream))
+      (go :start-line)
+    :break-line
+      (seos-write-newline stream t)
+      (setf start split
+            split end)
+    :start-line
+      (multiple-value-bind (dx dy fx fy bx by cw ch eol-p eop-p)
+          (sheet-cursor-motion stream cursor vector :start start :end end
+                                                    :text-style text-style)
+        (setf (cursor-baseline cursor) (values by bx))
+        (setf (cursor-size cursor) (values cw ch))
+        (when (and eop-p (member end-of-page-action '(:wrap :wrap*)))
+          (go :break-page))
+        (when (and eol-p wrapl)
+          (setf split (sheet-line-break stream cursor vector start end)))
+        (with-translation (stream dx dy)
+          (stream-write-output stream vector :start start :end split))
+        (when (/= split end)
+          (go :break-line))
+        (setf (cursor-position cursor) (values fx fy))))))
+
+(defgeneric stream-write-object (stream object)
+  (:method ((stream standard-extended-output-stream) object)
+    (seos-write-object stream object)))
+
+;;; FIXME we can call SHEET-CURSOR-MOTION for the whole vector, but what about
+;;; drawing then? (in other words - implement line-aware STREAM-WRITE-OUTPUT).
+(defgeneric stream-write-vector (stream vector start end)
+  (:method ((stream standard-extended-output-stream) vector start end)
+    #+ (or) (seos-write-vector stream vector start end)
+    #- (or) (loop for index from start below end
+                  for object = (aref vector index)
+                  do (stream-write-object stream object))))
 
 (defmethod stream-write-char ((stream standard-extended-output-stream) char)
   (with-cursor-off stream
     (case char
-      (#\newline (seos-write-newline stream))
-      (#\tab     (seos-write-string stream *tab-string*))
-      (otherwise (seos-write-string stream (string char))))))
+      (#\newline (seos-write-newline stream nil))
+      (#\tab     (seos-write-vector stream *tab-string* 0 (length *tab-string*)))
+      (otherwise (seos-write-vector stream (string char) 0 1)))))
 
 (defmethod stream-write-string ((stream standard-extended-output-stream) string
                                 &optional (start 0) end)
@@ -291,14 +279,14 @@ produces no more than one line of output i.e., doesn't wrap."))
       (loop for i from start below end do
         (case (char string i)
           (#\newline
-           (seos-write-string stream string seg-start i)
-           (seos-write-newline stream)
+           (seos-write-vector stream string seg-start i)
+           (seos-write-newline stream nil)
            (setq seg-start (1+ i)))
           (#\tab
-           (seos-write-string stream string seg-start i)
-           (seos-write-string stream *tab-string*)
+           (seos-write-vector stream string seg-start i)
+           (seos-write-vector stream *tab-string* 0 (length *tab-string*))
            (setq seg-start (1+ i)))))
-      (seos-write-string stream string seg-start end)))
+      (seos-write-vector stream string seg-start end)))
   string)
 
 (defmethod stream-character-width ((stream standard-extended-output-stream) char
