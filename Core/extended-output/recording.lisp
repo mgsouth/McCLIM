@@ -1976,23 +1976,17 @@ according to the flags RECORD and DRAW."
           (stream-add-output-record stream new-record))
       new-record)))
 
-(defmethod invoke-with-output-to-output-record :around
-    ((stream standard-page-layout) continuation record-type &rest initargs)
-  (declare (ignore continuation record-type initargs))
-  (with-pristine-viewport (stream)
-    (call-next-method)))
-
 (defmethod invoke-with-output-to-output-record
     ((stream output-recording-stream) continuation record-type
      &rest initargs)
-  (stream-close-text-output-record stream)
-  (let ((new-record (apply #'make-instance record-type initargs)))
-    (with-output-recording-options (stream :record t :draw nil)
-      (letf (((stream-current-output-record stream) new-record)
-             ((stream-cursor-position stream) (values 0 0)))
-        (funcall continuation stream new-record)
-        (stream-close-text-output-record stream)))
-    new-record))
+  (with-pristine-viewport (stream)
+    (let ((new-record (apply #'make-instance record-type initargs)))
+      (with-output-recording-options (stream :record t :draw nil)
+        (letf (((stream-current-text-output-record stream) nil)
+               ((stream-current-output-record stream) new-record))
+          (funcall continuation stream new-record)
+          (stream-close-text-output-record stream)))
+      new-record)))
 
 (defmethod invoke-with-output-to-pixmap ((sheet output-recording-stream) cont &key width height)
   (unless (and width height)
