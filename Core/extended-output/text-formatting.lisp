@@ -24,8 +24,7 @@
     :bottom (:relative 0)))
 
 (defclass standard-page-layout (edward-sheet-mixin)
-  ((text-cursor :accessor stream-text-cursor)
-   ;; Margins are used to compute the page dimensions.
+  (;; Margins are used to compute the page dimensions.
    (margins :initarg :margins :reader stream-text-margins :type margin-spec)
    (last-page-region :initform +nowhere+ :accessor last-page-region))
   (:default-initargs :margins +default-margins+))
@@ -45,7 +44,7 @@
       (setf (slot-value self 'margins) new)
       (recompute-page-region self))))
 
-(defmethod sheet-page-region :before ((sheet standard-page-layout))
+(defmethod stream-page-region :before ((sheet standard-page-layout))
   (unless (region-equal (last-page-region sheet) (window-viewport sheet))
     (setf (last-page-region sheet) (window-viewport sheet))
     (recompute-page-region sheet)))
@@ -57,7 +56,7 @@
                   (chh (text-style-height text-style stream)))
              (make-rectangle* 0 0 (* 80 chw) (* 43 chh)))))
     (let ((region (window-viewport stream))
-          (cached (sheet-page-region stream)))
+          (cached (stream-page-region stream)))
       (with-bounding-rectangle* (x1 y1 x2 y2)
           (if (region-equal region +everywhere+)
               (fallback-dimensions)
@@ -73,18 +72,6 @@
                           (thunk right  x2 - :horizontal)
                           (thunk bottom y2 - :vertical)))
             cached))))))
-
-(defgeneric stream-cursor-initial-position (stream)
-  (:documentation "Returns two values: x and y initial position for a cursor on page.")
-  (:method ((stream standard-page-layout))
-    (sheet-initial-position stream)))
-
-(defgeneric stream-cursor-final-position (stream)
-  (:documentation "Returns two values: x and y final position for a cursor on page.")
-  (:method ((stream standard-page-layout))
-    (sheet-final-position stream)))
-
-
 
 (defgeneric invoke-with-temporary-page (stream continuation &key margins move-cursor)
   (:method ((stream standard-page-layout) continuation &key margins (move-cursor t))
@@ -125,7 +112,7 @@
                                             :top    (:absolute 0)
                                             :right  (:relative 0)
                                             :bottom (:relative 0)))
-             ((cursor-position cursor) (sheet-initial-position sheet))
+             ((cursor-position cursor) (stream-cursor-initial-position sheet))
              ((cursor-baseline cursor) (values 0 0))
              ((cursor-size cursor) (values 0 0)))
         (funcall cont sheet)))))
@@ -152,7 +139,7 @@
                                         &key fill-width break-characters)
   (:method ((stream filling-output-mixin) continuation fresh-line-fn
             &key
-              (fill-width (bounding-rectangle-max-x (sheet-page-region stream)))
+              (fill-width (bounding-rectangle-max-x (stream-page-region stream)))
               break-characters)
     (with-temporary-margins (stream :right `(:absolute ,fill-width))
       (letf (((stream-end-of-line-action stream) :wrap*)

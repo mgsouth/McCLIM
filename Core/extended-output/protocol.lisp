@@ -80,13 +80,13 @@
 ;;; 15.4.2 Wrapping of Text Lines [complete]
 
 (define-accessor stream-end-of-line-action (action stream))
-;; with-end-of-line-action (stream action) &body body [Macro]
-(define-accessor  stream-end-of-page-action (action stream))
-;; with-end-of-page-action (stream action) &body body [Macro]
+(pledge :macro  with-end-of-line-action (stream action) &body body)
+(define-accessor stream-end-of-page-action (action stream))
+(pledge :macro with-end-of-page-action (stream action) &body body)
 
 ;;; McCLIM extensions.
-(define-accessor sheet-line-direction (direction stream))
-(define-accessor sheet-page-direction (direction stream))
+(define-accessor stream-line-direction (direction stream))
+(define-accessor stream-page-direction (direction stream))
 
 ;;; 16.2 Output Records
 (define-protocol-class output-record (bounding-rectangle)

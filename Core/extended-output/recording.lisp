@@ -1699,7 +1699,7 @@ were added."
 (defmethod output-record-end-cursor-position
     ((record standard-text-displayed-output-record))
   (with-slots (x y width height stream) record
-    (ecase (sheet-line-direction stream)
+    (ecase (stream-line-direction stream)
       (:left-to-right (values (+ x width) y))
       (:right-to-left (values (- x width) y))
       (:top-to-bottom (values x (+ y height)))
@@ -1709,12 +1709,12 @@ were added."
     ((text-record standard-text-displayed-output-record))
   (with-slots (x y width height stream) text-record
     (let ((x1 x) (y1 y) (x2 x) (y2 y))
-      (ecase (sheet-line-direction stream)
+      (ecase (stream-line-direction stream)
         (:left-to-right (setf x2 (+ x width)))
         (:right-to-left (setf x1 (- x width)))
         (:top-to-bottom (setf y2 (+ y height)))
         (:bottom-to-top (setf y1 (- y height))))
-      (ecase (sheet-page-direction stream)
+      (ecase (stream-page-direction stream)
         (:top-to-bottom (setf y2 (+ y height)))
         (:bottom-to-top (setf y1 (- y height)))
         (:left-to-right (setf x2 (+ x width)))
@@ -1727,7 +1727,7 @@ were added."
 (defun add-object-to-text-record (self object ws hs bx by)
   (with-slots (objects cursor width height base-x base-y stream) self
     (nconcf objects (list object))
-    (ecase (sheet-line-direction stream)
+    (ecase (stream-line-direction stream)
       ((:left-to-right :right-to-left)
        (maxf base-y by)
        (incf width ws)
