@@ -24,22 +24,41 @@
                                            standard-output-stream
                                            standard-page-layout
                                            filling-output-mixin)
-  ((cursor :accessor stream-text-cursor)
-   (foreground :initarg :foreground :reader foreground)
+  ((foreground :initarg :foreground :reader foreground)
    (background :initarg :background :reader background)
    (text-style :initarg :text-style :reader stream-text-style)
-   (vspace :initarg :vertical-spacing :reader stream-vertical-spacing)
-   (eol :initarg :end-of-line-action :accessor stream-end-of-line-action)
-   (eop :initarg :end-of-page-action :accessor stream-end-of-page-action)
    (view :initarg :default-view :accessor stream-default-view)
-   (baseline :initform 0 :reader stream-baseline))
+   (baseline :initform 0 :reader stream-baseline)
+   (vspace :initarg :vertical-spacing :accessor stream-vertical-spacing)
+   (hspace :initarg :horizontal-spacing :accessor stream-horizontal-spacing)
+   (end-of-line-action :accessor stream-end-of-line-action)
+   (end-of-page-action :accessor stream-end-of-page-action))
   (:default-initargs
    :foreground +black+ :background +white+ :text-style *default-text-style*
-   :vertical-spacing 2 :end-of-page-action :scroll :end-of-line-action :wrap
+   :vertical-spacing 2 :horizontal-spacing 2
    :default-view +textual-view+))
 
-(defmethod stream-cursor-height ((sheet sheet))
-  (text-style-height (medium-text-style sheet) sheet))
+(defmethod stream-cursor-position ((stream standard-extended-output-stream))
+  (cursor-position (stream-text-cursor stream)))
+
+(defmethod* (setf stream-cursor-position) (x y (stream standard-extended-output-stream))
+  (let ((cursor (stream-text-cursor stream)))
+    (setf (cursor-position cursor) (values x y))
+    (when (and (cursor-active cursor)
+               (output-recording-stream-p stream))
+      (stream-close-text-output-record (cursor-sheet cursor)))))
+
+;;; FIXME remove this funciton.
+(defun stream-page-region (stream)
+  (sheet-page-region stream))
+
+(defmethod stream-cursor-size ((stream standard-extended-output-stream))
+  (let ((cursor (stream-text-cursor stream)))
+    (values (cursor-width cursor) (cursor-height cursor))))
+
+(defmethod* (setf stream-cursor-size) ((stream standard-extended-output-stream))
+  (let ((cursor (stream-text-cursor stream)))
+    (values (cursor-width cursor) (cursor-height cursor))))
 
 (defmethod stream-cursor-height ((sheet standard-extended-output-stream))
   (cursor-height (stream-text-cursor sheet)))
@@ -47,10 +66,38 @@
 (defun (setf stream-cursor-height) (value stream)
   (setf (cursor-height (stream-text-cursor stream)) value))
 
+(defmethod stream-cursor-width ((sheet standard-extended-output-stream))
+  (cursor-width (stream-text-cursor sheet)))
+
+(defun (setf stream-cursor-width) (value stream)
+  (setf (cursor-width (stream-text-cursor stream)) value))
+
+(defmethod stream-set-cursor-position ((stream standard-extended-output-stream) x y)
+  (setf (stream-cursor-position stream) (values x y)))
+
+(defmethod stream-increment-cursor-position
+    ((stream standard-extended-output-stream) dx dy)
+  (let ((cursor (stream-text-cursor stream))
+        (dx (or dx 0))
+        (dy (or dy 0)))
+   (multiple-value-bind (x y) (cursor-position cursor)
+     (setf (cursor-position cursor)
+           (values (+ x dx) (+ y dy))))))
+
 (defun reset-stream-cursor (stream cursor)
-  (let ((text-style (stream-text-style stream)))
+  (let* ((text-style (stream-text-style stream))
+         (width (text-style-width text-style stream))
+         (height (text-style-height text-style stream)))
     (setf (cursor-position cursor) (stream-cursor-initial-position stream)
-          (cursor-height cursor) (text-style-height text-style stream))))
+          (cursor-baseline cursor) (values 0 0)
+          (cursor-size cursor) (values width height))))
+
+(defun text-style-baseline (text-style stream)
+  (ecase (sheet-page-direction stream)
+    (:top-to-bottom (values (text-style-ascent text-style stream) 0))
+    (:bottom-to-top (values (- (text-style-ascent text-style stream)) 0))
+    (:left-to-right (values 0 (text-style-width text-style stream)))
+    (:right-to-left (values 0 (- (text-style-width text-style stream))))))
 
 (defmethod stream-force-output :after
     ((stream standard-extended-output-stream))
@@ -63,37 +110,7 @@
     (medium-finish-output medium)))
 
 (defmethod note-sheet-grafted :after ((stream standard-extended-output-stream))
-  (multiple-value-bind (x-start y-start)
-      (stream-cursor-initial-position stream)
-    (setf (stream-text-cursor stream)
-          (make-instance 'standard-text-cursor
-                         :sheet stream
-                         :x-position x-start
-                         :y-position y-start
-                         :width 4
-                         :height (text-style-height (stream-text-style stream) stream)))))
-
-(defmethod stream-cursor-position ((stream standard-extended-output-stream))
-  (cursor-position (stream-text-cursor stream)))
-
-(defmethod* (setf stream-cursor-position)
-    (x y (stream standard-extended-output-stream))
-  (let ((cursor (stream-text-cursor stream)))
-    (setf (cursor-position cursor) (values x y))
-    (when (and (cursor-active cursor)
-               (output-recording-stream-p stream))
-      (stream-close-text-output-record (cursor-sheet cursor)))))
-
-(defmethod stream-set-cursor-position ((stream standard-extended-output-stream) x y)
-  (setf (stream-cursor-position stream) (values x y)))
-
-(defmethod stream-increment-cursor-position
-    ((stream standard-extended-output-stream) dx dy)
-  (multiple-value-bind (x y) (cursor-position (stream-text-cursor stream))
-    (let ((dx (or dx 0))
-          (dy (or dy 0)))
-    (setf (cursor-position (stream-text-cursor stream))
-          (values (+ x dx) (+ y dy))))))
+  (reset-stream-cursor stream (stream-text-cursor stream)))
 
 ;; In next few functions we can't call (setf stream-cursor-position) because
 ;; that would close the text-output-record unnecessarily. Using underlying
@@ -296,14 +313,14 @@ produces no more than one line of output i.e., doesn't wrap."))
   (with-sheet-medium (medium stream)
     (if (null text-style)
         (setq text-style (medium-text-style (sheet-medium stream))))
-    (multiple-value-bind (total-width total-height final-x final-y baseline)
+    (multiple-value-bind (total-width total-height final-x)
         (text-size medium string :text-style text-style
                    :start start :end end)
-      (declare (ignore total-height final-y baseline))
+      (declare (ignore total-height))
       (values final-x total-width))))
 
 (defmethod stream-text-margin ((stream standard-extended-output-stream))
-  (bounding-rectangle-max-x (stream-page-region stream)))
+  (bounding-rectangle-max-x (sheet-page-region stream)))
 
 (defmethod (setf stream-text-margin) (margin (stream standard-extended-output-stream))
   (setf (stream-text-margins stream)
@@ -318,7 +335,7 @@ produces no more than one line of output i.e., doesn't wrap."))
      (stream-vertical-spacing stream)))
 
 (defmethod stream-line-width ((stream standard-extended-output-stream))
-  (bounding-rectangle-width (stream-page-region stream)))
+  (bounding-rectangle-width (sheet-page-region stream)))
 
 (defmethod stream-line-column ((stream standard-extended-output-stream))
   (let ((line-width (- (stream-cursor-position stream)
@@ -330,9 +347,7 @@ produces no more than one line of output i.e., doesn't wrap."))
         (floor (/ line-width (stream-character-width stream #\M))))))
 
 (defmethod stream-start-line-p ((stream standard-extended-output-stream))
-  (multiple-value-bind (x y) (stream-cursor-position stream)
-    (declare (ignore y))
-    (= x (stream-cursor-initial-position stream))))
+  (zerop (sheet-text-offset stream (stream-text-cursor stream))))
 
 (defmethod beep (&optional medium)
   (if medium

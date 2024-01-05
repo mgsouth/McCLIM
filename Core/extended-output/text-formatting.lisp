@@ -3,7 +3,7 @@
 ;;; ---------------------------------------------------------------------------
 ;;;
 ;;;  (c) Copyright 2002 by Alexey Dejneka <adejneka@comail.ru>
-;;;  (c) Copyright 2019 by Daniel Kochmański <daniel@turtleware.eu>
+;;;  (c) Copyright 2023 by Daniel Kochmański <daniel@turtleware.eu>
 ;;;
 ;;; ---------------------------------------------------------------------------
 ;;;
@@ -17,34 +17,47 @@
 
 (in-package #:clim-internals)
 
-(defclass standard-page-layout ()
-  ((%page-region :initform (make-bounding-rectangle 0 0 0 0))
-   (margins :accessor stream-text-margins :type margin-spec))
-  (:default-initargs :text-margins '(:left   (:absolute 0)
-                                     :top    (:absolute 0)
-                                     :right  (:relative 0)
-                                     :bottom (:relative 0))))
+(defvar +default-margins+
+  `(:left   (:absolute 0)
+    :top    (:absolute 0)
+    :right  (:relative 0)
+    :bottom (:relative 0)))
+
+(defclass standard-page-layout (edward-sheet-mixin)
+  ((text-cursor :accessor stream-text-cursor)
+   ;; Margins are used to compute the page dimensions.
+   (margins :initarg :margins :reader stream-text-margins :type margin-spec)
+   (last-page-region :initform +nowhere+ :accessor last-page-region))
+  (:default-initargs :margins +default-margins+))
 
 (defmethod shared-initialize :after ((instance standard-page-layout)
                                      slot-names &key text-margins text-margin)
   (declare (ignore slot-names))
-  (let ((right-margin (if text-margin
-                          `(:absolute ,text-margin)
-                          `(:relative 0))))
+  (let* ((right-margin (and text-margin `(:right (:absolute ,text-margin))))
+         (defaults (normalize-margin-spec right-margin +default-margins+)))
     (setf (slot-value instance 'margins)
-          (normalize-margin-spec text-margins `(:left   (:absolute 0)
-                                                :top    (:absolute 0)
-                                                :right  ,right-margin
-                                                :bottom (:relative 0))))))
+          (normalize-margin-spec text-margins defaults))))
 
-(defmethod stream-page-region ((stream standard-page-layout))
+(defmethod (setf stream-text-margins) (margins (self standard-page-layout))
+  (let* ((old (stream-text-margins self))
+         (new (normalize-margin-spec margins old)))
+    (unless (equal old new)
+      (setf (slot-value self 'margins) new)
+      (recompute-page-region self))))
+
+(defmethod sheet-page-region :before ((sheet standard-page-layout))
+  (unless (region-equal (last-page-region sheet) (window-viewport sheet))
+    (setf (last-page-region sheet) (window-viewport sheet))
+    (recompute-page-region sheet)))
+
+(defun recompute-page-region (stream)
   (flet ((fallback-dimensions ()
            (let* ((text-style (stream-text-style stream))
                   (chw (text-style-width  text-style stream))
                   (chh (text-style-height text-style stream)))
              (make-rectangle* 0 0 (* 80 chw) (* 43 chh)))))
     (let ((region (window-viewport stream))
-          (cached (slot-value stream '%page-region)))
+          (cached (sheet-page-region stream)))
       (with-bounding-rectangle* (x1 y1 x2 y2)
           (if (region-equal region +everywhere+)
               (fallback-dimensions)
@@ -64,21 +77,14 @@
 (defgeneric stream-cursor-initial-position (stream)
   (:documentation "Returns two values: x and y initial position for a cursor on page.")
   (:method ((stream standard-page-layout))
-    (bounding-rectangle-position (stream-page-region stream))))
+    (sheet-initial-position stream)))
 
 (defgeneric stream-cursor-final-position (stream)
   (:documentation "Returns two values: x and y final position for a cursor on page.")
   (:method ((stream standard-page-layout))
-    (with-bounding-rectangle* (:x2 max-x :y2 max-y)
-        (stream-page-region stream)
-      (values max-x max-y))))
+    (sheet-final-position stream)))
 
-(defmethod (setf stream-text-margins) :around
-    (new-margins (stream standard-page-layout)
-     &aux (old-margins (stream-text-margins stream)))
-  (setf new-margins (normalize-margin-spec new-margins old-margins))
-  (unless (equal new-margins old-margins)
-    (call-next-method new-margins stream)))
+
 
 (defgeneric invoke-with-temporary-page (stream continuation &key margins move-cursor)
   (:method ((stream standard-page-layout) continuation &key margins (move-cursor t))
@@ -114,17 +120,21 @@
 
 (defgeneric invoke-with-pristine-viewport (sheet cont)
   (:method ((sheet standard-page-layout) cont)
-    (letf (((stream-text-margins sheet) '(:left   (:absolute 0)
-                                          :top    (:absolute 0)
-                                          :right  (:relative 0)
-                                          :bottom (:relative 0)))
-           ((stream-cursor-position sheet) (stream-cursor-initial-position sheet))
-           ((stream-cursor-height sheet) (text-style-height (stream-text-style sheet) sheet)))
-      (funcall cont sheet))))
+    (let ((cursor (stream-text-cursor sheet)))
+      (letf (((stream-text-margins sheet) '(:left   (:absolute 0)
+                                            :top    (:absolute 0)
+                                            :right  (:relative 0)
+                                            :bottom (:relative 0)))
+             ((cursor-position cursor) (sheet-initial-position sheet))
+             ((cursor-baseline cursor) (values 0 0))
+             ((cursor-size cursor) (values 0 0)))
+        (funcall cont sheet)))))
 
 (defmacro with-pristine-viewport ((stream) &body body)
   (let ((cont (gensym)))
-    `(flet ((,cont (,stream) ,@body))
+    `(flet ((,cont (,stream)
+              (declare (ignorable ,stream))
+              ,@body))
        (declare (dynamic-extent (function ,cont)))
        (invoke-with-pristine-viewport ,stream (function ,cont)))))
 
@@ -142,7 +152,7 @@
                                         &key fill-width break-characters)
   (:method ((stream filling-output-mixin) continuation fresh-line-fn
             &key
-              (fill-width (bounding-rectangle-max-x (stream-page-region stream)))
+              (fill-width (bounding-rectangle-max-x (sheet-page-region stream)))
               break-characters)
     (with-temporary-margins (stream :right `(:absolute ,fill-width))
       (letf (((stream-end-of-line-action stream) :wrap*)
