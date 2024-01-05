@@ -1560,23 +1560,21 @@ SCROLLER-PANE appear on the ergonomic left hand side, or leave set to
 ;;; Note that these rules fovor the top-left part to be visible when the thing
 ;;; exceeds the size of the viewport.
 (defun scroll-extent* (pane thing)
-  (flet ((snap (view-min view-max object-min object-max &aux (distance 0))
+  (flet ((snap (view-min view-max object-min object-max)
            "Returns the new value of view-min."
-           (when (< view-max object-max)
-             (let ((excess (- object-max view-max)))
-               (setf distance (- excess))
-               (decf object-min excess)))
-           (when (< object-min view-min)
-             (let ((deficit (- view-min object-min)))
-               (incf distance deficit)))
-           distance))
+           (unless (<= object-max view-max)
+             (let ((delta (- object-max view-max)))
+               (incf view-min delta)
+               (incf view-max delta)))
+           (unless (<= view-min object-min)
+             (let ((delta (- object-min view-min)))
+               (incf view-min delta)))
+           view-min))
     (with-bounding-rectangle* (x1 y1 x2 y2) (sheet-visible-region pane)
       (with-bounding-rectangle* (tx1 ty1 tx2 ty2) thing
-        (let ((nx (- x1 (snap x1 x2 tx1 tx2)))
-              (ny (- y1 (snap y1 y2 ty1 ty2))))
-          (unless (and (<= x1 nx x2)
-                       (<= y1 ny y2))
-            (scroll-extent pane nx ny)))))))
+        (let ((nx (snap x1 x2 tx1 tx2))
+              (ny (snap y1 y2 ty1 ty2)))
+          (scroll-extent pane nx ny))))))
 
 
 ;;; LABEL PANE
