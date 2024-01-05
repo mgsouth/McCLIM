@@ -17,28 +17,21 @@
 ;;;  (c) copyright 2017 Cyrus Harmon <cyrus@bobobeach.com>
 ;;;  (c) copyright 2018 Elias Martenson <lokedhs@gmail.com>
 ;;;  (c) copyright 2018-2021 Jan Moringen <jmoringe@techfak.uni-bielefeld.de>
-;;;  (c) copyright 2016-2022 Daniel Kochmański <daniel@turtleware.eu>
+;;;  (c) copyright 2016-2023 Daniel Kochmański <daniel@turtleware.eu>
 ;;;
 ;;; ---------------------------------------------------------------------------
 ;;;
 ;;; Machinery for creating, querying and modifying output records.
 ;;;
 
-;;; TODO:
+;;; TODO records:
 ;;;
-;;; - Scrolling does not work correctly. Region is given in "window"
-;;;   coordinates, without bounding-rectangle-position transformation.
-;;;   (Is it still valid?)
-;;;
-;;; - Redo setf*-output-record-position, extent recomputation for
-;;;   compound records
-;;;
-;;; - When DRAWING-P is NIL, should stream cursor move?
+;;; - Redo (setf output-record-position); extent recomputation for output records
 ;;;
 ;;; - :{X,Y}-OFFSET.
 ;;;
-;;; - (SETF OUTPUT-RECORD-START-CURSOR-POSITION) does not affect the
-;;;   bounding rectangle. What does it affect?
+;;; - (SETF OUTPUT-RECORD-START-CURSOR-POSITION) does not affect the bounding
+;;;   rectangle. What does it affect?
 ;;;
 ;;; - How should (SETF OUTPUT-RECORD-POSITION) affect the bounding
 ;;;   rectangle of the parent? Now its bounding rectangle is
@@ -51,6 +44,14 @@
 ;;;   LINE-STYLE-CAP-SHAPE.
 ;;;
 ;;; - Rounding of coordinates.
+
+;;; TODO streams:
+;;;
+;;; - Scrolling does not work correctly. Region is given in "window"
+;;;   coordinates, without bounding-rectangle-position transformation.
+;;;   (Is it still valid?)
+;;;
+;;; - When DRAWING-P is NIL, should stream cursor move?
 ;;;
 ;;; - Document carefully the interface of STANDARD-OUTPUT-RECORDING-STREAM.
 ;;;
@@ -58,6 +59,7 @@
 ;;;   standard output record class". What does it mean? What is
 ;;;   "CLIM's standard output record class"? Is it OUTPUT-RECORD or
 ;;;   BASIC-OUTPUT-RECORD?  Now they are defined on OUTPUT-RECORD.
+;;;
 
 (in-package #:clim-internals)
 
@@ -218,8 +220,9 @@ recording stream. If it is T, *STANDARD-OUTPUT* is used.")
 ;;;; Implementation
 
 (defclass basic-output-record (standard-bounding-rectangle output-record)
-  ((parent :initform nil
-           :accessor output-record-parent)) ; XXX
+  ((parent :initform nil :accessor output-record-parent)
+   (x :initarg :x-position :initform 0.0d0)
+   (y :initarg :y-position :initform 0.0d0))
   (:documentation "Implementation class for the Basic Output Record Protocol."))
 
 (defmethod initialize-instance :after ((record basic-output-record)
@@ -232,22 +235,24 @@ recording stream. If it is T, *STANDARD-OUTPUT* is used.")
   (when parent
     (add-output-record record parent)))
 
-;;; We need to remember initial record position (hence x,y slots) in case when
-;;; we add children expanding record in top-left direction and then call
-;;; clear-output-record. We want to reposition output record then at its initial
-;;; position. That's why this is not redundant with the bounding-rectangle.
+(defun output-record-origin (record)
+  (with-slots (x y) record
+    (values x y)))
+
+(defun set-output-record-origin (record nx ny)
+  (with-slots (x y) record
+    (and nx (setf x nx))
+    (and ny (setf y ny))))
+
+(defmethod* (setf output-record-position) :before (nx ny (self basic-output-record))
+  (set-output-record-origin self nx ny))
+
 (defclass compound-output-record (basic-output-record)
-  ((x :initarg :x-position
-      :initform 0.0d0
-      :documentation "X-position of the empty record.")
-   (y :initarg :y-position
-      :initform 0.0d0
-      :documentation "Y-position of the empty record.")
-   (in-moving-p :initform nil
-                :documentation "Is set while changing the position."))
+  ((in-moving-p :initform nil :documentation "Is set while changing the position."))
   (:documentation "Implementation class for output records with children."))
 
 ;;; 16.2.1. The Basic Output Record Protocol
+
 (defmethod output-record-position ((record basic-output-record))
   (bounding-rectangle-position record))
 
@@ -259,8 +264,8 @@ recording stream. If it is T, *STANDARD-OUTPUT* is used.")
             (values nx ny (+ x2 dx) (+ y2 dy)))))
   (values nx ny))
 
-(defmethod* (setf output-record-position) :around
-            (nx ny (record basic-output-record))
+(defmethod* (setf output-record-position)
+    :around (nx ny (record basic-output-record))
   (with-bounding-rectangle* (min-x min-y max-x max-y) record
     (call-next-method)
     (when-let ((parent (output-record-parent record)))
@@ -271,7 +276,7 @@ recording stream. If it is T, *STANDARD-OUTPUT* is used.")
     (values nx ny)))
 
 (defmethod* (setf output-record-position)
-  :before (nx ny (record compound-output-record))
+    :before (nx ny (record compound-output-record))
   (with-standard-rectangle* (x1 y1) record
     (letf (((slot-value record 'in-moving-p) t))
       (let ((dx (- nx x1))
@@ -456,17 +461,6 @@ the associated sheet can be determined."
   (declare (ignore function function-args))
   nil)
 
-;;; This needs to work in "most recently added last" order. Is this
-;;; implementation right? -- APD, 2002-06-13
-#+(or)
-(defmethod map-over-output-records
-    (function (record compound-output-record)
-     &optional (x-offset 0) (y-offset 0)
-     &rest function-args)
-  (declare (ignore x-offset y-offset))
-  (map nil (lambda (child) (apply function child function-args))
-       (output-record-children record)))
-
 (defmethod map-over-output-records-containing-position
     (function (record displayed-output-record) x y
      &optional (x-offset 0) (y-offset 0)
@@ -474,42 +468,12 @@ the associated sheet can be determined."
   (declare (ignore function x y x-offset y-offset function-args))
   nil)
 
-;;; This needs to work in "most recently added first" order. Is this
-;;; implementation right? -- APD, 2002-06-13
-#+(or)
-(defmethod map-over-output-records-containing-position
-    (function (record compound-output-record) x y
-     &optional (x-offset 0) (y-offset 0)
-     &rest function-args)
-  (declare (ignore x-offset y-offset))
-  (map nil
-       (lambda (child)
-         (when (and (multiple-value-bind (min-x min-y max-x max-y)
-                        (output-record-hit-detection-rectangle* child)
-                      (and (<= min-x x max-x) (<= min-y y max-y)))
-                    (output-record-refined-position-test child x y))
-           (apply function child function-args)))
-       (output-record-children record)))
-
 (defmethod map-over-output-records-overlapping-region
     (function (record displayed-output-record) region
      &optional (x-offset 0) (y-offset 0)
      &rest function-args)
   (declare (ignore function region x-offset y-offset function-args))
   nil)
-
-;;; This needs to work in "most recently added last" order. Is this
-;;; implementation right? -- APD, 2002-06-13
-#+(or)
-(defmethod map-over-output-records-overlapping-region
-    (function (record compound-output-record) region
-     &optional (x-offset 0) (y-offset 0)
-     &rest function-args)
-  (declare (ignore x-offset y-offset))
-  (map nil
-       (lambda (child) (when (region-intersects-region-p region child)
-                         (apply function child function-args)))
-       (output-record-children record)))
 
 ;;; 16.2.3. Output Record Change Notification Protocol
 (defmethod recompute-extent-for-new-child
@@ -1588,20 +1552,6 @@ were added."
     (let ((medium (sheet-medium stream)))
       (medium-draw-text* medium string point-x point-y 0 nil align-x
                          align-y toward-x toward-y transform-glyphs))))
-
-#+ (or) ;; See the :around method on GS-TRANSFORMATION-MIXIN.
-(defmethod* (setf output-record-position) :around
-  (nx ny (record draw-text-output-record))
-  (with-standard-rectangle* (x1 y1) record
-    (with-slots (point-x point-y toward-x toward-y) record
-      (let ((dx (- nx x1))
-            (dy (- ny y1)))
-        (multiple-value-prog1
-            (call-next-method)
-          (incf point-x dx)
-          (incf point-y dy)
-          (incf toward-x dx)
-          (incf toward-y dy))))))
 
 (defrecord-predicate draw-text-output-record
     (string (start nil) (end nil) ; START, END are keyword arguments but not slots
