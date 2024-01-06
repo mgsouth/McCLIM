@@ -17,28 +17,21 @@
 ;;;  (c) copyright 2017 Cyrus Harmon <cyrus@bobobeach.com>
 ;;;  (c) copyright 2018 Elias Martenson <lokedhs@gmail.com>
 ;;;  (c) copyright 2018-2021 Jan Moringen <jmoringe@techfak.uni-bielefeld.de>
-;;;  (c) copyright 2016-2022 Daniel Kochmański <daniel@turtleware.eu>
+;;;  (c) copyright 2016-2023 Daniel Kochmański <daniel@turtleware.eu>
 ;;;
 ;;; ---------------------------------------------------------------------------
 ;;;
 ;;; Machinery for creating, querying and modifying output records.
 ;;;
 
-;;; TODO:
+;;; TODO records:
 ;;;
-;;; - Scrolling does not work correctly. Region is given in "window"
-;;;   coordinates, without bounding-rectangle-position transformation.
-;;;   (Is it still valid?)
-;;;
-;;; - Redo setf*-output-record-position, extent recomputation for
-;;;   compound records
-;;;
-;;; - When DRAWING-P is NIL, should stream cursor move?
+;;; - Redo (setf output-record-position); extent recomputation for output records
 ;;;
 ;;; - :{X,Y}-OFFSET.
 ;;;
-;;; - (SETF OUTPUT-RECORD-START-CURSOR-POSITION) does not affect the
-;;;   bounding rectangle. What does it affect?
+;;; - (SETF OUTPUT-RECORD-START-CURSOR-POSITION) does not affect the bounding
+;;;   rectangle. What does it affect?
 ;;;
 ;;; - How should (SETF OUTPUT-RECORD-POSITION) affect the bounding
 ;;;   rectangle of the parent? Now its bounding rectangle is
@@ -51,6 +44,14 @@
 ;;;   LINE-STYLE-CAP-SHAPE.
 ;;;
 ;;; - Rounding of coordinates.
+
+;;; TODO streams:
+;;;
+;;; - Scrolling does not work correctly. Region is given in "window"
+;;;   coordinates, without bounding-rectangle-position transformation.
+;;;   (Is it still valid?)
+;;;
+;;; - When DRAWING-P is NIL, should stream cursor move?
 ;;;
 ;;; - Document carefully the interface of STANDARD-OUTPUT-RECORDING-STREAM.
 ;;;
@@ -58,6 +59,7 @@
 ;;;   standard output record class". What does it mean? What is
 ;;;   "CLIM's standard output record class"? Is it OUTPUT-RECORD or
 ;;;   BASIC-OUTPUT-RECORD?  Now they are defined on OUTPUT-RECORD.
+;;;
 
 (in-package #:clim-internals)
 
@@ -218,8 +220,9 @@ recording stream. If it is T, *STANDARD-OUTPUT* is used.")
 ;;;; Implementation
 
 (defclass basic-output-record (standard-bounding-rectangle output-record)
-  ((parent :initform nil
-           :accessor output-record-parent)) ; XXX
+  ((parent :initform nil :accessor output-record-parent)
+   (x :initarg :x-position :initform 0.0d0)
+   (y :initarg :y-position :initform 0.0d0))
   (:documentation "Implementation class for the Basic Output Record Protocol."))
 
 (defmethod initialize-instance :after ((record basic-output-record)
@@ -232,22 +235,24 @@ recording stream. If it is T, *STANDARD-OUTPUT* is used.")
   (when parent
     (add-output-record record parent)))
 
-;;; We need to remember initial record position (hence x,y slots) in case when
-;;; we add children expanding record in top-left direction and then call
-;;; clear-output-record. We want to reposition output record then at its initial
-;;; position. That's why this is not redundant with the bounding-rectangle.
+(defun output-record-origin (record)
+  (with-slots (x y) record
+    (values x y)))
+
+(defun set-output-record-origin (record nx ny)
+  (with-slots (x y) record
+    (and nx (setf x nx))
+    (and ny (setf y ny))))
+
+(defmethod* (setf output-record-position) :before (nx ny (self basic-output-record))
+  (set-output-record-origin self nx ny))
+
 (defclass compound-output-record (basic-output-record)
-  ((x :initarg :x-position
-      :initform 0.0d0
-      :documentation "X-position of the empty record.")
-   (y :initarg :y-position
-      :initform 0.0d0
-      :documentation "Y-position of the empty record.")
-   (in-moving-p :initform nil
-                :documentation "Is set while changing the position."))
+  ((in-moving-p :initform nil :documentation "Is set while changing the position."))
   (:documentation "Implementation class for output records with children."))
 
 ;;; 16.2.1. The Basic Output Record Protocol
+
 (defmethod output-record-position ((record basic-output-record))
   (bounding-rectangle-position record))
 
@@ -259,8 +264,8 @@ recording stream. If it is T, *STANDARD-OUTPUT* is used.")
             (values nx ny (+ x2 dx) (+ y2 dy)))))
   (values nx ny))
 
-(defmethod* (setf output-record-position) :around
-            (nx ny (record basic-output-record))
+(defmethod* (setf output-record-position)
+    :around (nx ny (record basic-output-record))
   (with-bounding-rectangle* (min-x min-y max-x max-y) record
     (call-next-method)
     (when-let ((parent (output-record-parent record)))
@@ -271,7 +276,7 @@ recording stream. If it is T, *STANDARD-OUTPUT* is used.")
     (values nx ny)))
 
 (defmethod* (setf output-record-position)
-  :before (nx ny (record compound-output-record))
+    :before (nx ny (record compound-output-record))
   (with-standard-rectangle* (x1 y1) record
     (letf (((slot-value record 'in-moving-p) t))
       (let ((dx (- nx x1))
@@ -304,14 +309,11 @@ recording stream. If it is T, *STANDARD-OUTPUT* is used.")
     (setf region (sheet-visible-region stream)))
   (stream-close-text-output-record stream)
   (when (stream-drawing-p stream)
-    (with-output-recording-options (stream :record nil)
-      (with-sheet-medium (medium stream)
-        (letf (((cursor-visibility (stream-text-cursor stream)) nil) ;; FIXME?
-               ((stream-cursor-position stream) (values 0 0))
-               ;; Is there a better value to bind to baseline?
-               ((slot-value stream 'baseline) (slot-value stream 'baseline))
-               ((medium-transformation medium) +identity-transformation+))
-          (replay-output-record record stream region))))))
+    (nest
+     (with-cursor-off ((stream-text-cursor stream)))
+     (with-output-recording-options (stream :record nil))
+     (with-identity-transformation (stream)
+       (replay-output-record record stream region)))))
 
 (defmethod replay-output-record ((record compound-output-record) (stream encapsulating-stream)
                                  &optional region (x-offset 0) (y-offset 0))
@@ -456,17 +458,6 @@ the associated sheet can be determined."
   (declare (ignore function function-args))
   nil)
 
-;;; This needs to work in "most recently added last" order. Is this
-;;; implementation right? -- APD, 2002-06-13
-#+(or)
-(defmethod map-over-output-records
-    (function (record compound-output-record)
-     &optional (x-offset 0) (y-offset 0)
-     &rest function-args)
-  (declare (ignore x-offset y-offset))
-  (map nil (lambda (child) (apply function child function-args))
-       (output-record-children record)))
-
 (defmethod map-over-output-records-containing-position
     (function (record displayed-output-record) x y
      &optional (x-offset 0) (y-offset 0)
@@ -474,42 +465,12 @@ the associated sheet can be determined."
   (declare (ignore function x y x-offset y-offset function-args))
   nil)
 
-;;; This needs to work in "most recently added first" order. Is this
-;;; implementation right? -- APD, 2002-06-13
-#+(or)
-(defmethod map-over-output-records-containing-position
-    (function (record compound-output-record) x y
-     &optional (x-offset 0) (y-offset 0)
-     &rest function-args)
-  (declare (ignore x-offset y-offset))
-  (map nil
-       (lambda (child)
-         (when (and (multiple-value-bind (min-x min-y max-x max-y)
-                        (output-record-hit-detection-rectangle* child)
-                      (and (<= min-x x max-x) (<= min-y y max-y)))
-                    (output-record-refined-position-test child x y))
-           (apply function child function-args)))
-       (output-record-children record)))
-
 (defmethod map-over-output-records-overlapping-region
     (function (record displayed-output-record) region
      &optional (x-offset 0) (y-offset 0)
      &rest function-args)
   (declare (ignore function region x-offset y-offset function-args))
   nil)
-
-;;; This needs to work in "most recently added last" order. Is this
-;;; implementation right? -- APD, 2002-06-13
-#+(or)
-(defmethod map-over-output-records-overlapping-region
-    (function (record compound-output-record) region
-     &optional (x-offset 0) (y-offset 0)
-     &rest function-args)
-  (declare (ignore x-offset y-offset))
-  (map nil
-       (lambda (child) (when (region-intersects-region-p region child)
-                         (apply function child function-args)))
-       (output-record-children record)))
 
 ;;; 16.2.3. Output Record Change Notification Protocol
 (defmethod recompute-extent-for-new-child
@@ -1589,20 +1550,6 @@ were added."
       (medium-draw-text* medium string point-x point-y 0 nil align-x
                          align-y toward-x toward-y transform-glyphs))))
 
-#+ (or) ;; See the :around method on GS-TRANSFORMATION-MIXIN.
-(defmethod* (setf output-record-position) :around
-  (nx ny (record draw-text-output-record))
-  (with-standard-rectangle* (x1 y1) record
-    (with-slots (point-x point-y toward-x toward-y) record
-      (let ((dx (- nx x1))
-            (dy (- ny y1)))
-        (multiple-value-prog1
-            (call-next-method)
-          (incf point-x dx)
-          (incf point-y dy)
-          (incf toward-x dx)
-          (incf toward-y dy))))))
-
 (defrecord-predicate draw-text-output-record
     (string (start nil) (end nil) ; START, END are keyword arguments but not slots
      point-x point-y align-x align-y toward-x toward-y transform-glyphs)
@@ -1635,230 +1582,250 @@ were added."
        (if-supplied (transform-glyphs)
          (eq (slot-value record 'transform-glyphs) transform-glyphs))))
 
+
 ;;; 16.3.3. Text Displayed Output Record
 
 (defclass styled-string (gs-text-style-mixin gs-ink-mixin)
-  ((start-x :initarg :start-x)
-   (string :initarg :string :reader styled-string-string)))
+  ((string :initarg :string :reader styled-string-string)))
+
+(defun ensure-styled-string (stream previous string text-style start end)
+  (flet ((compatible-p ()
+           (and (typep previous 'styled-string)
+                (match-output-records previous
+                                      :text-style text-style
+                                      :ink (medium-ink stream))))
+         (append-string ()
+           ;; Simply append the string to the last one.
+           (let* ((length (max 0 (- end start)))
+                  (last-string (styled-string-string previous))
+                  (last-string-length (length last-string))
+                  (start1 (length last-string))
+                  (end1 (+ start1 length)))
+             (when (< (array-dimension last-string 0) end1)
+               (adjust-array last-string (max end1 (* 2 last-string-length))))
+             (setf (fill-pointer last-string) end1)
+             (string (replace last-string string
+                              :start1 start1 :end1 end1
+                              :start2 start :end2 end))
+             previous))
+         (create-string ()
+           ;; Create a new styled string.
+           (let* ((length (max 0 (- end start)))
+                  (vector (make-array length :element-type 'character
+                                             :adjustable t
+                                             :fill-pointer t))
+                  (sstring (make-instance 'styled-string
+                                          :text-style text-style
+                                          :stream stream :string vector)))
+             (replace (styled-string-string sstring) string
+                      :start2 start :end2 end)
+             sstring)))
+    (if (compatible-p)
+        (values (append-string) nil)
+        (values (create-string) t))))
 
 (defmethod output-record-equal and ((record styled-string)
                                     (record2 styled-string))
-  (and (coordinate= (slot-value record 'start-x)
-                    (slot-value record2 'start-x))
-       (string= (slot-value record 'string)
-                (slot-value record2 'string))))
+  (string= (slot-value record 'string)
+           (slot-value record2 'string)))
 
-;;; The STANDARD-TEXT-DISPLAYED-OUTPUT-RECORD represents a single line of text
-;;; composed of styled strings that may have different text styles. There are
-;;; two metrics that need to be accounted for with each added string:
-;;;
-;;; The text line metrics, that is the record initial position, the line width,
-;;; height and baseline. Slots: START-X, START-Y, WIDTH, HEIGHT, BASELINE.
-;;; Redundantly slots END-X and END-Y are stored for conveniance.
-;;;
-;;; The glyph metrics (see TEXT-BOUNDING-RECTANGLE*). Glyph may have left and
-;;; right bearings and they may reach that reach outside of the line bounding
-;;; rectangle. Slots LEFT and RIGHT have the extreme bounds of the record.
-;;;
-;;; -- jd 2021-11-14
 (defclass standard-text-displayed-output-record
     (text-displayed-output-record standard-displayed-output-record)
-  (;; All strings making the output record.
-   (strings :initform nil)
-   ;; The initial position of the output record.
-   (initial-x1 :initarg :start-x)
-   (initial-y1 :initarg :start-y)
+  (;; Stream is used to query record dimensions and drawing options.
+   (stream :initarg :stream)
+   ;; All objects making the output record.
+   (objects :initform nil)
    ;; The text line dimensions.
    (width :initform 0)
-   (height :initform nil)
-   (baseline :initform 0)
-   ;; Bounding box left and right including the glyph bearings.
-   (left :initarg :start-x)
-   (right :initarg :start-x)
-   ;; The current position of the output record.
-   (start-x :initarg :start-x)
-   (start-y :initarg :start-y)
-   (end-x :initarg :start-x)
-   (end-y :initarg :start-y)
-   (medium :initform nil)))
+   (height :initform 0)
+   (base-x :initform 0)
+   (base-y :initform 0)))
 
 (defmethod initialize-instance :after
     ((obj standard-text-displayed-output-record) &key stream)
-  (with-slots (medium height) obj
-    (setf medium (sheet-medium stream)
-          height (text-style-height (stream-text-style stream) stream))))
+  (setf (slot-value obj 'height)
+        (text-style-height (stream-text-style stream) stream)))
 
 ;;; Forget match-output-records-1 for standard-text-displayed-output-record; it
 ;;; doesn't make much sense because these records have state that is not
 ;;; initialized via initargs.
 
 (defmethod output-record-equal and
-    ((record standard-text-displayed-output-record)
+    ((record1 standard-text-displayed-output-record)
      (record2 standard-text-displayed-output-record))
-  (with-slots
-        (initial-x1 initial-y1 start-x start-y left right end-x end-y strings)
-      record2
-    (and (coordinate= (slot-value record 'initial-x1) initial-x1)
-         (coordinate= (slot-value record 'initial-y1) initial-y1)
-         (coordinate= (slot-value record 'start-x) start-x)
-         (coordinate= (slot-value record 'start-y) start-y)
-         (coordinate= (slot-value record 'left) left)
-         (coordinate= (slot-value record 'right) right)
-         (coordinate= (slot-value record 'end-x) end-x)
-         (coordinate= (slot-value record 'end-y) end-y)
-         (coordinate= (slot-value record 'baseline)
-                      (slot-value record2 'baseline))
-         (eql (length (slot-value record 'strings)) (length strings));XXX
-         (loop for s1 in (slot-value record 'strings)
-               for s2 in strings
-               always (output-record-equal s1 s2)))))
+  (with-slots (x y objects) record2
+    (and (coordinate= (slot-value record1 'x) x)
+         (coordinate= (slot-value record1 'y) y)
+         (eql (slot-value record1 'objects) objects))))
 
 (defmethod print-object ((self standard-text-displayed-output-record) stream)
   (print-unreadable-object (self stream :type t :identity t)
-    (with-slots (start-x start-y strings) self
-      (format stream "~D,~D ~S"
-              start-x start-y
-              (mapcar #'styled-string-string strings)))))
+    (with-slots (x y objects) self
+      (format stream "[~D ~D] (~D objects)" x y (length objects)))))
 
-(defmethod* (setf output-record-position) :around
-    (nx ny (record standard-text-displayed-output-record))
-  (with-standard-rectangle* (x1 y1) record
-    (with-slots (start-x start-y end-x end-y strings baseline) record
-      (let ((dx (- nx x1))
-            (dy (- ny y1)))
-        (multiple-value-prog1
-            (call-next-method)
-          (incf start-x dx)
-          (incf start-y dy)
-          (incf end-x dx)
-          (incf end-y dy)
-          (loop for s in strings
-                do (incf (slot-value s 'start-x) dx)))))))
-
+;;; Before implementing a dynamic reflow we must implement the repaint
+;;; queue. Otherwise we'll get nasty race conditions. -- jd 2023-12-29
 (defmethod replay-output-record ((record standard-text-displayed-output-record)
                                  stream
                                  &optional region (x-offset 0) (y-offset 0))
   (declare (ignore region x-offset y-offset))
-  (with-slots (strings baseline start-y) record
-    (with-sheet-medium (medium stream) ;is sheet a sheet-with-medium-mixin? --GB
-      ;; FIXME:
-      ;; 1. SLOT-VALUE...
-      ;; 2. It should also save a "current line".
-      (setf (slot-value stream 'baseline) baseline)
-      (loop for substring in strings
-         do (with-slots (start-x string) substring
-              ;; FIXME: a bit of an abstraction inversion.  Should the styled
-              ;; strings here not simply be output records?  Then we could just
-              ;; replay them and all would be well.  -- CSR, 20060528.
-              ;;
-              ;; But then we'd have to implement the output record
-              ;; protocols for them. Are we allowed no internal
-              ;; structure of our own? -- Hefner, 20080118
-
-              ;; Some optimization might be possible here.
-              (with-identity-transformation (stream)
-                (with-drawing-options (stream :ink (graphics-state-ink substring)
-                                              :text-style (graphics-state-text-style substring))
-                  (draw-text* (sheet-medium stream)
-                              string start-x (+ start-y (stream-baseline stream))))))))))
+  (with-slots (objects base-x base-y x y) record
+    (reset-stream-cursor stream (stream-text-cursor stream))
+    (setf (stream-cursor-position stream) (values x y))
+    (setf (stream-baseline stream) (values base-y base-x))
+    ;; FIXME: a bit of an abstraction inversion.  Should the styled strings here
+    ;; not simply be output records?  Then we could just replay them and all
+    ;; would be well.  -- CSR, 20060528.
+    ;;
+    ;; But then we'd have to implement the output record protocols for them. Are
+    ;; we allowed no internal structure of our own? -- Hefner, 20080118
+    (nest
+     (with-end-of-line-action (stream :allow))
+     (with-end-of-page-action (stream :allow))
+     (dolist (object objects)
+       (if (typep object 'styled-string)
+           (let ((ink (graphics-state-ink object))
+                 (text-style (graphics-state-text-style object))
+                 (text (styled-string-string object)))
+             (with-drawing-options (stream :ink ink :text-style text-style)
+               (seos-write-vector stream text 0 (length text))))
+           (seos-write-object stream object))))))
 
 (defmethod output-record-start-cursor-position
     ((record standard-text-displayed-output-record))
-  (with-slots (start-x start-y) record
-    (values start-x start-y)))
+  (with-slots (x y) record
+    (values x y)))
 
 (defmethod output-record-end-cursor-position
     ((record standard-text-displayed-output-record))
-  (with-slots (end-x end-y) record
-    (values end-x end-y)))
+  (with-slots (x y width height stream) record
+    (ecase (stream-line-direction stream)
+      (:left-to-right (values (+ x width) y))
+      (:right-to-left (values (- x width) y))
+      (:top-to-bottom (values x (+ y height)))
+      (:bottom-to-top (values x (- y height))))))
 
 (defmethod tree-recompute-extent
     ((text-record standard-text-displayed-output-record))
-  (with-standard-rectangle* (nil y1) text-record
-    (with-slots (height left right) text-record
+  (with-slots (x y width height stream) text-record
+    (let ((x1 x) (y1 y) (x2 x) (y2 y))
+      (ecase (stream-line-direction stream)
+        (:left-to-right (setf x2 (+ x width)))
+        (:right-to-left (setf x1 (- x width)))
+        (:top-to-bottom (setf y2 (+ y height)))
+        (:bottom-to-top (setf y1 (- y height))))
+      (ecase (stream-page-direction stream)
+        (:top-to-bottom (setf y2 (+ y height)))
+        (:bottom-to-top (setf y1 (- y height)))
+        (:left-to-right (setf x2 (+ x width)))
+        (:right-to-left (setf x1 (- x width))))
       (setf (rectangle-edges* text-record)
-            (values (coordinate left)
-                    y1
-                    (coordinate right)
-                    (coordinate (+ y1 height))))))
+            (values (coordinate x1) (coordinate y1)
+                    (coordinate x2) (coordinate y2)))))
   text-record)
+
+(defun add-object-to-text-record (self object ws hs bx by)
+  (with-slots (objects cursor width height base-x base-y stream) self
+    (nconcf objects (list object))
+    (ecase (stream-line-direction stream)
+      ((:left-to-right :right-to-left)
+       (maxf base-y by)
+       (incf width ws)
+       (maxf height hs))
+      ((:top-to-bottom :bottom-to-top)
+       (maxf base-x bx)
+       (maxf width ws)
+       (incf height hs)))
+    (tree-recompute-extent self)))
 
 (defmethod add-character-output-to-text-record
     ((text-record standard-text-displayed-output-record)
-     character text-style char-width line-height new-baseline
-     &aux (start 0) (end 1))
-  (add-string-output-to-text-record text-record character
-                                    start end text-style
+     character text-style char-width line-height new-baseline)
+  (add-string-output-to-text-record text-record (string character)
+                                    0 1 text-style
                                     char-width line-height new-baseline))
 
 (defmethod add-string-output-to-text-record
-    ((text-record standard-text-displayed-output-record)
-     string start end text-style string-width line-height new-baseline)
-  (setf end (or end (etypecase string
-                      (character 1)
-                      (string (length string)))))
-  (let ((length (max 0 (- end start))))
-    (with-slots (strings baseline width height
-                 left right start-y end-x end-y medium)
-        text-record
-      (let* ((strings-last-cons (last strings))
-             (last-string (first strings-last-cons)))
-        (if (and last-string
-                 (match-output-records last-string
-                                       :text-style text-style
-                                       :ink (medium-ink medium)))
-            ;; Simply append the string to the last one.
-            (let* ((last-string (styled-string-string last-string))
-                   (last-string-length (length last-string))
-                   (start1 (length last-string))
-                   (end1 (+ start1 length)))
-              (when (< (array-dimension last-string 0) end1)
-                (adjust-array last-string (max end1 (* 2 last-string-length))))
-              (setf (fill-pointer last-string) end1)
-              (etypecase string
-                (character (setf (char last-string (1- end1)) string))
-                (string (replace last-string string
-                                 :start1 start1 :end1 end1
-                                 :start2 start :end2 end))))
-            (let ((styled-string (make-instance
-                                  'styled-string
-                                  :start-x end-x
-                                  :text-style text-style
-                                  :medium medium
-                                  :string (make-array length
-                                                      :element-type 'character
-                                                      :adjustable t
-                                                      :fill-pointer t))))
-              (nconcf strings (list styled-string))
-              (etypecase string
-                (character (setf (char last-string 0) string))
-                (string (replace (styled-string-string styled-string) string
-                                 :start2 start :end2 end))))))
-      (multiple-value-bind (minx miny maxx maxy)
-          (text-bounding-rectangle* medium string
-                                    :text-style text-style
-                                    :start start :end end)
-        (declare (ignore miny maxy))
-        (setq baseline (max baseline new-baseline)
-              ;; KLUDGE: note that END-X here really means
-              ;; START-X of the new string.
-              left (min left (+ end-x minx))
-              end-x (+ end-x string-width)
-              right (+ end-x (max 0 (- maxx string-width)))
-              height (max height line-height)
-              end-y (max end-y (+ start-y height))
-              width (+ width string-width))))
-    (tree-recompute-extent text-record)))
+    ((self standard-text-displayed-output-record)
+     string start end text-style width height baseline)
+  (orf end (length string))
+  (with-slots (objects base-y stream) self
+    (multiple-value-bind (sstring appendp)
+        (ensure-styled-string stream (car (last objects))
+                              string text-style start end)
+      (unless appendp
+        (setf objects (butlast objects)))
+      (add-object-to-text-record self sstring width height 0 baseline))))
 
 (defmethod text-displayed-output-record-string
     ((record standard-text-displayed-output-record))
-  (with-slots (strings) record
-    (if (= 1 (length strings))
-        (styled-string-string (first strings))
-        (with-output-to-string (result)
-          (loop for styled-string in strings
-            do (write-string (styled-string-string styled-string) result))))))
+  (flet ((to-string (object)
+           (typecase object
+             (character (string object))
+             (string object)
+             (styled-string (styled-string-string object))
+             (otherwise "@"))))
+    (with-slots (objects) record
+      (cond ((null objects)
+             "")
+            ((null (rest objects))
+             (to-string (first objects)))
+            (t
+             (with-output-to-string (result)
+               (loop for object in objects
+                     do (write-string (to-string object) result))))))))
 
+
+(defmethod make-design-from-output-record (record)
+  ;; FIXME
+  (declare (ignore record))
+  (error "Not implemented."))
+
+(defclass clipping-output-record (standard-tree-output-record)
+  ((clipping-region :initarg :clipping-region :type region
+                    :accessor graphics-state-clip)))
+
+(defmethod replay-output-record
+    ((record clipping-output-record) stream &optional region x-offset y-offset)
+  (declare (ignore region x-offset y-offset))
+  (with-clipping-region (stream (graphics-state-clip record))
+    (call-next-method)))
+
+(defmethod* (setf output-record-position) :around
+  (nx ny (record clipping-output-record))
+  (with-bounding-rectangle* (x1 y1) (graphics-state-clip record)
+    (let* ((dx (- nx x1))
+           (dy (- ny y1))
+           (tr (make-translation-transformation dx dy)))
+      (multiple-value-prog1 (call-next-method)
+        (setf (graphics-state-clip record)
+              (transform-region tr (graphics-state-clip record)))))))
+
+(defmethod output-record-refined-position-test
+    ((record clipping-output-record) x y)
+  (region-contains-position-p (graphics-state-clip record) x y))
+
+;;; Baseline
+(defmethod output-record-baseline ((record output-record))
+  "Fall back method"
+  (with-bounding-rectangle* (:height height) record
+    (values height 0 nil)))
+
+(defmethod output-record-baseline ((record standard-text-displayed-output-record))
+  (with-slots (base-y base-x) record
+    (values base-y base-x t)))
+
+(defmethod output-record-baseline ((record compound-output-record))
+  (map-over-output-records (lambda (sub-record)
+                             (multiple-value-bind (base-y base-x definitive)
+                                 (output-record-baseline sub-record)
+                               (when definitive
+                                 (return-from output-record-baseline
+                                   (values base-y base-x t)))))
+                           record)
+  (call-next-method))
+
+
 ;;; 16.3.4. Top-Level Output Records
 
 (defclass standard-sequence-output-history
@@ -1931,15 +1898,11 @@ add output recording facilities. It is not instantiable."))
 (defmethod stream-text-output-record
     ((stream standard-output-recording-stream) text-style)
   (declare (ignore text-style))
-  (let ((record (stream-current-text-output-record stream)))
-    (unless (and record (typep record 'standard-text-displayed-output-record))
+  (or (stream-current-text-output-record stream)
       (multiple-value-bind (cx cy) (stream-cursor-position stream)
-        (setf record (make-instance 'standard-text-displayed-output-record
-                                    :x-position cx :y-position cy
-                                    :start-x cx :start-y cy
-                                    :stream stream)
-              (stream-current-text-output-record stream) record)))
-    record))
+        (setf (stream-current-text-output-record stream)
+              (make-instance 'standard-text-displayed-output-record
+                             :x-position cx :y-position cy :stream stream)))))
 
 (defmethod stream-close-text-output-record ((stream standard-output-recording-stream))
   (when-let ((record (stream-current-text-output-record stream)))
@@ -1950,7 +1913,9 @@ add output recording facilities. It is not instantiable."))
     ;; whole output record in order to align line's baseline between strings of
     ;; different height. See \"15.3 The Text Cursor\". -- jd 2019-01-07
     (when (stream-drawing-p stream)
-      (replay record stream))))
+      (with-output-recording-options (stream :record nil)
+        (with-identity-transformation (stream)
+          (replay-output-record record stream))))))
 
 (defmethod stream-add-character-output ((stream standard-output-recording-stream)
                                         character text-style width height baseline)
@@ -1964,32 +1929,49 @@ add output recording facilities. It is not instantiable."))
                                     string start end text-style
                                     width height baseline))
 
+(defun stream-add-record-output (stream record width height base-x base-y)
+  (add-object-to-text-record (stream-text-output-record stream nil)
+                             record width height base-x base-y))
+
 ;;; Text output catching methods
-(defmethod stream-write-output ((stream standard-output-recording-stream) line
-                                &optional (start 0) end)
+(defmethod stream-write-output
+    ((stream standard-output-recording-stream) (line string) &key (start 0) end)
   (unless (stream-recording-p stream)
     (return-from stream-write-output
-      ;; Stream will replay output when the output record is closed to maintain
-      ;; the baseline. If we are not recording and this method is invoked we
-      ;; draw string eagerly (if it is set for drawing). -- jd 2019-01-07
       (when (stream-drawing-p stream)
         (call-next-method))))
   (let* ((medium (sheet-medium stream))
          (text-style (medium-text-style medium))
          (height (text-style-height text-style medium))
-         (ascent (text-style-ascent text-style medium)))
-    (if (characterp line)
-        (stream-add-character-output stream line text-style
-                                     (stream-character-width
-                                      stream line :text-style text-style)
-                                     height
-                                     ascent)
-        (stream-add-string-output stream line start end text-style
-                                  (stream-string-width stream line
-                                                       :start start :end end
-                                                       :text-style text-style)
-                                  height
-                                  ascent))))
+         (base-y (text-style-baseline text-style stream)))
+    (let ((width (stream-string-width stream line :text-style text-style
+                                                  :start start :end end)))
+      (stream-add-string-output stream line start end text-style
+                                width height base-y))))
+
+(defmethod stream-write-output
+    ((stream standard-output-recording-stream) (line character) &rest args)
+  (declare (ignore args))
+  (unless (stream-recording-p stream)
+    (return-from stream-write-output
+      (when (stream-drawing-p stream)
+        (call-next-method))))
+  (let* ((medium (sheet-medium stream))
+         (text-style (medium-text-style medium))
+         (height (text-style-height text-style medium))
+         (base-y (text-style-baseline text-style stream)))
+    (let ((width (stream-character-width stream line :text-style text-style)))
+      (stream-add-character-output stream line text-style width height base-y))))
+
+(defmethod stream-write-output
+    ((stream standard-output-recording-stream) (object bounding-rectangle) &rest args)
+  (declare (ignore args))
+  (unless (stream-recording-p stream)
+    (return-from stream-write-output
+      (when (stream-drawing-p stream)
+        (call-next-method))))
+  (multiple-value-bind (ws hs after below) (text-metrics stream object)
+    (stream-add-record-output stream object ws hs (- ws after) (- hs below))))
 
 (defmethod stream-finish-output :after ((stream standard-output-recording-stream))
   (stream-close-text-output-record stream))
@@ -2029,23 +2011,18 @@ according to the flags RECORD and DRAW."
           (stream-add-output-record stream new-record))
       new-record)))
 
-(defmethod invoke-with-output-to-output-record :around
-    ((stream standard-page-layout) continuation record-type &rest initargs)
-  (declare (ignore continuation record-type initargs))
-  (with-pristine-viewport (stream)
-    (call-next-method)))
-
 (defmethod invoke-with-output-to-output-record
     ((stream output-recording-stream) continuation record-type
      &rest initargs)
-  (stream-close-text-output-record stream)
-  (let ((new-record (apply #'make-instance record-type initargs)))
-    (with-output-recording-options (stream :record t :draw nil)
-      (letf (((stream-current-output-record stream) new-record)
-             ((stream-cursor-position stream) (values 0 0)))
-        (funcall continuation stream new-record)
-        (stream-close-text-output-record stream)))
-    new-record))
+  (with-pristine-viewport (stream)
+    (with-cursor-off ((stream-text-cursor stream))
+      (let ((new-record (apply #'make-instance record-type initargs)))
+        (with-output-recording-options (stream :record t :draw nil)
+          (letf (((stream-current-text-output-record stream) nil)
+                 ((stream-current-output-record stream) new-record))
+            (funcall continuation stream new-record)
+            (stream-close-text-output-record stream)))
+        new-record))))
 
 (defmethod invoke-with-output-to-pixmap ((sheet output-recording-stream) cont &key width height)
   (unless (and width height)
@@ -2077,35 +2054,6 @@ according to the flags RECORD and DRAW."
       (medium-clear-area pixmap-medium 0 0 width height)
       (funcall cont pixmap-medium)
       pixmap)))
-
-(defmethod make-design-from-output-record (record)
-  ;; FIXME
-  (declare (ignore record))
-  (error "Not implemented."))
-
-(defclass clipping-output-record (standard-tree-output-record)
-  ((clipping-region :initarg :clipping-region :type region
-                    :accessor graphics-state-clip)))
-
-(defmethod replay-output-record
-    ((record clipping-output-record) stream &optional region x-offset y-offset)
-  (declare (ignore region x-offset y-offset))
-  (with-clipping-region (stream (graphics-state-clip record))
-    (call-next-method)))
-
-(defmethod* (setf output-record-position) :around
-  (nx ny (record clipping-output-record))
-  (with-bounding-rectangle* (x1 y1) (graphics-state-clip record)
-    (let* ((dx (- nx x1))
-           (dy (- ny y1))
-           (tr (make-translation-transformation dx dy)))
-      (multiple-value-prog1 (call-next-method)
-        (setf (graphics-state-clip record)
-              (transform-region tr (graphics-state-clip record)))))))
-
-(defmethod output-record-refined-position-test
-    ((record clipping-output-record) x y)
-  (region-contains-position-p (graphics-state-clip record) x y))
 
 (defmethod invoke-with-clipping-region
     ((sheet output-recording-stream) continuation region)
@@ -2157,13 +2105,10 @@ according to the flags RECORD and DRAW."
 ;;; with-room-for-graphics is supposed to set the medium transformation to
 ;;; give the desired coordinate system; i.e., it doesn't preserve any
 ;;; rotation, scaling or translation in the current medium transformation.
-(defmethod invoke-with-room-for-graphics (cont (stream output-recording-stream)
-                                          &key (first-quadrant t)
-                                               width
-                                               height
-                                               (move-cursor t)
-                                               (record-type
-                                                'standard-sequence-output-record))
+(defmethod invoke-with-room-for-graphics
+    (cont (stream output-recording-stream)
+     &key (first-quadrant t) width height (move-cursor t)
+          (record-type 'standard-sequence-output-record))
   (with-sheet-medium (medium stream)
     (multiple-value-bind (cx cy) (stream-cursor-position stream)
       (multiple-value-bind (cy* transformation)
@@ -2183,56 +2128,3 @@ according to the flags RECORD and DRAW."
             (if move-cursor
                 (values (+ cx width) cy)
                 (values cx cy))))))
-
-;;; Baseline
-
-(defmethod output-record-baseline ((record output-record))
-  "Fall back method"
-  (with-bounding-rectangle* (:height height) record
-    (values height nil)))
-
-(defmethod output-record-baseline ((record standard-text-displayed-output-record))
-  (with-slots (baseline) record
-    (values baseline t)))
-
-(defmethod output-record-baseline ((record compound-output-record))
-  (map-over-output-records (lambda (sub-record)
-                             (multiple-value-bind (baseline definitive)
-                                 (output-record-baseline sub-record)
-                               (when definitive
-                                 (return-from output-record-baseline
-                                   (values baseline t)))))
-                           record)
-  (call-next-method))
-
-;;; copy-textual-output
-
-(defun copy-textual-output-history (window stream &optional region record)
-  (unless region (setf region +everywhere+))
-  (unless record (setf record (stream-output-history window)))
-  (let* ((text-style (medium-default-text-style window))
-         (char-width (stream-character-width window #\n :text-style text-style))
-         (line-height (+ (stream-line-height window :text-style text-style)
-                         (stream-vertical-spacing window))))
-    ;; humble first ...
-    (let ((cy nil)
-          (cx 0))
-      (labels ((grok-record (record)
-                 (cond ((typep record 'standard-text-displayed-output-record)
-                        (with-slots (start-y start-x end-x strings) record
-                          (setf cy (or cy start-y))
-                          (when (> start-y cy)
-                            (dotimes (k (round (- start-y cy) line-height))
-                              (terpri stream))
-                            (setf cy start-y
-                                  cx 0))
-                          (dotimes (k (round (- start-x cx) char-width))
-                            (princ " " stream))
-                          (setf cx end-x)
-                          (dolist (string strings)
-                            (with-slots (string) string
-                              (princ string stream)))))
-                       (t
-                        (map-over-output-records-overlapping-region #'grok-record
-                                                                    record region)))))
-        (grok-record record)))))

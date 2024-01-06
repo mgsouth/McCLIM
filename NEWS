@@ -1,3 +1,27 @@
+* Changes in mcclim-0.9.9 relative to 0.9.8 Yule:
+** [2024-01-06 Sat] Replaying the output does not change the stream's text cursor
+
+The function REPLAY will save and restore the text cursor after execution.
+
+** [2024-01-06 Sat] WITH-OUTPUT-TO-OUTPUT-RECORD does not terminate the current text line
+
+For the extent of the macro body the text line is closed, but afterwards it is
+reopened and the cursor position is re-set to the old position.
+
+** [2024-01-06 Sat] Multi-directional pages for STANDARD-EXTENDED-OUTPUT-STREAM
+
+It is now possible to specify the line and the page directions. Elements are
+added piece-wise on the baseline that may be either vertical or horizontal.
+
+#+begin_src lisp
+  ;; New initargs (applies also to CLIM-STREAM-PANE as a subclass of SEOS):
+  :line-direction [ :left-to-right :right-to-left :top-to-bottom :bottom-to-top ]
+  :page-direction [ :top-to-bottom :bottom-to-top :left-to-right :right-to-left ]
+#+end_src
+
+Consequences are undefined when the line direction and the page direction are on
+the same axis.
+
 * Changes in mcclim-0.9.8 relative to 0.9.7:
 ** Listener UX improvements
 ** Refactor command tables and commands parsing

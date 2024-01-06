@@ -31,6 +31,12 @@
 (define-accessor cursor-state (value cursor))
 (define-accessor cursor-visibility (value cursor))
 
+;;; Extra:
+(define-accessor cursor-baseline (offset-y offset-x cursor))
+(define-accessor cursor-size (width height cursor))
+(define-accessor cursor-width (value cursor))
+(define-accessor cursor-height (value cursor))
+
 ;;; 15.3.2 Stream Text Cursor Protocol [complete]
 
 (define-accessor stream-text-cursor (cursor stream))
@@ -48,8 +54,12 @@
 (defgeneric stream-line-height (stream &key text-style))
 (defgeneric stream-line-width (stream)
   (:documentation "McCLIM extension which returns a space between left and right margin for text output."))
-(defgeneric stream-vertical-spacing (stream))
-(defgeneric stream-baseline (stream))
+
+;;; McCLIM extends these protocols to allow for multidirectional pages.
+(define-accessor stream-baseline (base-y base-x stream))
+(define-accessor stream-vertical-spacing (value stream))
+(define-accessor stream-horizontal-spacing (value stream))
+
 (defgeneric stream-text-style (stream)
   (:documentation "McCLIM extension returning a default text style of the stream."))
 
@@ -62,14 +72,21 @@
 (defgeneric invoke-with-room-for-graphics
     (cont stream &key first-quadrant width height move-cursor record-type))
 
+;;; Extra
+
+;;; Returns two values - horizontal line baseline and vertical line baseline.
 (defgeneric output-record-baseline (record))
 
 ;;; 15.4.2 Wrapping of Text Lines [complete]
 
 (define-accessor stream-end-of-line-action (action stream))
-;; with-end-of-line-action (stream action) &body body [Macro]
-(define-accessor  stream-end-of-page-action (action stream))
-;; with-end-of-page-action (stream action) &body body [Macro]
+(pledge :macro  with-end-of-line-action (stream action) &body body)
+(define-accessor stream-end-of-page-action (action stream))
+(pledge :macro with-end-of-page-action (stream action) &body body)
+
+;;; McCLIM extensions.
+(define-accessor stream-line-direction (direction stream))
+(define-accessor stream-page-direction (direction stream))
 
 ;;; 16.2 Output Records
 (define-protocol-class output-record (bounding-rectangle)

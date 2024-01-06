@@ -3,11 +3,11 @@
 ;;; ---------------------------------------------------------------------------
 ;;;
 ;;;  (c) Copyright 2002 by Alexey Dejneka <adejneka@comail.ru>
-;;;  (c) Copyright 2019 by Daniel Kochmański <daniel@turtleware.eu>
+;;;  (c) Copyright 2023 by Daniel Kochmański <daniel@turtleware.eu>
 ;;;
 ;;; ---------------------------------------------------------------------------
 ;;;
-;;; Page layout abstraction
+;;; Text formatting utilities.
 ;;;
 ;;; Page layout may have numerous properties which arrange things on a stream
 ;;; with having a broader picture in mind. Text on a page may have alignment and
@@ -17,118 +17,6 @@
 
 (in-package #:clim-internals)
 
-(defclass standard-page-layout ()
-  ((%page-region :initform (make-bounding-rectangle 0 0 0 0))
-   (margins :accessor stream-text-margins :type margin-spec))
-  (:default-initargs :text-margins '(:left   (:absolute 0)
-                                     :top    (:absolute 0)
-                                     :right  (:relative 0)
-                                     :bottom (:relative 0))))
-
-(defmethod shared-initialize :after ((instance standard-page-layout)
-                                     slot-names &key text-margins text-margin)
-  (declare (ignore slot-names))
-  (let ((right-margin (if text-margin
-                          `(:absolute ,text-margin)
-                          `(:relative 0))))
-    (setf (slot-value instance 'margins)
-          (normalize-margin-spec text-margins `(:left   (:absolute 0)
-                                                :top    (:absolute 0)
-                                                :right  ,right-margin
-                                                :bottom (:relative 0))))))
-
-(defmethod stream-page-region ((stream standard-page-layout))
-  (flet ((fallback-dimensions ()
-           (let* ((text-style (stream-text-style stream))
-                  (chw (text-style-width  text-style stream))
-                  (chh (text-style-height text-style stream)))
-             (make-rectangle* 0 0 (* 80 chw) (* 43 chh)))))
-    (let ((region (window-viewport stream))
-          (cached (slot-value stream '%page-region)))
-      (with-bounding-rectangle* (x1 y1 x2 y2)
-          (if (region-equal region +everywhere+)
-              (fallback-dimensions)
-              region)
-        (macrolet ((thunk (margin edge sign orientation)
-                     `(if (eql (first ,margin) :absolute)
-                          (parse-space stream (second ,margin) ,orientation)
-                          (,sign ,edge (parse-space stream (second ,margin) ,orientation)))))
-          (destructuring-bind (&key left top right bottom) (stream-text-margins stream)
-            (setf (rectangle-edges* cached)
-                  (values (thunk left   x1 + :horizontal)
-                          (thunk top    y1 + :vertical)
-                          (thunk right  x2 - :horizontal)
-                          (thunk bottom y2 - :vertical)))
-            cached))))))
-
-(defgeneric stream-cursor-initial-position (stream)
-  (:documentation "Returns two values: x and y initial position for a cursor on page.")
-  (:method ((stream standard-page-layout))
-    (bounding-rectangle-position (stream-page-region stream))))
-
-(defgeneric stream-cursor-final-position (stream)
-  (:documentation "Returns two values: x and y final position for a cursor on page.")
-  (:method ((stream standard-page-layout))
-    (with-bounding-rectangle* (:x2 max-x :y2 max-y)
-        (stream-page-region stream)
-      (values max-x max-y))))
-
-(defmethod (setf stream-text-margins) :around
-    (new-margins (stream standard-page-layout)
-     &aux (old-margins (stream-text-margins stream)))
-  (setf new-margins (normalize-margin-spec new-margins old-margins))
-  (unless (equal new-margins old-margins)
-    (call-next-method new-margins stream)))
-
-(defgeneric invoke-with-temporary-page (stream continuation &key margins move-cursor)
-  (:method ((stream standard-page-layout) continuation &key margins (move-cursor t))
-    (flet ((do-it ()
-             (letf (((stream-text-margins stream) margins))
-               (funcall continuation stream))))
-      (if move-cursor
-          (do-it)
-          (multiple-value-bind (cx cy) (stream-cursor-position stream)
-            (unwind-protect (do-it)
-              (setf (stream-cursor-position stream) (values cx cy))))))))
-
-(defmacro with-temporary-margins
-    ((stream &rest args
-             &key (move-cursor t) (left nil lp) (right nil rp) (top nil tp) (bottom nil bp))
-     &body body)
-  (declare (ignore move-cursor))
-  (with-stream-designator (stream '*standard-output*)
-    (with-keywords-removed (args (:left :right :top :bottom))
-      (with-gensyms (stream-arg continuation margins)
-        `(flet ((,continuation (,stream-arg)
-                  (declare (ignore ,stream-arg))
-                  ,@body))
-           (declare (dynamic-extent #',continuation))
-           (let (,margins)
-             ,@(collect (margin)
-                 (when lp (margin `(setf (getf ,margins :left) ,left)))
-                 (when rp (margin `(setf (getf ,margins :right) ,right)))
-                 (when tp (margin `(setf (getf ,margins :top) ,top)))
-                 (when bp (margin `(setf (getf ,margins :bottom) ,bottom)))
-                 (margin))
-             (invoke-with-temporary-page ,stream #',continuation :margins ,margins ,@args)))))))
-
-(defgeneric invoke-with-pristine-viewport (sheet cont)
-  (:method ((sheet standard-page-layout) cont)
-    (letf (((stream-text-margins sheet) '(:left   (:absolute 0)
-                                          :top    (:absolute 0)
-                                          :right  (:relative 0)
-                                          :bottom (:relative 0)))
-           ((stream-cursor-position sheet) (stream-cursor-initial-position sheet))
-           ((stream-cursor-height sheet) (text-style-height (stream-text-style sheet) sheet)))
-      (funcall cont sheet))))
-
-(defmacro with-pristine-viewport ((stream) &body body)
-  (let ((cont (gensym)))
-    `(flet ((,cont (,stream) ,@body))
-       (declare (dynamic-extent (function ,cont)))
-       (invoke-with-pristine-viewport ,stream (function ,cont)))))
-
-
 ;;; Mixin is used to store text-style and ink when filling-output it is invoked.
 
 (defclass filling-output-mixin (gs-ink-mixin gs-text-style-mixin)
