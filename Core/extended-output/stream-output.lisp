@@ -137,14 +137,16 @@ the cursor after the operation. This function does not wrap.")
   (:method ((stream standard-extended-output-stream) (item bounding-rectangle) &rest args)
     (apply #'draw-design stream item args)))
 
-;;; FIXME implement extending and scrolling the stream.
-(defun stream-perform-page-actions (stream)
-  (declare (ignore stream))
-  ;; (change-stream-space-requirements stream :width new-width :height new-neight)
-  ;; (when (or (eq (stream-end-of-line-action stream) :scroll)
-  ;;           (eq (stream-end-of-page-action stream) :scroll))
-  ;;   (scroll-extent* stream (stream-text-cursor stream)))
-  )
+(defun seos-finish-output (stream)
+  (when (stream-drawing-p stream)
+    (change-stream-space-requirements stream)
+    (let ((lscroll (eq (stream-end-of-line-action stream) :scroll))
+          (pscroll (eq (stream-end-of-page-action stream) :scroll))
+          (cursor (stream-text-cursor stream)))
+      (cond
+        ((and lscroll pscroll) (scroll-extent* stream cursor))
+        (lscroll               (scroll-extent/line stream cursor))
+        (pscroll               (scroll-extent/page stream cursor))))))
 
 (defun seos-write-newline (stream soft-newline-p)
   (nest
@@ -167,8 +169,7 @@ the cursor after the operation. This function does not wrap.")
        (force-output stream))
      (setf (cursor-position cursor) (values updated-cx updated-cy))))
   (when-let ((after-line-break-fn (after-line-break stream)))
-    (funcall after-line-break-fn stream soft-newline-p))
-  (stream-perform-page-actions stream))
+    (funcall after-line-break-fn stream soft-newline-p)))
 
 (defun seos-write-object (stream object)
   (nest
@@ -181,7 +182,6 @@ the cursor after the operation. This function does not wrap.")
    (tagbody
       (go :start-line)
     :break-page
-      (stream-perform-page-actions stream)
       (setf (stream-cursor-position stream)
             (stream-cursor-initial-position stream))
       (go :start-line)
@@ -218,7 +218,6 @@ the cursor after the operation. This function does not wrap.")
    (tagbody
       (go :start-line)
     :break-page
-      (stream-perform-page-actions stream)
       (setf (stream-cursor-position stream)
             (stream-cursor-initial-position stream))
       (go :start-line)
@@ -244,7 +243,8 @@ the cursor after the operation. This function does not wrap.")
 
 (defgeneric stream-write-object (stream object)
   (:method ((stream standard-extended-output-stream) object)
-    (seos-write-object stream object)))
+    (seos-write-object stream object)
+    (seos-finish-output stream)))
 
 ;;; FIXME we can call STREAM-CURSOR-MOTION for the whole vector, but what about
 ;;; drawing then? (in other words - implement line-aware STREAM-WRITE-OUTPUT).
@@ -253,13 +253,15 @@ the cursor after the operation. This function does not wrap.")
     #+ (or) (seos-write-vector stream vector start end)
     #- (or) (loop for index from start below end
                   for object = (aref vector index)
-                  do (stream-write-object stream object))))
+                  do (seos-write-object stream object))
+    (seos-finish-output stream)))
 
 (defmethod stream-write-char ((stream standard-extended-output-stream) char)
   (case char
     (#\newline (seos-write-newline stream nil))
     (#\tab     (seos-write-vector stream *tab-string* 0 (length *tab-string*)))
-    (otherwise (seos-write-vector stream (string char) 0 1))))
+    (otherwise (seos-write-vector stream (string char) 0 1)))
+  (seos-finish-output stream))
 
 (defmethod stream-write-string ((stream standard-extended-output-stream) string
                                 &optional (start 0) end)
@@ -276,6 +278,7 @@ the cursor after the operation. This function does not wrap.")
          (seos-write-vector stream *tab-string* 0 (length *tab-string*))
          (setq seg-start (1+ i)))))
     (seos-write-vector stream string seg-start end))
+  (seos-finish-output stream)
   string)
 
 (defmethod stream-character-width ((stream standard-extended-output-stream) char

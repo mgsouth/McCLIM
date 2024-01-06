@@ -432,7 +432,7 @@
           (when clearp
             (erase-pane))
           (funcall cont))
-        (change-space-requirements pane)
+        (seos-finish-output pane)
         (repaint-sheet pane +everywhere+)))))
 
 (defmethod redisplay-frame-pane :around

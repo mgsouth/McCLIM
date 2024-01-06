@@ -160,6 +160,17 @@ When A = B, return 0.5."
       0.5
       (/ (- v a) (- b a))))
 
+(defun snap-viewport (view-min view-max object-min object-max)
+  "Returns a new value of view-min so object fits in a viewport"
+  (unless (<= object-max view-max)
+    (let ((delta (- object-max view-max)))
+      (incf view-min delta)
+      (incf view-max delta)))
+  (unless (<= view-min object-min)
+    (let ((delta (- object-min view-min)))
+      (incf view-min delta)))
+  view-min)
+
 (declaim (inline ensure-list))
 (defun ensure-list (maybe-list)
   (if (listp maybe-list)
