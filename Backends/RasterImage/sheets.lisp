@@ -49,5 +49,8 @@
                                permanent-medium-sheet-output-mixin)
   ())
 
+(defmethod initialize-instance :after ((sheet raster-image-stream)
+                                       &key &allow-other-keys))
+
 (defun make-raster-image-stream (port &rest args)
   (apply #'make-instance 'raster-image-stream :port port args))

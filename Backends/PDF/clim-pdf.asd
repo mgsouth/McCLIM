@@ -3,6 +3,7 @@
 (defsystem "clim-pdf"
   :depends-on ("clim" ; for CLIMB:FILE-DESTINATION, CLIMB:REGISTER-OUTPUT-DESTINATION-TYPE
                "cl-pdf"
+               "cl-pdf-parser"
                "flexi-streams"
                "clim-postscript"
                "clim-postscript-font")

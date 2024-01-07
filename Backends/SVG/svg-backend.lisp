@@ -615,7 +615,8 @@
     (declare (ignore port-type))
     (let* ((graft (make-instance 'svg-graft :orientation orientation :units units
                                             :mirror (destination port)
-                                            :dpi dpi))
+                                            :dpi dpi
+                                            :port port))
            (width (viewport-width port))
            (height (viewport-height port))
            ;; Transform graft units to 1/dpi (for example 1/96in).
