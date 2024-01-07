@@ -1503,55 +1503,35 @@ were added."
           (values max-x max-y) (values min-x min-y))
     (flet ((do-point (x y)
              (with-transformed-position (transformation x y)
-               (cond ((< x min-x)
-                      (setf min-x x))
-                     ((> x max-x)
-                      (setf max-x x)))
-               (cond ((< y min-y)
-                      (setf min-y y))
-                     ((> y max-y)
-                      (setf max-y y))))))
+               (minf min-x x) (maxf max-x x)
+               (minf min-y y) (maxf max-y y))))
       (do-point x1 y2)
       (do-point x2 y1)
       (do-point x2 y2))
     (values min-x min-y max-x max-y)))
 
-(def-grecording (draw-text :replay-fn nil) (gs-text-style-mixin gs-transformation-mixin)
-    ((string (subseq string (or start 0) end))
+(def-grecording draw-text (gs-text-style-mixin gs-transformation-mixin)
+    ((string (create-string string start end))
      point-x point-y
-     (start  nil nil)
-     (end    nil nil)
+     (start 0) (end nil)
      align-x align-y
      toward-x toward-y transform-glyphs)
   ;; FIXME Text direction.
-  ;; FIXME This interpretation of TRANSFORM-GLYPHS is incorrect.
-  (let* ((transformation (graphics-state-transformation medium))
+  ;; FIXME Line bounding rectangle (not minimal).
+  (let* ((transformation (medium-transformation medium))
          (text-style (graphics-state-text-style graphic)))
-    (multiple-value-bind (left top right bottom)
+    (multiple-value-bind (x1 y1 x2 y2)
         (text-bounding-rectangle* medium string
                                   :align-x align-x :align-y align-y
                                   :text-style text-style)
-      (if transform-glyphs
-          (%enclosing-transform-polygon
-           transformation
-           (+ point-x left) (+ point-y top) (+ point-x right) (+ point-y bottom))
-          (with-transformed-position (transformation point-x point-y)
-            (values (+ point-x left) (+ point-y top)
-                    (+ point-x right) (+ point-y bottom)))))))
-
-(defmethod replay-output-record
-    ((record draw-text-output-record) stream
-     &optional (region +everywhere+) (x-offset 0) (y-offset 0))
-  (declare (ignore x-offset y-offset region))
-  (with-slots (string point-x point-y align-x align-y toward-x
-               toward-y transform-glyphs transformation)
-      record
-    (let ((medium (sheet-medium stream)))
-      (medium-draw-text* medium string point-x point-y 0 nil align-x
-                         align-y toward-x toward-y transform-glyphs))))
+      (%enclosing-transform-polygon transformation
+                                    (+ x1 point-x)
+                                    (+ y1 point-y)
+                                    (+ x2 point-x)
+                                    (+ y2 point-y)))))
 
 (defrecord-predicate draw-text-output-record
-    (string (start nil) (end nil) ; START, END are keyword arguments but not slots
+    (string start end
      point-x point-y align-x align-y toward-x toward-y transform-glyphs)
   ;; Compare position first because it is cheap and an update is most
   ;; likely to change the position.
@@ -1559,17 +1539,19 @@ were added."
          (coordinate= (slot-value record 'point-x) point-x))
        (if-supplied (point-y coordinate)
          (coordinate= (slot-value record 'point-y) point-y))
-       ;; START and END can be supplied as keyword arguments, but the
-       ;; output record does not store them in slots. For
-       ;; MATCH-OUTPUT-RECORDS-1, compare the designated subsequence
-       ;; of the STRING keyword argument to the entire string stored
-       ;; in the output record.
        (if-supplied (string)
-         (let ((start2 0)
+         (let ((start1 0)
+               (start2 0)
+               (end1 nil)
                (end2 nil))
-           (if-supplied (start) (setf start2 start))
-           (if-supplied (end) (setf end2 end))
+           (if-supplied (start)
+             (setf start1 (slot-value record 'start)
+                   start2 start))
+           (if-supplied (end)
+             (setf end1 (slot-value record 'end)
+                   end2 end))
            (string= (slot-value record 'string) string
+                    :start1 start1 :end1 end1
                     :start2 start2 :end2 end2)))
        (if-supplied (align-x)
          (eq (slot-value record 'align-x) align-x))
