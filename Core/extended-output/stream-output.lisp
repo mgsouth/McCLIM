@@ -41,11 +41,7 @@
   (cursor-position (stream-text-cursor stream)))
 
 (defmethod* (setf stream-cursor-position) (x y (stream standard-extended-output-stream))
-  (let ((cursor (stream-text-cursor stream)))
-    (setf (cursor-position cursor) (values x y))
-    (when (and (cursor-active cursor)
-               (output-recording-stream-p stream))
-      (stream-close-text-output-record (cursor-sheet cursor)))))
+  (setf (cursor-position (stream-text-cursor stream)) (values x y)))
 
 (defmethod stream-baseline ((sheet standard-extended-output-stream))
   (cursor-baseline (stream-text-cursor sheet)))
