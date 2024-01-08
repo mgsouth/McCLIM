@@ -2074,39 +2074,3 @@ according to the flags RECORD and DRAW."
   (declare (ignore x y))
   (when (stream-drawing-p stream)
     (call-next-method)))
-
-;;; FIXME: think about merging behavior by using WITH-LOCAL-COORDINATES and
-;;; WITH-FIRST-QUADRANT-COORDINATES which both work on both mediums and
-;;; streams. Also write a documentation chapter describing behavior and
-;;; providing some examples.
-
-;;; ----------------------------------------------------------------------------
-;;; Complicated, underspecified...
-;;;
-;;; From examining old Genera documentation, I believe that
-;;; with-room-for-graphics is supposed to set the medium transformation to
-;;; give the desired coordinate system; i.e., it doesn't preserve any
-;;; rotation, scaling or translation in the current medium transformation.
-(defmethod invoke-with-room-for-graphics
-    (cont (stream output-recording-stream)
-     &key (first-quadrant t) width height (move-cursor t)
-          (record-type 'standard-sequence-output-record))
-  (with-sheet-medium (medium stream)
-    (multiple-value-bind (cx cy) (stream-cursor-position stream)
-      (multiple-value-bind (cy* transformation)
-          (if (not first-quadrant)
-              (values cy +identity-transformation+)
-              (values (+ cy (stream-baseline stream))
-                      (make-scaling-transformation 1 -1)))
-        (letf (((medium-transformation medium)
-                (compose-transformation-with-translation transformation cx cy*)))
-          (let ((record (with-new-output-record (stream record-type)
-                          (funcall cont stream))))
-            (with-bounding-rectangle* (:x2 x2 :y2 y2) record
-              (orf width (- x2 cx))
-              (orf height (- y2 cy))))))
-      (maxf (stream-cursor-height stream) height)
-      (setf (stream-cursor-position stream)
-            (if move-cursor
-                (values (+ cx width) cy)
-                (values cx cy))))))

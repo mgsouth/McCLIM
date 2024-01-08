@@ -331,68 +331,6 @@ the cursor after the operation. This function does not wrap.")
       (when (sheetp *standard-output*)
         (medium-beep (sheet-medium *standard-output*)))))
 
-(defmacro with-room-for-graphics ((&optional (stream t)
-                                   &rest arguments
-                                   &key (first-quadrant t)
-                                     width
-                                     height
-                                     (move-cursor t)
-                                     (record-type ''standard-sequence-output-record))
-                                  &body body)
-  (declare (ignore first-quadrant width height move-cursor record-type))
-  (let ((cont (gensym "CONT.")))
-    (with-stream-designator (stream '*standard-output*)
-      `(labels ((,cont (,stream)
-                  ,@body))
-         (declare (dynamic-extent #',cont))
-         (invoke-with-room-for-graphics #',cont ,stream ,@arguments)))))
-
-;;; This fallback implementation is meant to work on any sheet with the output
-;;; protocol.
-(defmethod invoke-with-room-for-graphics (cont stream
-                                          &key (first-quadrant t)
-                                               (width 100)
-                                               (height 100)
-                                               (move-cursor t)
-                                               (record-type nil))
-  (declare (ignore record-type))
-  (with-sheet-medium (medium stream)
-    (multiple-value-bind (cx cy) (transform-position (medium-transformation medium) 0 0)
-      (multiple-value-bind (cy* transformation)
-          (if (not first-quadrant)
-              (values cy +identity-transformation+)
-              (values (+ cy height)
-                      (make-scaling-transformation 1 -1)))
-        (letf (((medium-transformation medium)
-                (compose-transformation-with-translation transformation cx cy*)))
-          (funcall cont stream)))
-      (if move-cursor
-          (values (+ cx width) cy)
-          (values cx cy)))))
-
-(defmethod invoke-with-room-for-graphics (cont (stream extended-output-stream)
-                                          &key (first-quadrant t)
-                                            (width (stream-character-width stream #\M))
-                                            (height (stream-cursor-height stream))
-                                            (move-cursor t)
-                                            (record-type nil))
-  (declare (ignore record-type))
-  (with-sheet-medium (medium stream)
-    (multiple-value-bind (cx cy) (stream-cursor-position stream)
-      (multiple-value-bind (cy* transformation)
-          (if (not first-quadrant)
-              (values cy +identity-transformation+)
-              (values (+ cy (stream-baseline stream))
-                      (make-scaling-transformation 1 -1)))
-        (letf (((medium-transformation medium)
-                (compose-transformation-with-translation transformation cx cy*)))
-          (funcall cont stream)))
-      (maxf (stream-cursor-height stream) height)
-      (setf (stream-cursor-position stream)
-            (if move-cursor
-                (values (+ cx width) cy)
-                (values cx cy))))))
-
 (defmethod invoke-with-local-coordinates ((medium extended-output-stream) cont x y)
   ;; For now we do as real CLIM does.
   ;; Default seems to be the cursor position.
