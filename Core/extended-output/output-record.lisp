@@ -17,7 +17,7 @@
 ;;;  (c) copyright 2017 Cyrus Harmon <cyrus@bobobeach.com>
 ;;;  (c) copyright 2018 Elias Martenson <lokedhs@gmail.com>
 ;;;  (c) copyright 2018-2021 Jan Moringen <jmoringe@techfak.uni-bielefeld.de>
-;;;  (c) copyright 2016-2023 Daniel Kochmański <daniel@turtleware.eu>
+;;;  (c) copyright 2016-2024 Daniel Kochmański <daniel@turtleware.eu>
 ;;;
 ;;; ---------------------------------------------------------------------------
 ;;;
@@ -26,71 +26,62 @@
 
 ;;; TODO records:
 ;;;
-;;; - Redo (setf output-record-position); extent recomputation for output records
+;;; - Redo (setf output-record-position); extent recomputation for output
+;;; - records.
 ;;;
 ;;; - :{X,Y}-OFFSET.
 ;;;
 ;;; - (SETF OUTPUT-RECORD-START-CURSOR-POSITION) does not affect the bounding
 ;;;   rectangle. What does it affect?
 ;;;
-;;; - How should (SETF OUTPUT-RECORD-POSITION) affect the bounding
-;;;   rectangle of the parent? Now its bounding rectangle is
-;;;   accurately recomputed, but it is very inefficient for table
-;;;   formatting. It seems that CLIM is supposed to keep a "large
-;;;   enough" rectangle and to shrink it to the correct size only when
-;;;   the layout is complete by calling TREE-RECOMPUTE-EXTENT.
+;;; - How should (SETF OUTPUT-RECORD-POSITION) affect the bounding rectangle of
+;;;   the parent? Now its bounding rectangle is accurately recomputed, but it is
+;;;   very inefficient for table formatting. It seems that CLIM is supposed to
+;;;   keep a "large enough" rectangle and to shrink it to the correct size only
+;;;   when the layout is complete by calling TREE-RECOMPUTE-EXTENT.
 ;;;
 ;;; - Computation of the bounding rectangle of lines/polygons ignores
 ;;;   LINE-STYLE-CAP-SHAPE.
 ;;;
 ;;; - Rounding of coordinates.
-
-;;; TODO streams:
-;;;
-;;; - Scrolling does not work correctly. Region is given in "window"
-;;;   coordinates, without bounding-rectangle-position transformation.
-;;;   (Is it still valid?)
-;;;
-;;; - When DRAWING-P is NIL, should stream cursor move?
-;;;
-;;; - Document carefully the interface of STANDARD-OUTPUT-RECORDING-STREAM.
-;;;
-;;; - Some GFs are defined to have "a default method on CLIM's
-;;;   standard output record class". What does it mean? What is
-;;;   "CLIM's standard output record class"? Is it OUTPUT-RECORD or
-;;;   BASIC-OUTPUT-RECORD?  Now they are defined on OUTPUT-RECORD.
-;;;
+;;; 
+;;; - BASELINE should be defined in terms of OUTPUT-RECORD-ORIGIN.
+;;; 
+;;; - Implement MAKE-DESIGN-FROM-OUTPUT-RECORD.
 
 (in-package #:clim-internals)
-
-;;; Forward definition
-(defclass stream-output-history-mixin ()
-  ((stream :initarg :stream :reader output-history-stream)))
 
 ;;; These generic functions need to be implemented for all the basic
 ;;; displayed-output-records, so they are defined in this file.
 ;;;
-;;; MATCH-OUTPUT-RECORDS and FIND-CHILD-OUTPUT-RECORD, as defined in
-;;; the CLIM spec, are pretty silly.  How does incremental redisplay
-;;; know what keyword arguments to supply to FIND-CHILD-OUTPUT-RECORD?
-;;; Through a gf specialized on the type of the record it needs to
-;;; match... why not define the search function and the predicate on
-;;; two records then!
+;;; MATCH-OUTPUT-RECORDS and FIND-CHILD-OUTPUT-RECORD, as defined in the CLIM
+;;; spec, are pretty silly.  How does incremental redisplay know what keyword
+;;; arguments to supply to FIND-CHILD-OUTPUT-RECORD?  Through a gf specialized
+;;; on the type of the record it needs to match... why not define the search
+;;; function and the predicate on two records then!
 ;;;
-;;; These gf's use :MOST-SPECIFIC-LAST because one of the least
-;;; specific methods will check the bounding boxes of the records,
-;;; which should cause an early out most of the time.
+;;; These gf's use :MOST-SPECIFIC-LAST because one of the least specific methods
+;;; will check the bounding boxes of the records, which should cause an early
+;;; out most of the time.
 ;;;
-;;; We'll implement MATCH-OUTPUT-RECORDS and FIND-CHILD-OUTPUT-RECORD,
-;;; but we won't actually use them.  Instead, output-record-equal will
-;;; match two records, and find-child-record-equal will search for the
-;;; equivalent record.
+;;; We'll implement MATCH-OUTPUT-RECORDS and FIND-CHILD-OUTPUT-RECORD, but we
+;;; won't actually use them.  Instead, output-record-equal will match two
+;;; records, and find-child-record-equal will search for the equivalent record.
 
 (defgeneric match-output-records-1 (record &key)
   (:method-combination and :most-specific-last))
 
 (defgeneric output-record-equal (record1 record2)
   (:method-combination and :most-specific-last))
+
+;;; Fallback ethods so that something's always applicable.
+
+(defmethod match-output-records ((record t) &rest args)
+  (apply #'match-output-records-1 record args))
+
+(defmethod output-record-equal and (record1 record2)
+  (declare (ignore record1 record2))
+  'maybe)
 
 (defmethod output-record-equal :around (record1 record2)
   (cond ((eq record1 record2)
@@ -104,17 +95,10 @@
                result)))
         (t nil)))
 
-;;; A fallback method so that something's always applicable.
-
-(defmethod output-record-equal and (record1 record2)
-  (declare (ignore record1 record2))
-  'maybe)
-
-;;; The code for MATCH-OUTPUT-RECORDS-1 and OUTPUT-RECORD-EQUAL
-;;; methods are very similar, hence this macro.  In order to exploit
-;;; the similarities, it's necessary to treat the slots of the second
-;;; record like variables, so for convenience the macro will use
-;;; WITH-SLOTS on the second record.
+;;; The code for MATCH-OUTPUT-RECORDS-1 and OUTPUT-RECORD-EQUAL methods are very
+;;; similar, hence this macro.  In order to exploit the similarities, it's
+;;; necessary to treat the slots of the second record like variables, so for
+;;; convenience the macro will use WITH-SLOTS on the second record.
 (defmacro defrecord-predicate (record-type slots &body body)
   "Each element of SLOTS is either a symbol naming a slot
 or (SLOT-NAME SLOT-P)."
@@ -152,72 +136,31 @@ or (SLOT-NAME SLOT-P)."
                                               :expected-type ',type)))))))
            ,@body)))))
 
-(defmacro with-output-recording-options ((stream
-                                          &key (record nil record-supplied-p)
-                                               (draw nil draw-supplied-p))
-                                         &body body)
-  (with-stream-designator (stream '*standard-output*)
-    (with-gensyms (continuation)
-      `(flet ((,continuation  (,stream)
-                ,(declare-ignorable-form* stream)
-                ,@body))
-         (declare (dynamic-extent #',continuation))
-         (with-drawing-options (,stream)
-           (invoke-with-output-recording-options
-            ,stream #',continuation
-            ,(if record-supplied-p record `(stream-recording-p ,stream))
-            ,(if draw-supplied-p draw `(stream-drawing-p ,stream))))))))
+;;; Forward definition
+(defclass stream-output-history-mixin ()
+  ((stream :initarg :stream :reader output-history-stream)))
 
-;;; Macro masturbation...
+(defun find-output-record-sheet (record)
+  "Walks up the parents of RECORD, searching for an output history from which
+the associated sheet can be determined."
+  (typecase record
+    (stream-output-history-mixin
+     (output-history-stream record))
+    (basic-output-record
+     (find-output-record-sheet (output-record-parent record)))))
 
-(defmacro define-invoke-with (macro-name func-name record-type doc-string)
-  `(defmacro ,macro-name ((stream
-                           &optional
-                           (record-type '',record-type)
-                           (record (gensym))
-                           &rest initargs)
-                          &body body)
-     ,doc-string
-     (with-stream-designator (stream '*standard-output*)
-       (with-gensyms (continuation)
-         (multiple-value-bind (bindings m-i-args)
-             (rebind-arguments initargs)
-           `(let ,bindings
-              (flet ((,continuation (,stream ,record)
-                       ,(declare-ignorable-form* stream record)
-                       ,@body))
-                (declare (dynamic-extent #',continuation))
-                (,',func-name ,stream #',continuation ,record-type ,@m-i-args))))))))
+;;; This function could be implemented by using the RASTER backend to produce an
+;;; RGBA image. Alternatively we may implement a "special" design class, that is
+;;; specialze DRAW-DESIGN function to the record class. Note that drawn design
+;;; must adhere to the current medium transformation. -- jd 2024-01-08
 
-(define-invoke-with with-new-output-record invoke-with-new-output-record
-  standard-sequence-output-record
-  "Creates a new output record of type RECORD-TYPE and then captures
-the output of BODY into the new output record, and inserts the new
-record into the current \"open\" output record assotiated with STREAM.
-    If RECORD is supplied, it is the name of a variable that will be
-lexically bound to the new output record inside the body. INITARGS are
-CLOS initargs that are passed to MAKE-INSTANCE when the new output
-record is created.
-    It returns the created output record.
-    The STREAM argument is a symbol that is bound to an output
-recording stream. If it is T, *STANDARD-OUTPUT* is used.")
-
-(define-invoke-with with-output-to-output-record
-    invoke-with-output-to-output-record
-  standard-sequence-output-record
-  "Creates a new output record of type RECORD-TYPE and then captures
-the output of BODY into the new output record. The cursor position of
-STREAM is initially bound to (0,0)
-    If RECORD is supplied, it is the name of a variable that will be
-lexically bound to the new output record inside the body. INITARGS are
-CLOS initargs that are passed to MAKE-INSTANCE when the new output
-record is created.
-    It returns the created output record.
-    The STREAM argument is a symbol that is bound to an output
-recording stream. If it is T, *STANDARD-OUTPUT* is used.")
+(defmethod make-design-from-output-record (record)
+  ;; FIXME
+  (declare (ignore record))
+  (error "Not implemented."))
 
 
-;;;; Implementation
+;;; 16.2 Output Records: BASIC-OUTPUT-RECORD
 
 (defclass basic-output-record (standard-bounding-rectangle output-record)
   ((parent :initform nil :accessor output-record-parent)
@@ -247,10 +190,6 @@ recording stream. If it is T, *STANDARD-OUTPUT* is used.")
 (defmethod* (setf output-record-position) :before (nx ny (self basic-output-record))
   (set-output-record-origin self nx ny))
 
-(defclass compound-output-record (basic-output-record)
-  ((in-moving-p :initform nil :documentation "Is set while changing the position."))
-  (:documentation "Implementation class for output records with children."))
-
 ;;; 16.2.1. The Basic Output Record Protocol
 
 (defmethod output-record-position ((record basic-output-record))
@@ -275,19 +214,6 @@ recording stream. If it is T, *STANDARD-OUTPUT* is used.")
                                             min-x min-y max-x max-y)))
     (values nx ny)))
 
-(defmethod* (setf output-record-position)
-    :before (nx ny (record compound-output-record))
-  (with-standard-rectangle* (x1 y1) record
-    (letf (((slot-value record 'in-moving-p) t))
-      (let ((dx (- nx x1))
-            (dy (- ny y1)))
-        (map-over-output-records
-         (lambda (child)
-           (multiple-value-bind (x y) (output-record-position child)
-             (setf (output-record-position child)
-                   (values (+ x dx) (+ y dy)))))
-         record)))))
-
 (defmethod output-record-start-cursor-position ((record basic-output-record))
   (values nil nil))
 
@@ -302,23 +228,61 @@ recording stream. If it is T, *STANDARD-OUTPUT* is used.")
     (x y (record basic-output-record))
   (values x y))
 
-(defun replay (record stream &optional region)
-  (when (typep stream 'encapsulating-stream)
-    (return-from replay (replay record (encapsulating-stream-stream stream) region)))
-  (unless region
-    (setf region (sheet-visible-region stream)))
-  (stream-close-text-output-record stream)
-  (when (stream-drawing-p stream)
-    (nest
-     (with-cursor-off ((stream-text-cursor stream)))
-     (with-output-recording-options (stream :record nil))
-     (with-identity-transformation (stream)
-       (replay-output-record record stream region)))))
+(defmethod output-record-hit-detection-rectangle* ((record basic-output-record))
+  (bounding-rectangle* record))
 
-(defmethod replay-output-record ((record compound-output-record) (stream encapsulating-stream)
-                                 &optional region (x-offset 0) (y-offset 0))
-  (replay-output-record record (encapsulating-stream-stream stream)
-                        region x-offset y-offset))
+(defmethod output-record-refined-position-test ((record basic-output-record) x y)
+  (declare (ignore x y))
+  t)
+
+(defmethod note-output-record-lost-sheet ((record basic-output-record) sheet)
+  (declare (ignore record sheet))
+  (values))
+
+(defmethod note-output-record-got-sheet ((record basic-output-record) sheet)
+  (declare (ignore record sheet))
+  (values))
+
+(defmethod output-record-children ((record basic-output-record))
+  nil)
+
+(defmethod add-output-record (child (record basic-output-record))
+  (declare (ignore child))
+  (error "Cannot add a child to ~S." record))
+
+(defmethod delete-output-record (child (record basic-output-record)
+                                 &optional (errorp t))
+  (declare (ignore child))
+  (when errorp (error "Cannot delete a child from ~S." record)))
+
+(defmethod delete-output-record :before (child (record basic-output-record)
+                                         &optional (errorp t))
+  (declare (ignore errorp))
+  (when-let ((sheet (find-output-record-sheet record)))
+    (note-output-record-lost-sheet child sheet)))
+
+(defmethod clear-output-record ((record basic-output-record))
+  (error "Cannot clear ~S." record))
+
+
+;;; 16.2 Output Records: COMPOUND-OUTPUT-RECORD
+
+(defclass compound-output-record (basic-output-record)
+  ((in-moving-p :initform nil :documentation "Is set while changing the position."))
+  (:documentation "Implementation class for output records with children."))
+
+(defmethod* (setf output-record-position)
+    :before (nx ny (record compound-output-record))
+  (with-standard-rectangle* (x1 y1) record
+    (letf (((slot-value record 'in-moving-p) t))
+      (let ((dx (- nx x1))
+            (dy (- ny y1)))
+        (map-over-output-records
+         (lambda (child)
+           (multiple-value-bind (x y) (output-record-position child)
+             (setf (output-record-position child)
+                   (values (+ x dx) (+ y dy)))))
+         record)))))
 
 (defmethod replay-output-record ((record compound-output-record) stream
                                  &optional region (x-offset 0) (y-offset 0))
@@ -329,71 +293,11 @@ recording stream. If it is T, *STANDARD-OUTPUT* is used.")
      #'replay-output-record record region x-offset y-offset
      stream region x-offset y-offset)))
 
-(defmethod output-record-hit-detection-rectangle* ((record output-record))
-  ;; XXX DC
-  (bounding-rectangle* record))
-
-(defmethod output-record-refined-position-test
-    ((record basic-output-record) x y)
-  (declare (ignore x y))
-  t)
-
-(defun highlight-output-record-rectangle (record stream state)
-  (with-identity-transformation (stream)
-    (ecase state
-      (:highlight
-       ;; We can't "just" draw-rectangle :filled nil because the path lines
-       ;; rounding may get outside the bounding rectangle. -- jd 2019-02-01
-       (multiple-value-bind (x1 y1 x2 y2) (bounding-rectangle* record)
-         (draw-design (sheet-medium stream)
-                      (if (or (> (1+ x1) (1- x2))
-                              (> (1+ y1) (1- y2)))
-                          (bounding-rectangle record)
-                          (region-difference (bounding-rectangle record)
-                                             (make-rectangle* (1+ x1) (1+ y1) (1- x2) (1- y2))))
-                      :ink +foreground-ink+)))
-      (:unhighlight
-       (dispatch-repaint stream (bounding-rectangle record))))))
-
-;;; XXX Should this only be defined on recording streams?
-(defmethod highlight-output-record ((record output-record) stream state)
-  ;; XXX DC
-  ;; XXX Disable recording?
-  (highlight-output-record-rectangle record stream state))
-
-;;; 16.2.2. The Output Record "Database" Protocol
-
-(defmethod note-output-record-lost-sheet ((record output-record) sheet)
-  (declare (ignore record sheet))
-  (values))
-
-(defmethod note-output-record-lost-sheet :after
-    ((record compound-output-record) sheet)
+(defmethod note-output-record-lost-sheet :after ((record compound-output-record) sheet)
   (map-over-output-records #'note-output-record-lost-sheet record 0 0 sheet))
 
-(defmethod note-output-record-got-sheet ((record output-record) sheet)
-  (declare (ignore record sheet))
-  (values))
-
-(defmethod note-output-record-got-sheet :after
-    ((record compound-output-record) sheet)
+(defmethod note-output-record-got-sheet :after ((record compound-output-record) sheet)
   (map-over-output-records #'note-output-record-got-sheet record 0 0 sheet))
-
-(defun find-output-record-sheet (record)
-  "Walks up the parents of RECORD, searching for an output history from which
-the associated sheet can be determined."
-  (typecase record
-    (stream-output-history-mixin
-     (output-history-stream record))
-    (basic-output-record
-     (find-output-record-sheet (output-record-parent record)))))
-
-(defmethod output-record-children ((record basic-output-record))
-  nil)
-
-(defmethod add-output-record (child (record basic-output-record))
-  (declare (ignore child))
-  (error "Cannot add a child to ~S." record))
 
 (defmethod add-output-record :before (child (record compound-output-record))
   (let ((parent (output-record-parent child)))
@@ -415,25 +319,11 @@ the associated sheet can be determined."
     (when-let ((sheet (find-output-record-sheet record)))
       (note-output-record-got-sheet child sheet))))
 
-(defmethod delete-output-record :before (child (record basic-output-record)
-                                         &optional (errorp t))
-  (declare (ignore errorp))
-  (when-let ((sheet (find-output-record-sheet record)))
-    (note-output-record-lost-sheet child sheet)))
-
-(defmethod delete-output-record (child (record basic-output-record)
-                                 &optional (errorp t))
-  (declare (ignore child))
-  (when errorp (error "Cannot delete a child from ~S." record)))
-
 (defmethod delete-output-record :after (child (record compound-output-record)
                                         &optional (errorp t))
   (declare (ignore errorp))
   (with-bounding-rectangle* (x1 y1 x2 y2) child
     (recompute-extent-for-changed-child record child x1 y1 x2 y2)))
-
-(defmethod clear-output-record ((record basic-output-record))
-  (error "Cannot clear ~S." record))
 
 (defmethod clear-output-record :before ((record compound-output-record))
   (when-let ((sheet (find-output-record-sheet record)))
@@ -450,29 +340,6 @@ the associated sheet can be determined."
   (with-slots (x y) record
     (setf (rectangle-edges* record) (values x y x y))))
 
-(defmethod output-record-count ((record displayed-output-record))
-  0)
-
-(defmethod map-over-output-records-1
-    (function (record displayed-output-record) function-args)
-  (declare (ignore function function-args))
-  nil)
-
-(defmethod map-over-output-records-containing-position
-    (function (record displayed-output-record) x y
-     &optional (x-offset 0) (y-offset 0)
-     &rest function-args)
-  (declare (ignore function x y x-offset y-offset function-args))
-  nil)
-
-(defmethod map-over-output-records-overlapping-region
-    (function (record displayed-output-record) region
-     &optional (x-offset 0) (y-offset 0)
-     &rest function-args)
-  (declare (ignore function region x-offset y-offset function-args))
-  nil)
-
-;;; 16.2.3. Output Record Change Notification Protocol
 (defmethod recompute-extent-for-new-child
     ((record compound-output-record) child)
   (unless (null-bounding-rectangle-p child)
@@ -614,7 +481,8 @@ the associated sheet can be determined."
                                               old-x2 old-y2)))))
   record)
 
-;;; 16.3.1. Standard output record classes
+
+;;; 16.3.1. Standard output record classes: sequence output recording
 
 (defclass standard-sequence-output-record (compound-output-record)
   ((children :initform (make-array 8 :adjustable t :fill-pointer 0)
@@ -687,8 +555,8 @@ were added."
           when (region-intersects-region-p region child)
           do (apply function child function-args))))
 
-;;; tree output recording
-
+
+;;; 16.3.1. Standard output record classes: tree output recording
 (defclass tree-output-record-entry ()
      ((record :initarg :record :reader tree-output-record-entry-record)
       (cached-rectangle :initform nil
@@ -843,11 +711,8 @@ were added."
   (when (eql record (output-record-parent child))
     (%refresh-entry-in-children-cache record child)))
 
-;;;
-
-(defmethod match-output-records ((record t) &rest args)
-  (apply #'match-output-records-1 record args))
-
+
+;;; Output Records: DISPLAYED-OUTPUT-RECORD graphical state mixins
 (defmethod replay-output-record :around
     ((record gs-ink-mixin) stream &optional region x-offset y-offset)
   (declare (ignore region x-offset y-offset))
@@ -907,7 +772,9 @@ were added."
   (if-supplied (transformation)
     (transformation-equal (graphics-state-transformation record) transformation)))
 
+
 ;;; 16.3.2. Graphics Displayed Output Records
+
 (defclass standard-displayed-output-record
     (gs-ink-mixin basic-output-record displayed-output-record)
   ((ink :reader displayed-output-record-ink)
@@ -948,64 +815,30 @@ were added."
                                     (record2 standard-displayed-output-record))
   (region-equal record record2))
 
-(defclass coord-seq-mixin ()
-  ((coord-seq :accessor coord-seq :initarg :coord-seq))
-  (:documentation "Mixin class that implements methods for records that contain
-   sequences of coordinates."))
+(defmethod output-record-count ((record displayed-output-record))
+  0)
 
-(defun coord-seq-bounds (coord-seq border)
-  (setf border (ceiling border))
-  (let* ((min-x (elt coord-seq 0))
-         (min-y (elt coord-seq 1))
-         (max-x min-x)
-         (max-y min-y))
-    (do-sequence ((x y) coord-seq)
-      (minf min-x x)
-      (minf min-y y)
-      (maxf max-x x)
-      (maxf max-y y))
-    (values (floor (- min-x border))
-            (floor (- min-y border))
-            (ceiling (+ max-x border))
-            (ceiling (+ max-y border)))))
+(defmethod map-over-output-records-1
+    (function (record displayed-output-record) function-args)
+  (declare (ignore function function-args))
+  nil)
 
-;;; record must be a standard-rectangle
+(defmethod map-over-output-records-containing-position
+    (function (record displayed-output-record) x y
+     &optional (x-offset 0) (y-offset 0)
+     &rest function-args)
+  (declare (ignore function x y x-offset y-offset function-args))
+  nil)
 
-(defmethod* (setf output-record-position) :around
-    (nx ny (record coord-seq-mixin))
-  (with-standard-rectangle* (x1 y1) record
-    (let ((dx (- nx x1))
-          (dy (- ny y1))
-          (coords (slot-value record 'coord-seq)))
-      (multiple-value-prog1
-          (call-next-method)
-        (let ((odd nil))
-          (map-into coords
-                    (lambda (val)
-                      (prog1
-                          (if odd
-                              (incf val dy)
-                              (incf val dx))
-                        (setf odd (not odd))))
-                    coords))))))
+(defmethod map-over-output-records-overlapping-region
+    (function (record displayed-output-record) region
+     &optional (x-offset 0) (y-offset 0)
+     &rest function-args)
+  (declare (ignore function region x-offset y-offset function-args))
+  nil)
 
-(defmethod match-output-records-1 and ((record coord-seq-mixin)
-                                       &key (coord-seq nil coord-seq-p))
-  (or (null coord-seq-p)
-      (let ((my-coord-seq (slot-value record 'coord-seq)))
-        (sequence= my-coord-seq coord-seq #'coordinate=))))
-
-(defun fix-line-style-unit (graphic medium)
-  (let* ((line-style (graphics-state-line-style graphic))
-         (thickness (line-style-effective-thickness line-style medium)))
-    (unless (eq (line-style-unit line-style) :normal)
-      (let ((dashes (line-style-effective-dashes line-style medium)))
-        (setf (slot-value graphic 'line-style)
-              (make-line-style :thickness thickness
-                               :joint-shape (line-style-joint-shape line-style)
-                               :cap-shape (line-style-cap-shape line-style)
-                               :dashes dashes))))
-    thickness))
+
+;;; 16.3.2. Graphics Displayed Output Records: drawing classes (utilities)
 
 (defmacro generate-medium-recording-body (class-name args)
   (let ((arg-list (alexandria:mappend
@@ -1083,7 +916,6 @@ were added."
                            (progn ,@body)))))))
          ,@(when medium-fn
              `((defmethod ,method-name :around ((stream output-recording-stream) ,@arg-names)
-                 ;; XXX STANDARD-OUTPUT-RECORDING-STREAM ^?
                  (generate-medium-recording-body ,class-name ,args))))
          ,@(when replay-fn
              `((defmethod replay-output-record ((record ,class-name) stream
@@ -1092,98 +924,20 @@ were added."
                  (declare (ignore x-offset y-offset region))
                  (with-slots (,@slot-names) record
                    (let ((,medium (sheet-medium stream)))
-                     ;; Graphics state is set up in :around method.
+                     ;; The medium graphics state is set up in :around methods.
                      (,method-name ,medium ,@arg-names))))))))))
 
-(def-grecording draw-point (gs-line-style-mixin)
-    (point-x point-y)
-  (let ((border (/ (fix-line-style-unit graphic medium) 2)))
-    (with-transformed-position ((medium-transformation medium) point-x point-y)
-      (setf (slot-value graphic 'point-x) point-x
-            (slot-value graphic 'point-y) point-y)
-      (values (- point-x border)
-              (- point-y border)
-              (+ point-x border)
-              (+ point-y border)))))
-
-(defmethod* (setf output-record-position) :around
-    (nx ny (record draw-point-output-record))
-    (with-standard-rectangle* (x1 y1) record
-      (with-slots (point-x point-y) record
-        (let ((dx (- nx x1))
-              (dy (- ny y1)))
-          (multiple-value-prog1
-              (call-next-method)
-            (incf point-x dx)
-            (incf point-y dy))))))
-
-(defrecord-predicate draw-point-output-record (point-x point-y)
-  (and (if-supplied (point-x coordinate)
-         (coordinate= (slot-value record 'point-x) point-x))
-       (if-supplied (point-y coordinate)
-         (coordinate= (slot-value record 'point-y) point-y))))
-
-;;; Initialize the output record with a copy of COORD-SEQ, as the replaying code
-;;; will modify it to be positioned relative to the output-record's position and
-;;; making a temporary is (arguably) less bad than untransforming the coords
-;;; back to how they were.
-(def-grecording draw-points (coord-seq-mixin gs-line-style-mixin)
-    ((coord-seq (copy-sequence-into-vector coord-seq)))
-  (let* ((transformed-coord-seq (transform-positions (medium-transformation medium) coord-seq))
-         (border (/ (fix-line-style-unit graphic medium) 2)))
-    (setf (slot-value graphic 'coord-seq) transformed-coord-seq)
-    (coord-seq-bounds transformed-coord-seq border)))
-
-(def-grecording draw-line (gs-line-style-mixin)
-    (point-x1 point-y1 point-x2 point-y2)
-  (let* ((transform (medium-transformation medium))
-         (border (/ (fix-line-style-unit graphic medium) 2)))
-    (with-transformed-position (transform point-x1 point-y1)
-      (with-transformed-position (transform point-x2 point-y2)
-        (setf (slot-value graphic 'point-x1) point-x1
-              (slot-value graphic 'point-y1) point-y1
-              (slot-value graphic 'point-x2) point-x2
-              (slot-value graphic 'point-y2) point-y2)
-        (values (- (min point-x1 point-x2) border)
-                (- (min point-y1 point-y2) border)
-                (+ (max point-x1 point-x2) border)
-                (+ (max point-y1 point-y2) border))))))
-
-(defmethod* (setf output-record-position) :around
-    (nx ny (record draw-line-output-record))
-  (with-standard-rectangle* (x1 y1) record
-    (with-slots (point-x1 point-y1 point-x2 point-y2) record
-      (let ((dx (- nx x1))
-            (dy (- ny y1)))
-        (multiple-value-prog1
-            (call-next-method)
-          (incf point-x1 dx)
-          (incf point-y1 dy)
-          (incf point-x2 dx)
-          (incf point-y2 dy))))))
-
-(defrecord-predicate draw-line-output-record (point-x1 point-y1
-                                              point-x2 point-y2)
-  (and (if-supplied (point-x1 coordinate)
-         (coordinate= (slot-value record 'point-x1) point-x1))
-       (if-supplied (point-y1 coordinate)
-         (coordinate= (slot-value record 'point-y1) point-y1))
-       (if-supplied (point-x2 coordinate)
-         (coordinate= (slot-value record 'point-x2) point-x2))
-       (if-supplied (point-y2 coordinate)
-         (coordinate= (slot-value record 'point-y2) point-y2))))
-
-;;; Regarding COORD-SEQ, see comment for DRAW-POINTS.
-(def-grecording draw-lines (coord-seq-mixin gs-line-style-mixin)
-    ((coord-seq (copy-sequence-into-vector coord-seq)))
-  (let* ((transformation (medium-transformation medium))
-         (transformed-coord-seq (transform-positions transformation coord-seq))
-         (border (/ (fix-line-style-unit graphic medium) 2)))
-    (setf coord-seq transformed-coord-seq)
-    (coord-seq-bounds transformed-coord-seq border)))
-
-;;; (setf output-record-position) and predicates for draw-lines-output-record
-;;; are taken care of by methods on superclasses.
+(defun fix-line-style-unit (graphic medium)
+  (let* ((line-style (graphics-state-line-style graphic))
+         (thickness (line-style-effective-thickness line-style medium)))
+    (unless (eq (line-style-unit line-style) :normal)
+      (let ((dashes (line-style-effective-dashes line-style medium)))
+        (setf (slot-value graphic 'line-style)
+              (make-line-style :thickness thickness
+                               :joint-shape (line-style-joint-shape line-style)
+                               :cap-shape (line-style-cap-shape line-style)
+                               :dashes dashes))))
+    thickness))
 
 ;;; Helper function
 (defun normalize-coords (dx dy &optional unit)
@@ -1326,6 +1080,159 @@ were added."
             (floor (- min-y border))
             (ceiling (+ max-x border))
             (ceiling (+ max-y border)))))
+
+(declaim (inline %enclosing-transform-polygon))
+(defun %enclosing-transform-polygon (transformation x1 y1 x2 y2)
+  (let (min-x min-y max-x max-y)
+    (setf (values min-x min-y) (transform-position transformation x1 y1)
+          (values max-x max-y) (values min-x min-y))
+    (flet ((do-point (x y)
+             (with-transformed-position (transformation x y)
+               (minf min-x x) (maxf max-x x)
+               (minf min-y y) (maxf max-y y))))
+      (do-point x1 y2)
+      (do-point x2 y1)
+      (do-point x2 y2))
+    (values min-x min-y max-x max-y)))
+
+(defclass coord-seq-mixin ()
+  ((coord-seq :accessor coord-seq :initarg :coord-seq))
+  (:documentation "Mixin class that implements methods for records that contain
+   sequences of coordinates."))
+
+(defun coord-seq-bounds (coord-seq border)
+  (setf border (ceiling border))
+  (let* ((min-x (elt coord-seq 0))
+         (min-y (elt coord-seq 1))
+         (max-x min-x)
+         (max-y min-y))
+    (do-sequence ((x y) coord-seq)
+      (minf min-x x)
+      (minf min-y y)
+      (maxf max-x x)
+      (maxf max-y y))
+    (values (floor (- min-x border))
+            (floor (- min-y border))
+            (ceiling (+ max-x border))
+            (ceiling (+ max-y border)))))
+
+;;; record must be a standard-rectangle
+
+(defmethod* (setf output-record-position) :around (nx ny (record coord-seq-mixin))
+  (with-standard-rectangle* (x1 y1) record
+    (let ((dx (- nx x1))
+          (dy (- ny y1))
+          (coords (slot-value record 'coord-seq)))
+      (multiple-value-prog1
+          (call-next-method)
+        (let ((odd nil))
+          (map-into coords
+                    (lambda (val)
+                      (prog1
+                          (if odd
+                              (incf val dy)
+                              (incf val dx))
+                        (setf odd (not odd))))
+                    coords))))))
+
+(defmethod match-output-records-1 and ((record coord-seq-mixin)
+                                       &key (coord-seq nil coord-seq-p))
+  (or (null coord-seq-p)
+      (let ((my-coord-seq (slot-value record 'coord-seq)))
+        (sequence= my-coord-seq coord-seq #'coordinate=))))
+
+
+;;; 16.3.2. Graphics Displayed Output Records: drawing classes (grecording)
+
+(def-grecording draw-point (gs-line-style-mixin)
+    (point-x point-y)
+  (let ((border (/ (fix-line-style-unit graphic medium) 2)))
+    (with-transformed-position ((medium-transformation medium) point-x point-y)
+      (setf (slot-value graphic 'point-x) point-x
+            (slot-value graphic 'point-y) point-y)
+      (values (- point-x border)
+              (- point-y border)
+              (+ point-x border)
+              (+ point-y border)))))
+
+(defmethod* (setf output-record-position) :around
+    (nx ny (record draw-point-output-record))
+    (with-standard-rectangle* (x1 y1) record
+      (with-slots (point-x point-y) record
+        (let ((dx (- nx x1))
+              (dy (- ny y1)))
+          (multiple-value-prog1
+              (call-next-method)
+            (incf point-x dx)
+            (incf point-y dy))))))
+
+(defrecord-predicate draw-point-output-record (point-x point-y)
+  (and (if-supplied (point-x coordinate)
+         (coordinate= (slot-value record 'point-x) point-x))
+       (if-supplied (point-y coordinate)
+         (coordinate= (slot-value record 'point-y) point-y))))
+
+;;; Initialize the output record with a copy of COORD-SEQ, as the replaying code
+;;; will modify it to be positioned relative to the output-record's position and
+;;; making a temporary is (arguably) less bad than untransforming the coords
+;;; back to how they were.
+(def-grecording draw-points (coord-seq-mixin gs-line-style-mixin)
+    ((coord-seq (copy-sequence-into-vector coord-seq)))
+  (let* ((transformed-coord-seq (transform-positions (medium-transformation medium) coord-seq))
+         (border (/ (fix-line-style-unit graphic medium) 2)))
+    (setf (slot-value graphic 'coord-seq) transformed-coord-seq)
+    (coord-seq-bounds transformed-coord-seq border)))
+
+(def-grecording draw-line (gs-line-style-mixin)
+    (point-x1 point-y1 point-x2 point-y2)
+  (let* ((transform (medium-transformation medium))
+         (border (/ (fix-line-style-unit graphic medium) 2)))
+    (with-transformed-position (transform point-x1 point-y1)
+      (with-transformed-position (transform point-x2 point-y2)
+        (setf (slot-value graphic 'point-x1) point-x1
+              (slot-value graphic 'point-y1) point-y1
+              (slot-value graphic 'point-x2) point-x2
+              (slot-value graphic 'point-y2) point-y2)
+        (values (- (min point-x1 point-x2) border)
+                (- (min point-y1 point-y2) border)
+                (+ (max point-x1 point-x2) border)
+                (+ (max point-y1 point-y2) border))))))
+
+(defmethod* (setf output-record-position) :around
+    (nx ny (record draw-line-output-record))
+  (with-standard-rectangle* (x1 y1) record
+    (with-slots (point-x1 point-y1 point-x2 point-y2) record
+      (let ((dx (- nx x1))
+            (dy (- ny y1)))
+        (multiple-value-prog1
+            (call-next-method)
+          (incf point-x1 dx)
+          (incf point-y1 dy)
+          (incf point-x2 dx)
+          (incf point-y2 dy))))))
+
+(defrecord-predicate draw-line-output-record (point-x1 point-y1
+                                              point-x2 point-y2)
+  (and (if-supplied (point-x1 coordinate)
+         (coordinate= (slot-value record 'point-x1) point-x1))
+       (if-supplied (point-y1 coordinate)
+         (coordinate= (slot-value record 'point-y1) point-y1))
+       (if-supplied (point-x2 coordinate)
+         (coordinate= (slot-value record 'point-x2) point-x2))
+       (if-supplied (point-y2 coordinate)
+         (coordinate= (slot-value record 'point-y2) point-y2))))
+
+;;; Regarding COORD-SEQ, see comment for DRAW-POINTS.
+(def-grecording draw-lines (coord-seq-mixin gs-line-style-mixin)
+    ((coord-seq (copy-sequence-into-vector coord-seq)))
+  (let* ((transformation (medium-transformation medium))
+         (transformed-coord-seq (transform-positions transformation coord-seq))
+         (border (/ (fix-line-style-unit graphic medium) 2)))
+    (setf coord-seq transformed-coord-seq)
+    (coord-seq-bounds transformed-coord-seq border)))
+
+;;; (setf output-record-position) and predicates for draw-lines-output-record
+;;; are taken care of by methods on superclasses.
 
 ;;; Regarding COORD-SEQ, see comment for DRAW-POINTS.
 (def-grecording draw-polygon (coord-seq-mixin gs-line-style-mixin)
@@ -1491,24 +1398,6 @@ were added."
                     (coordinate= (slot-value record 'center-y) center-y))
        (if-supplied (filled)
                     (eql (slot-value record 'filled) filled))))
-
-;;; Patterns
-
-;;; Text
-
-(declaim (inline %enclosing-transform-polygon))
-(defun %enclosing-transform-polygon (transformation x1 y1 x2 y2)
-  (let (min-x min-y max-x max-y)
-    (setf (values min-x min-y) (transform-position transformation x1 y1)
-          (values max-x max-y) (values min-x min-y))
-    (flet ((do-point (x y)
-             (with-transformed-position (transformation x y)
-               (minf min-x x) (maxf max-x x)
-               (minf min-y y) (maxf max-y y))))
-      (do-point x1 y2)
-      (do-point x2 y1)
-      (do-point x2 y2))
-    (values min-x min-y max-x max-y)))
 
 (def-grecording draw-text (gs-text-style-mixin gs-transformation-mixin)
     ((string (create-string string start end))
@@ -1758,11 +1647,6 @@ were added."
                      do (write-string (to-string object) result))))))))
 
 
-(defmethod make-design-from-output-record (record)
-  ;; FIXME
-  (declare (ignore record))
-  (error "Not implemented."))
-
 (defclass clipping-output-record (standard-tree-output-record)
   ((clipping-region :initarg :clipping-region :type region
                     :accessor graphics-state-clip)))
@@ -1787,7 +1671,9 @@ were added."
     ((record clipping-output-record) x y)
   (region-contains-position-p (graphics-state-clip record) x y))
 
+
 ;;; Baseline
+
 (defmethod output-record-baseline ((record output-record))
   "Fall back method"
   (with-bounding-rectangle* (:height height) record
@@ -1807,270 +1693,3 @@ were added."
                            record)
   (call-next-method))
 
-
-;;; 16.3.4. Top-Level Output Records
-
-(defclass standard-sequence-output-history
-    (standard-sequence-output-record stream-output-history-mixin)
-  ())
-
-(defclass standard-tree-output-history
-    (standard-tree-output-record stream-output-history-mixin)
-  ())
-
-;;; 16.4. Output Recording Streams
-(defclass standard-output-recording-stream (output-recording-stream)
-  ((recording-p :initform t :reader stream-recording-p)
-   (drawing-p :initform t :accessor stream-drawing-p)
-   (output-history :initform (make-instance 'standard-tree-output-history)
-                   :initarg :output-record
-                   :reader stream-output-history)
-   (current-output-record :accessor stream-current-output-record)
-   (current-text-output-record :initform nil
-                               :accessor stream-current-text-output-record))
-  (:documentation "This class is mixed into some other stream class to
-add output recording facilities. It is not instantiable."))
-
-(defmethod initialize-instance :after
-    ((stream standard-output-recording-stream) &rest args)
-  (declare (ignore args))
-  (let ((history (stream-output-history stream)))
-    (setf (slot-value history 'stream) stream
-          (slot-value stream 'output-history) history
-          (stream-current-output-record stream) history)))
-
-;;; 16.4.1 The Output Recording Stream Protocol
-(defmethod (setf stream-recording-p)
-    (recording-p (stream standard-output-recording-stream))
-  (let ((old-val (slot-value stream 'recording-p)))
-    (unless (eq old-val recording-p)
-      (setf (slot-value stream 'recording-p) recording-p)
-      (stream-close-text-output-record stream))
-    recording-p))
-
-(defmethod stream-add-output-record
-    ((stream standard-output-recording-stream) record)
-  (add-output-record record (stream-current-output-record stream)))
-
-(defmethod stream-replay ((stream standard-output-recording-stream)
-                          &optional (region (sheet-visible-region stream)))
-  (replay (stream-output-history stream) stream region))
-
-(defun output-record-ancestor-p (ancestor child)
-  (loop for record = child then parent
-     for parent = (output-record-parent record)
-     when (eq parent nil) do (return nil)
-     when (eq parent ancestor) do (return t)))
-
-(defmethod erase-output-record (record (stream standard-output-recording-stream)
-                                &optional (errorp t))
-  (with-output-recording-options (stream :record nil)
-    (let ((region (rounded-bounding-rectangle record))
-          (parent (output-record-parent record)))
-      (cond
-        ((output-record-ancestor-p (stream-output-history stream) record)
-         (delete-output-record record parent))
-        (errorp
-         (error "~S is not contained in ~S." record stream)))
-      (with-bounding-rectangle* (x1 y1 x2 y2) region
-        (draw-rectangle* stream x1 y1 x2 y2 :ink +background-ink+)
-        (stream-replay stream region)))))
-
-;;; 16.4.3. Text Output Recording
-(defmethod stream-text-output-record
-    ((stream standard-output-recording-stream) text-style)
-  (declare (ignore text-style))
-  (or (stream-current-text-output-record stream)
-      (multiple-value-bind (cx cy) (stream-cursor-position stream)
-        (setf (stream-current-text-output-record stream)
-              (make-instance 'standard-text-displayed-output-record
-                             :x-position cx :y-position cy :stream stream)))))
-
-(defmethod stream-close-text-output-record ((stream standard-output-recording-stream))
-  (when-let ((record (stream-current-text-output-record stream)))
-    (setf (stream-current-text-output-record stream) nil)
-    #|record stream-current-cursor-position to (end-x record) - already done|#
-    (stream-add-output-record stream record)
-    ;; STREAM-WRITE-OUTPUT on recorded stream inhibits eager drawing to collect
-    ;; whole output record in order to align line's baseline between strings of
-    ;; different height. See \"15.3 The Text Cursor\". -- jd 2019-01-07
-    (when (stream-drawing-p stream)
-      (with-output-recording-options (stream :record nil)
-        (with-identity-transformation (stream)
-          (replay-output-record record stream))))))
-
-(defmethod stream-add-character-output ((stream standard-output-recording-stream)
-                                        character text-style width height baseline)
-  (add-character-output-to-text-record (stream-text-output-record stream text-style)
-                                       character text-style width height baseline))
-
-(defmethod stream-add-string-output ((stream standard-output-recording-stream)
-                                     string start end text-style
-                                     width height baseline)
-  (add-string-output-to-text-record (stream-text-output-record stream text-style)
-                                    string start end text-style
-                                    width height baseline))
-
-(defun stream-add-record-output (stream record width height base-x base-y)
-  (add-object-to-text-record (stream-text-output-record stream nil)
-                             record width height base-x base-y))
-
-;;; Text output catching methods
-(defmethod stream-write-output
-    ((stream standard-output-recording-stream) (line string) &key (start 0) end)
-  (unless (stream-recording-p stream)
-    (return-from stream-write-output
-      (when (stream-drawing-p stream)
-        (call-next-method))))
-  (let* ((medium (sheet-medium stream))
-         (text-style (medium-text-style medium))
-         (height (text-style-height text-style medium))
-         (base-y (text-style-baseline text-style stream)))
-    (let ((width (stream-string-width stream line :text-style text-style
-                                                  :start start :end end)))
-      (stream-add-string-output stream line start end text-style
-                                width height base-y))))
-
-(defmethod stream-write-output
-    ((stream standard-output-recording-stream) (line character) &rest args)
-  (declare (ignore args))
-  (unless (stream-recording-p stream)
-    (return-from stream-write-output
-      (when (stream-drawing-p stream)
-        (call-next-method))))
-  (let* ((medium (sheet-medium stream))
-         (text-style (medium-text-style medium))
-         (height (text-style-height text-style medium))
-         (base-y (text-style-baseline text-style stream)))
-    (let ((width (stream-character-width stream line :text-style text-style)))
-      (stream-add-character-output stream line text-style width height base-y))))
-
-(defmethod stream-write-output
-    ((stream standard-output-recording-stream) (object bounding-rectangle) &rest args)
-  (declare (ignore args))
-  (unless (stream-recording-p stream)
-    (return-from stream-write-output
-      (when (stream-drawing-p stream)
-        (call-next-method))))
-  (multiple-value-bind (ws hs after below) (text-metrics stream object)
-    (stream-add-record-output stream object ws hs (- ws after) (- hs below))))
-
-(defmethod stream-finish-output :after ((stream standard-output-recording-stream))
-  (stream-close-text-output-record stream))
-
-(defmethod stream-force-output :after ((stream standard-output-recording-stream))
-  (stream-close-text-output-record stream))
-
-(defmethod stream-terpri :after ((stream standard-output-recording-stream))
-  (stream-close-text-output-record stream))
-
-(defmethod* (setf stream-cursor-position) :after (x y (stream standard-output-recording-stream))
-  (declare (ignore x y))
-  (stream-close-text-output-record stream))
-
-;;; 16.4.4. Output Recording Utilities
-
-(defmethod invoke-with-output-recording-options
-  ((stream output-recording-stream) continuation record draw)
-  "Calls CONTINUATION on STREAM enabling or disabling recording and drawing
-according to the flags RECORD and DRAW."
-  (letf (((stream-recording-p stream) record)
-         ((stream-drawing-p stream) draw))
-    (funcall continuation stream)))
-
-(defmethod invoke-with-new-output-record
-    ((stream output-recording-stream) continuation record-type
-     &rest initargs &key parent)
-  (with-keywords-removed (initargs (:parent))
-    (stream-close-text-output-record stream)
-    (let ((new-record (apply #'make-instance record-type initargs)))
-      (letf (((stream-current-output-record stream) new-record))
-        ;; Should we switch on recording? -- APD
-        (funcall continuation stream new-record)
-        (stream-close-text-output-record stream))
-      (if parent
-          (add-output-record new-record parent)
-          (stream-add-output-record stream new-record))
-      new-record)))
-
-(defmethod invoke-with-output-to-output-record
-    ((stream output-recording-stream) continuation record-type
-     &rest initargs)
-  (with-pristine-viewport (stream)
-    (with-cursor-off ((stream-text-cursor stream))
-      (let ((new-record (apply #'make-instance record-type initargs)))
-        (with-output-recording-options (stream :record t :draw nil)
-          (letf (((stream-current-text-output-record stream) nil)
-                 ((stream-current-output-record stream) new-record))
-            (funcall continuation stream new-record)
-            (stream-close-text-output-record stream)))
-        new-record))))
-
-(defmethod invoke-with-output-to-pixmap ((sheet output-recording-stream) cont &key width height)
-  (unless (and width height)
-    ;; What to do when only width or height are given?  And what's the meaning
-    ;; of medium-var? -- rudi 2005-09-05
-    ;;
-    ;; We default WIDTH or HEIGHT to provided values. The output is clipped to a
-    ;; rectactangle [0 0 (or width max-x) (height max-y)]. We record the output
-    ;; only to learn about dimensions - it is not replayed because the medium
-    ;; can't be expected to work with this protocol. To produce the output we
-    ;; invoke the continuation again. -- jd 2022-03-16
-    (if (output-recording-stream-p sheet)
-        (with-bounding-rectangle* (:x2 max-x :y2 max-y)
-            (invoke-with-output-to-output-record sheet
-                                                 (lambda (sheet record)
-                                                   (declare (ignore record))
-                                                   (funcall cont sheet))
-                                                 'standard-sequence-output-record)
-          (setf width (or width max-x)
-                height (or height max-y)))
-        (error "WITH-OUTPUT-TO-PIXMAP: please provide :WIDTH and :HEIGHT.")))
-  (let* ((port (port sheet))
-         (pixmap (allocate-pixmap sheet width height))
-         (pixmap-medium (make-medium port sheet))
-         (drawing-plane (make-rectangle* 0 0 width height)))
-    (degraft-medium pixmap-medium port sheet)
-    (letf (((medium-drawable pixmap-medium) pixmap)
-           ((medium-clipping-region pixmap-medium) drawing-plane))
-      (medium-clear-area pixmap-medium 0 0 width height)
-      (funcall cont pixmap-medium)
-      pixmap)))
-
-(defmethod invoke-with-clipping-region
-    ((sheet output-recording-stream) continuation region)
-  (declare (ignore continuation))
-  (if (stream-recording-p sheet)
-      (with-sheet-medium (medium sheet)
-        (let* ((tr (medium-transformation medium))
-               (clip (transform-region tr region)))
-          (with-new-output-record (sheet 'clipping-output-record record
-                                         :clipping-region clip)
-            (call-next-method)
-            (setf (rectangle-edges* record)
-                  (bounding-rectangle*
-                   (region-intersection (sheet-region sheet) clip))))))
-      (call-next-method)))
-
-
-;;; Additional methods
-(defmethod handle-repaint :around ((stream output-recording-stream) region)
-  (declare (ignore region))
-  (with-output-recording-options (stream :record nil)
-    (call-next-method)))
-
-;;; FIXME: Change things so the rectangle below is only drawn in response
-;;;        to explicit repaint requests from the user, not exposes from X.
-;;; FIXME: Use DRAW-DESIGN*, that is fix DRAW-DESIGN*.
-(defmethod handle-repaint ((stream output-recording-stream) region)
-  (unless (region-equal region +nowhere+) ; ignore repaint requests for +nowhere+
-    (let ((region (if (region-equal region +everywhere+)
-                      ;; fallback to the sheet's region for +everwhere+.
-                      (sheet-region stream)
-                      (bounding-rectangle region))))
-      (stream-replay stream region))))
-
-(defmethod scroll-extent :around ((stream output-recording-stream) x y)
-  (declare (ignore x y))
-  (when (stream-drawing-p stream)
-    (call-next-method)))
