@@ -52,7 +52,7 @@
 
 (defmethod initialize-instance :after ((obj standard-rectangle)
                                        &key (x1 0.0d0) (y1 0.0d0)
-                                         (x2 0.0d0) (y2 0.0d0))
+                                            (x2 0.0d0) (y2 0.0d0))
   (let ((coords (slot-value obj 'coordinates)))
     (declare (type standard-rectangle-coordinate-vector coords))
     (setf (aref coords 0) x1)

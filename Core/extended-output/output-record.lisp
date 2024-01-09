@@ -27,7 +27,7 @@
 ;;; TODO records:
 ;;;
 ;;; - Redo (setf output-record-position); extent recomputation for output
-;;; - records.
+;;;   records.
 ;;;
 ;;; - :{X,Y}-OFFSET.
 ;;;
@@ -46,8 +46,6 @@
 ;;; - Rounding of coordinates.
 ;;; 
 ;;; - BASELINE should be defined in terms of OUTPUT-RECORD-ORIGIN.
-;;; 
-;;; - Implement MAKE-DESIGN-FROM-OUTPUT-RECORD.
 
 (in-package #:clim-internals)
 
@@ -148,16 +146,6 @@ the associated sheet can be determined."
      (output-history-stream record))
     (basic-output-record
      (find-output-record-sheet (output-record-parent record)))))
-
-;;; This function could be implemented by using the RASTER backend to produce an
-;;; RGBA image. Alternatively we may implement a "special" design class, that is
-;;; specialze DRAW-DESIGN function to the record class. Note that drawn design
-;;; must adhere to the current medium transformation. -- jd 2024-01-08
-
-(defmethod make-design-from-output-record (record)
-  ;; FIXME
-  (declare (ignore record))
-  (error "Not implemented."))
 
 
 ;;; 16.2 Output Records: BASIC-OUTPUT-RECORD
@@ -263,6 +251,15 @@ the associated sheet can be determined."
 
 (defmethod clear-output-record ((record basic-output-record))
   (error "Cannot clear ~S." record))
+
+;;; Design sub-protocol (is this all?)
+
+(defmethod make-design-from-output-record ((self basic-output-record))
+  self)
+
+(defmethod draw-design (medium (self basic-output-record) &rest drawing-options)
+  (with-medium-options (medium drawing-options)
+    (replay-output-record self medium)))
 
 
 ;;; 16.2 Output Records: COMPOUND-OUTPUT-RECORD

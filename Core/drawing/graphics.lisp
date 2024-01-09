@@ -356,6 +356,9 @@
                options))))
 
 ;;;
+(defmethod draw-design (medium (design transformed-design) &rest args)
+  (with-drawing-options (medium :transformation (transformed-design-transformation design))
+    (apply #'draw-design medium (transformed-design-design design) args)))
 
 (defmethod draw-design (medium (pattern pattern)
                         &key clipping-region transformation &allow-other-keys)
