@@ -88,9 +88,7 @@
                  (:file "table-formatting" :depends-on ("utilities" "protocol" "record-stream"))
                  (:module "incremental-redisplay"
                   :serial t
-                  :components ((:file "cache")
-                               (:file "updating-stream")
-                               (:file "updating-record")
+                  :components ((:file "updating-record")
                                (:file "redisplay")
                                (:file "propagate")))))
    (:module "extended-input"

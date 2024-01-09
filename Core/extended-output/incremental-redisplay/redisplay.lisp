@@ -9,8 +9,8 @@
 ;;;
 ;;; ---------------------------------------------------------------------------
 ;;;
-;;; This file contains the implementation of the redisplay including
-;;; computation of the difference set and the macro UPDATING-OUTPUT.
+;;; This file contains the implementation of the redisplay including computation
+;;; of the difference set and the macro UPDATING-OUTPUT.
 ;;;
 (in-package #:clim-internals)
 
@@ -440,3 +440,53 @@ in an equalp hash table")
           (when (stream-redisplaying-p stream)
             (propagate-to-updating-output
              parent record :move (make-bounding-rectangle x1 y1 x2 y2))))))))
+
+;;; INCREMENTAL-REDISPLAY takes as input the difference set computed by
+;;; COMPUTE-DIFFERENCE-SET and updates the screen. The 5 kinds of updates are
+;;; not very well defined in the spec. I understand their semantics thus:
+;;;
+;;; ERASES, MOVES, and DRAWS refer to records that don't overlap *with other
+;;; records that survive in the current rendering*. In other words, they don't
+;;; overlap with records that were not considered by COMPUTE-DIFFRENCE-SET,
+;;; either because they are children of a clean updating output node or they
+;;; are in another part of the output history that is not being redisplayed.
+;;;
+;;; Another way to think about erases, moves and draws is in terms of a
+;;; possible implementation:
+;;;
+;;; - ERASES regions would be erased
+;;; - MOVES regions would be blitted
+;;; - DRAWS records would be replayed
+;;;
+;;; Records in ERASE-OVERLAPPING and MOVE-OVERLAPPING might overlap with any
+;;; other record. They need to be implemented by erasing their region on the
+;;; screen and then replaying the output history for that region. Thus, any
+;;; ordering issues implied by overlapping records is handled correctly. Note
+;;; that DRAWS records may be drawn without concern for the history because
+;;; they additive. -- jd 2021-12-01
+(defmethod incremental-redisplay ((stream updating-output-stream-mixin) position
+                                  erases moves draws erase-overlapping move-overlapping)
+  (declare (ignore position))
+  (flet ((clear-bbox (bbox)
+           (with-bounding-rectangle* (x1 y1 x2 y2) bbox
+             (medium-clear-area stream x1 y1 x2 y2))))
+    (with-output-recording-options (stream :record nil :draw t)
+      (loop for (record bbox) in erases
+            do (note-output-record-lost-sheet record stream)
+               (clear-bbox bbox))
+      (loop for (record old-bbox) in moves
+            do (clear-bbox old-bbox)
+               (replay-output-record record stream))
+      (loop for (record bbox) in draws
+            do (note-output-record-got-sheet record stream)
+               (replay-output-record record stream bbox))
+      (when (or erase-overlapping move-overlapping)
+        (let ((history (stream-output-history stream))
+              (regions +nowhere+))
+          (loop for (record bbox) in erase-overlapping
+                do (note-output-record-lost-sheet record stream)
+                   (setf regions (region-union regions bbox)))
+          (loop for (nil bbox) in move-overlapping
+                do (setf regions (region-union regions bbox)))
+          (map-over-region-set-regions #'clear-bbox regions)
+          (replay history stream regions))))))
