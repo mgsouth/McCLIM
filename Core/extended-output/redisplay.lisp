@@ -420,7 +420,7 @@ in an equalp hash table")
 
 (defgeneric propagate-to-updating-output
     (record child mode old-bounding-rectangle)
-  (:method ((record updating-output-record-mixin) child mode old-bbox)
+  (:method ((record standard-updating-output-record) child mode old-bbox)
     (declare (ignore child old-bbox))
     (when (and (eq mode :move)
                (eq (output-record-dirty record) :clean))
