@@ -148,6 +148,82 @@ the associated sheet can be determined."
      (find-output-record-sheet (output-record-parent record)))))
 
 
+;;; Text output records and updating output records maintain the cursor start
+;;; and end positions. This is a mixin that implements this. -- jd 2024-01-09
+
+(defclass updating-cursor-mixin ()
+  ((cursor  :initform (make-instance 'standard-text-cursor) :reader start-cursor)
+   (final-x :accessor output-record-end-position-x)
+   (final-y :accessor output-record-end-position-y)))
+
+(macrolet ((def-accessor (name jump)
+             `(progn
+                (defmethod ,name (stream)
+                  (,jump (start-cursor stream)))
+                (defmethod (setf ,name) (val stream)
+                  (setf (,jump (start-cursor stream)) val)))))
+  (def-accessor output-record-start-position-x cursor-position-x)
+  (def-accessor output-record-start-position-y cursor-position-y))
+
+(defmethod output-record-start-cursor-position ((record updating-cursor-mixin))
+  (cursor-position (start-cursor record)))
+
+(defmethod* (setf output-record-start-cursor-position) (x y (record updating-cursor-mixin))
+  (setf (cursor-position (start-cursor record)) (values x y)))
+
+(defmethod output-record-end-cursor-position ((self updating-cursor-mixin))
+  (values (output-record-end-position-x self)
+          (output-record-end-position-y self)))
+
+(defmethod* (setf output-record-end-cursor-position) (x y (self updating-cursor-mixin))
+  (setf (values (output-record-end-position-x self)
+                (output-record-end-position-y self))
+        (values x y)))
+
+(defun increment-output-record-cursor-position (self dx dy)
+  (incf (output-record-start-position-x self) dx)
+  (incf (output-record-start-position-y self) dy)
+  (incf (output-record-end-position-x self) dx)
+  (incf (output-record-end-position-y self) dy))
+
+;;; FIXME integrate this function and sort out cursor position, origin and
+;;; baseline dichotomies. -- jd 2024-01-09
+(defun move-output-record (self dx dy)
+  ;(assert (not (output-record-fixed-position record)))
+  (multiple-value-bind (x y) (output-record-position self)
+    (setf (output-record-position self)
+          (values (+ x dx) (+ y dy))))
+  (increment-output-record-cursor-position self dx dy))
+
+(defmethod* (setf output-record-position) :before (nx ny (self updating-cursor-mixin))
+  (multiple-value-bind (ox oy) (output-record-position self)
+    (increment-output-record-cursor-position self (- nx ox) (- ny oy))))
+
+(defmacro tracking-cursor ((stream record) &body body)
+  `(progn
+     (update-cursor (start-cursor ,record) (stream-text-cursor ,stream))
+     (multiple-value-prog1 (progn ,@body)
+       (setf (output-record-end-cursor-position ,record)
+             (cursor-position (stream-text-cursor ,stream))))))
+
+;;; XXX Add to values we test, obviously.
+;;;
+;;; Well, maybe not.  The goal is to support output records that have moved
+;;; but that are otherwise clean. I.e., some previous part of the output has
+;;; changed (lines added or deleted, for example). If the stream cursor
+;;; position is different, I'm not sure now that the code for the updating
+;;; output record needs to be rerun; I think we could use only the difference
+;;; in cursor position to move the record. Any other graphics state change --
+;;; like a different foreground color -- should probably be handled by the
+;;; programmer forcing all new output.
+
+(defun state-matches-stream-p (record stream)
+  (or (output-record-fixed-position record)
+      ;; Note: We don't match the y coordinate.
+      (= (cursor-position (start-cursor record))
+         (cursor-position (stream-text-cursor stream)))))
+
+
 ;;; 16.2 Output Records: BASIC-OUTPUT-RECORD
 
 (defclass basic-output-record (standard-bounding-rectangle output-record)
@@ -1497,113 +1573,97 @@ were added."
   (string= (slot-value record 'string)
            (slot-value record2 'string)))
 
-(defclass standard-text-displayed-output-record
-    (text-displayed-output-record standard-displayed-output-record)
+(defclass standard-text-displayed-output-record (updating-cursor-mixin
+                                                 text-displayed-output-record
+                                                 standard-displayed-output-record)
   (;; Stream is used to query record dimensions and drawing options.
    (stream :initarg :stream)
    ;; All objects making the output record.
-   (objects :initform nil)
-   ;; The text line dimensions.
-   (width :initform 0)
-   (height :initform 0)
-   (base-x :initform 0)
-   (base-y :initform 0)))
+   (objects :initform nil)))
 
 (defmethod initialize-instance :after
-    ((obj standard-text-displayed-output-record) &key stream)
-  (setf (slot-value obj 'height)
-        (text-style-height (stream-text-style stream) stream)))
+    ((self standard-text-displayed-output-record) &key stream)
+  (update-cursor (start-cursor self) (stream-text-cursor stream))
+  (setf (output-record-end-cursor-position self)
+        (stream-cursor-position stream)))
 
 ;;; Forget match-output-records-1 for standard-text-displayed-output-record; it
 ;;; doesn't make much sense because these records have state that is not
 ;;; initialized via initargs.
 
-(defmethod output-record-equal and
-    ((record1 standard-text-displayed-output-record)
-     (record2 standard-text-displayed-output-record))
-  (with-slots (x y objects) record2
-    (and (coordinate= (slot-value record1 'x) x)
-         (coordinate= (slot-value record1 'y) y)
-         (eql (slot-value record1 'objects) objects))))
+(defmethod output-record-equal and ((r1 standard-text-displayed-output-record)
+                                    (r2 standard-text-displayed-output-record))
+  (and (equals (start-cursor r1) (start-cursor r2))
+       (eql (slot-value r1 'objects) (slot-value r2 'objects))))
 
 (defmethod print-object ((self standard-text-displayed-output-record) stream)
   (print-unreadable-object (self stream :type t :identity t)
-    (with-slots (x y objects) self
-      (format stream "[~D ~D] (~D objects)" x y (length objects)))))
+    (multiple-value-bind (x y) (cursor-position (start-cursor self))
+      (format stream "[~D ~D] (~D objects)" x y (slot-value self 'objects)))))
 
 ;;; Before implementing a dynamic reflow we must implement the repaint
 ;;; queue. Otherwise we'll get nasty race conditions. -- jd 2023-12-29
-(defmethod replay-output-record ((record standard-text-displayed-output-record)
+(defmethod replay-output-record ((self standard-text-displayed-output-record)
                                  stream
                                  &optional region (x-offset 0) (y-offset 0))
   (declare (ignore region x-offset y-offset))
-  (with-slots (objects base-x base-y x y) record
-    (reset-stream-cursor stream (stream-text-cursor stream))
-    (setf (stream-cursor-position stream) (values x y))
-    (setf (stream-baseline stream) (values base-y base-x))
-    ;; FIXME: a bit of an abstraction inversion.  Should the styled strings here
-    ;; not simply be output records?  Then we could just replay them and all
-    ;; would be well.  -- CSR, 20060528.
-    ;;
-    ;; But then we'd have to implement the output record protocols for them. Are
-    ;; we allowed no internal structure of our own? -- Hefner, 20080118
-    (nest
-     (with-end-of-line-action (stream :allow))
-     (with-end-of-page-action (stream :allow))
-     (dolist (object objects)
-       (if (typep object 'styled-string)
-           (let ((ink (graphics-state-ink object))
-                 (text-style (graphics-state-text-style object))
-                 (text (styled-string-string object)))
-             (with-drawing-options (stream :ink ink :text-style text-style)
-               (seos-write-vector stream text 0 (length text))))
-           (seos-write-object stream object))))))
+  (update-cursor (stream-text-cursor stream) (start-cursor self))
+  (nest
+   (tracking-cursor (stream self))
+   (with-end-of-line-action (stream :allow))
+   (with-end-of-page-action (stream :allow))
+   ;; FIXME: a bit of an abstraction inversion.  Should the styled strings here
+   ;; not simply be output records?  Then we could just replay them and all
+   ;; would be well.  -- CSR, 20060528.
+   ;;
+   ;; But then we'd have to implement the output record protocols for them. Are
+   ;; we allowed no internal structure of our own? -- Hefner, 20080118
+   (dolist (object (slot-value self 'objects))
+     (if (typep object 'styled-string)
+         (let ((ink (graphics-state-ink object))
+               (text-style (graphics-state-text-style object))
+               (text (styled-string-string object)))
+           (with-drawing-options (stream :ink ink :text-style text-style)
+             (seos-write-vector stream text 0 (length text))))
+         (seos-write-object stream object)))))
 
-(defmethod output-record-start-cursor-position
-    ((record standard-text-displayed-output-record))
-  (with-slots (x y) record
-    (values x y)))
-
-(defmethod output-record-end-cursor-position
-    ((record standard-text-displayed-output-record))
-  (with-slots (x y width height stream) record
-    (ecase (stream-line-direction stream)
-      (:left-to-right (values (+ x width) y))
-      (:right-to-left (values (- x width) y))
-      (:top-to-bottom (values x (+ y height)))
-      (:bottom-to-top (values x (- y height))))))
-
-(defmethod tree-recompute-extent
-    ((text-record standard-text-displayed-output-record))
-  (with-slots (x y width height stream) text-record
-    (let ((x1 x) (y1 y) (x2 x) (y2 y))
-      (ecase (stream-line-direction stream)
-        (:left-to-right (setf x2 (+ x width)))
-        (:right-to-left (setf x1 (- x width)))
-        (:top-to-bottom (setf y2 (+ y height)))
-        (:bottom-to-top (setf y1 (- y height))))
-      (ecase (stream-page-direction stream)
-        (:top-to-bottom (setf y2 (+ y height)))
-        (:bottom-to-top (setf y1 (- y height)))
-        (:left-to-right (setf x2 (+ x width)))
-        (:right-to-left (setf x1 (- x width))))
-      (setf (rectangle-edges* text-record)
-            (values (coordinate x1) (coordinate y1)
-                    (coordinate x2) (coordinate y2)))))
-  text-record)
+(defmethod tree-recompute-extent ((self standard-text-displayed-output-record))
+  (nest
+   (let ((start-cursor (start-cursor self))
+         (fx (output-record-end-position-x self))
+         (fy (output-record-end-position-y self))
+         (stream (slot-value self 'stream))))
+   (multiple-value-bind (cx cy) (cursor-position start-cursor))
+   (multiple-value-bind (sw sh) (cursor-size start-cursor))
+   (let (x1 y1 x2 y2)
+     (ecase (stream-line-direction stream)
+       (:left-to-right (setf x1 cx x2 fx))
+       (:right-to-left (setf x2 cx x1 fx))
+       (:top-to-bottom (setf y1 cy y2 fy))
+       (:bottom-to-top (setf y2 cy y1 fy)))
+     (ecase (stream-page-direction stream)
+       (:top-to-bottom (setf y1 cy y2 (+ fy sh)))
+       (:bottom-to-top (setf y2 cy y1 (- fy sh)))
+       (:left-to-right (setf x1 cx x2 (+ fx sw)))
+       (:right-to-left (setf x2 cx x1 (- fx sw))))
+     (setf (rectangle-edges* self)
+           (values (coordinate x1) (coordinate y1)
+                   (coordinate x2) (coordinate y2)))))
+  self)
 
 (defun add-object-to-text-record (self object ws hs bx by)
   (with-slots (objects cursor width height base-x base-y stream) self
     (nconcf objects (list object))
-    (ecase (stream-line-direction stream)
-      ((:left-to-right :right-to-left)
-       (maxf base-y by)
-       (incf width ws)
-       (maxf height hs))
-      ((:top-to-bottom :bottom-to-top)
-       (maxf base-x bx)
-       (maxf width ws)
-       (incf height hs)))
+    (let ((scursor (start-cursor self)))
+      (maxf (cursor-width  scursor) ws)
+      (maxf (cursor-height scursor) hs)
+      (ecase (stream-line-direction stream)
+        ((:left-to-right :right-to-left)
+         (maxf (cursor-offset-y scursor) by)
+         (incf (output-record-end-position-x self) ws))
+        ((:top-to-bottom :bottom-to-top)
+         (maxf (cursor-offset-x scursor) bx)
+         (incf (output-record-end-position-y self) hs))))
     (tree-recompute-extent self)))
 
 (defmethod add-character-output-to-text-record
@@ -1617,7 +1677,7 @@ were added."
     ((self standard-text-displayed-output-record)
      string start end text-style width height baseline)
   (orf end (length string))
-  (with-slots (objects base-y stream) self
+  (with-slots (objects stream) self
     (multiple-value-bind (sstring appendp)
         (ensure-styled-string stream (car (last objects))
                               string text-style start end)
@@ -1676,8 +1736,8 @@ were added."
   (with-bounding-rectangle* (:height height) record
     (values height 0 nil)))
 
-(defmethod output-record-baseline ((record standard-text-displayed-output-record))
-  (with-slots (base-y base-x) record
+(defmethod output-record-baseline ((self standard-text-displayed-output-record))
+  (multiple-value-bind (base-y base-x) (cursor-baseline (start-cursor self))
     (values base-y base-x t)))
 
 (defmethod output-record-baseline ((record compound-output-record))
@@ -1689,68 +1749,6 @@ were added."
                                    (values base-y base-x t)))))
                            record)
   (call-next-method))
-
-
-;;; FIXME: although this inherits from COMPLETE-MEDIUM-STATE, in fact it
-;;; needn't, as we only ever call SET-MEDIUM-CURSOR-POSITION on it.  Until
-;;; 2006-05-28, we did also use the various medium attributes, but with the
-;;; reworking of REPLAY-OUTPUT-RECORD (STANDARD-DISPLAYED-OUTPUT-RECORD) to
-;;; use around methods and WITH-DRAWING-OPTIONS, they are no longer necessary.
-;;;
-;;; FIXME shouldn't we maintain a complete-cursor-state here? The cursor has
-;;; width, height, appearance and position. -- jd 2021-11-15
-(defclass updating-stream-state (complete-medium-state)
-  ((cursor-x :accessor cursor-x :initarg :cursor-x :initform 0)
-   (cursor-y :accessor cursor-y :initarg :cursor-y :initform 0)
-   (cursor-height :accessor cursor-height :initarg :cursor-height :initform 0)))
-
-(defmethod initialize-instance :after ((obj updating-stream-state)
-                                       &key (stream nil))
-  (when stream
-    (setf (values (slot-value obj 'cursor-x) (slot-value obj 'cursor-y))
-          (stream-cursor-position stream))
-    (setf (slot-value obj 'cursor-height)
-          (stream-cursor-height stream))))
-
-(defmethod match-output-records-1 and ((state updating-stream-state)
-                                       &key (cursor-x 0 x-supplied-p)
-                                         (cursor-y 0 y-supplied-p)
-                                         (cursor-height 0 h-supplied-p))
-  (and (or (not x-supplied-p)
-           (coordinate= (slot-value state 'cursor-x) cursor-x))
-       (or (not y-supplied-p)
-           (coordinate= (slot-value state 'cursor-y) cursor-y))
-       (or (not h-supplied-p)
-           (coordinate= (slot-value state 'cursor-height) cursor-height))))
-
-(defun set-medium-cursor-position (state stream)
-  (setf (stream-cursor-position stream)
-        (values (cursor-x state) (cursor-y state)))
-  (setf (stream-cursor-height stream)
-        (cursor-height state)))
-
-(defun medium-graphics-state (stream &optional state)
-  (if (and state (subtypep state 'updating-stream-state))
-      (reinitialize-instance state :stream stream)
-      (make-instance 'updating-stream-state :stream stream)))
-
-;;; XXX Add to values we test, obviously.
-;;;
-;;; Well, maybe not.  The goal is to support output records that have moved
-;;; but that are otherwise clean. I.e., some previous part of the output has
-;;; changed (lines added or deleted, for example). If the stream cursor
-;;; position is different, I'm not sure now that the code for the updating
-;;; output record needs to be rerun; I think we could use only the difference
-;;; in cursor position to move the record. Any other graphics state change --
-;;; like a different foreground color -- should probably be handled by the
-;;; programmer forcing all new output.
-
-(defun state-matches-stream-p (record stream)
-  (or (output-record-fixed-position record)
-      (let ((state (start-graphics-state record))
-            (cx (stream-cursor-position stream)))
-        ;; Note: We don't match the y coordinate.
-        (match-output-records state :cursor-x cx))))
 
 
 ;;; The underlying mechanism for caching output records based on their
@@ -1883,7 +1881,8 @@ were added."
 
 
 ;;; Updating output record.
-(defclass standard-updating-output-record (updating-output-map-mixin
+(defclass standard-updating-output-record (updating-cursor-mixin
+                                           updating-output-map-mixin
                                            standard-sequence-output-record
                                            updating-output-record)
   ((unique-id
@@ -1906,17 +1905,6 @@ were added."
    (displayer
     :accessor output-record-displayer
     :initarg :displayer)
-   ;; Start and end cursor
-   (start-graphics-state
-    :accessor start-graphics-state
-    :initarg :start-graphics-state
-    :documentation "Graphics state needed to
-   render record")
-   (end-graphics-state
-    :accessor end-graphics-state
-    :initarg :end-graphics-state
-    :documentation "Graphics state after rendering record; used to render non
-                    updating-output-records that follow")
    (old-children
     :accessor old-children
     :documentation "Contains the output record tree for the current display.")
@@ -1960,26 +1948,6 @@ were added."
       (if (zerop (length children))
           nil
           (aref children 0)))))
-
-(defmethod output-record-start-cursor-position
-    ((record standard-updating-output-record))
-  (let ((state (start-graphics-state record)))
-    (values (cursor-x state) (cursor-y state))))
-
-(defmethod* (setf output-record-start-cursor-position)
-    (x y (record standard-updating-output-record))
-  (let ((state (start-graphics-state record)))
-    (setf (values (cursor-x state) (cursor-y state)) (values x y))))
-
-(defmethod output-record-end-cursor-position
-    ((record standard-updating-output-record))
-  (let ((state (end-graphics-state record)))
-    (values (cursor-x state) (cursor-y state))))
-
-(defmethod* (setf output-record-end-cursor-position)
-    (x y (record standard-updating-output-record))
-  (let ((state (end-graphics-state record)))
-    (setf (values (cursor-x state) (cursor-y state)) (values x y))))
 
 ;;; Prevent deleted output records from coming back from the dead.
 (defmethod delete-output-record :after

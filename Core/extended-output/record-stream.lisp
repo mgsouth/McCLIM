@@ -132,7 +132,7 @@ recording stream. If it is T, *STANDARD-OUTPUT* is used.")
        ;; We can't "just" draw-rectangle :filled nil because the path lines
        ;; rounding may get outside the bounding rectangle. -- jd 2019-02-01
        (multiple-value-bind (x1 y1 x2 y2) (bounding-rectangle* record)
-         (draw-design (sheet-medium stream)
+         (draw-design stream
                       (if (or (> (1+ x1) (1- x2))
                               (> (1+ y1) (1- y2)))
                           (bounding-rectangle record)

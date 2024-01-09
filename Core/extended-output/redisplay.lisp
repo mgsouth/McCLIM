@@ -226,22 +226,6 @@ in an equalp hash table")
 
 (defvar *no-unique-id* (cons nil nil))
 
-(defun move-output-record (record dx dy)
-  (assert (not (output-record-fixed-position record)))
-  (multiple-value-bind (x y) (output-record-position record)
-    (setf (output-record-position record)
-          (values (+ x dx) (+ y dy))))
-  ;; Cursor positions are only guaranteed to be non-nil for text
-  ;; output records (16.2.1 The Basic Output Record Protocol)
-  (multiple-value-bind (x y) (output-record-start-cursor-position record)
-    (when (and x y)
-      (setf (output-record-start-cursor-position record)
-            (values (+ x dx) (+ y dy)))))
-  (multiple-value-bind (x y) (output-record-end-cursor-position record)
-    (when (and x y)
-      (setf (output-record-end-cursor-position record)
-            (values (+ x dx) (+ y dy))))))
-
 (defmethod invoke-updating-output ((stream updating-output-stream-mixin)
                                    continuation
                                    record-type
@@ -267,17 +251,15 @@ in an equalp hash table")
                        :stream stream
                        :parent-updating-output *current-updating-output*)
              (setq record *current-updating-output*)
-             (setf (start-graphics-state record) (medium-graphics-state stream))
-             (%invoke-updating record stream continuation)
-             (setf (end-graphics-state record) (medium-graphics-state stream))
+             (tracking-cursor (stream record)
+               (%invoke-updating record stream continuation))
              (add-to-map parent-cache record  unique-id id-test all-new)))
           ((or (not (state-matches-stream-p record stream))
                (not (funcall cache-test cache-value (output-record-cache-value record))))
            (let ((*current-updating-output* record))
-             (setf (start-graphics-state record) (medium-graphics-state stream))
-             (compute-new-output-records-1 record stream continuation)
+             (tracking-cursor (stream record)
+               (compute-new-output-records-1 record stream continuation))
              (setf (slot-value record 'cache-value) cache-value)
-             (setf (end-graphics-state record) (medium-graphics-state stream))
              (setf (parent-cache record) parent-cache)
              (setf (output-record-displayer record) continuation)))
           ;; It doesn't need to be updated, but it does go into the parent's
@@ -306,16 +288,17 @@ in an equalp hash table")
                    (map-over-updating-output
                     (lambda (r)
                       (unless (eq r record)
-                        (incf (slot-value (start-graphics-state r) 'cursor-x) dx)
-                        (incf (slot-value (start-graphics-state r) 'cursor-y) dy)
-                        (incf (slot-value (end-graphics-state r) 'cursor-x) dx)
-                        (incf (slot-value (end-graphics-state r) 'cursor-y) dy))
+                        (incf (output-record-start-position-x r) dx)
+                        (incf (output-record-start-position-x r) dy)
+                        (incf (output-record-end-position-x r) dx)
+                        (incf (output-record-end-position-x r) dy))
                       (setf (output-record-dirty r) tag))
                     record
                     nil)
                    (setf (output-record-parent record) nil)
                    (add-output-record record (stream-current-output-record stream))
-                   (set-medium-cursor-position (end-graphics-state record) stream)
+                   (setf (stream-cursor-position stream)
+                         (output-record-end-cursor-position record))
                    (setf (parent-cache record) parent-cache)
                    (setf (output-record-displayer record) continuation)))))))
     record))
@@ -328,15 +311,14 @@ in an equalp hash table")
   nil)
 
 (defmacro updating-output
-    ((stream
-      &key (unique-id '*no-unique-id*) (id-test '#'eql)
-      (cache-value ''no-cache-value cache-value-supplied-p)
-      (cache-test '#'eql)
-      (fixed-position nil fixed-position-p)
-      (all-new nil all-new-p)
-      (parent-cache nil parent-cache-p)
-      (record-type ''standard-updating-output-record)
-      &allow-other-keys)
+    ((stream &key (unique-id '*no-unique-id*) (id-test '#'eql)
+                  (cache-value ''no-cache-value cache-value-supplied-p)
+                  (cache-test '#'eql)
+                  (fixed-position nil fixed-position-p)
+                  (all-new nil all-new-p)
+                  (parent-cache nil parent-cache-p)
+                  (record-type ''standard-updating-output-record)
+             &allow-other-keys)
      &body body)
   (when (eq stream t)
     (setq stream '*standard-output*))
@@ -361,20 +343,22 @@ in an equalp hash table")
                                     (stream updating-output-stream-mixin)
                                     &optional (check-overlapping t))
   (let ((*current-updating-output* record)
-        (current-graphics-state (medium-graphics-state stream)))
-    (unwind-protect
-         (progn
-           (set-medium-cursor-position (start-graphics-state record) stream)
-           (with-stream-redisplaying (stream)
-             (compute-new-output-records record stream))
-           (let ((difference-set (compute-difference-set record check-overlapping)))
-             (note-output-record-child-changed
-              (output-record-parent record) record :change
-              nil (old-bounds record) stream
-              :difference-set difference-set
-              :check-overlapping check-overlapping))
-           (delete-stale-updating-output record))
-      (set-medium-cursor-position current-graphics-state stream))))
+        (cursor (stream-text-cursor stream)))
+    (multiple-value-bind (old-x old-y) (cursor-position cursor)
+      (update-cursor cursor (start-cursor record))
+      (with-stream-redisplaying (stream)
+        (compute-new-output-records record stream))
+      (let ((difference-set (compute-difference-set record check-overlapping)))
+        (note-output-record-child-changed
+         (output-record-parent record) record :change
+         nil (old-bounds record) stream
+         :difference-set difference-set
+         :check-overlapping check-overlapping))
+      (delete-stale-updating-output record)
+      (setf (output-record-end-cursor-position record)
+            (cursor-position cursor))
+      (setf (cursor-position cursor)
+            (values old-x old-y)))))
 
 ;;; Suppress the got-sheet/lost-sheet notices during redisplay.
 

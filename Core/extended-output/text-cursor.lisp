@@ -13,8 +13,8 @@
 ;;; Standard-Text-Cursor class
 (defclass standard-text-cursor (cursor)
   ((sheet :initarg :sheet :reader cursor-sheet)
-   (x :initarg :x-position)
-   (y :initarg :y-position)
+   (x :initarg :x-position :accessor cursor-position-x)
+   (y :initarg :y-position :accessor cursor-position-y)
    (dx :initarg :x-offset :accessor cursor-offset-x)
    (dy :initarg :y-offset :accessor cursor-offset-y)
    (width  :initarg :width  :accessor cursor-width)
@@ -27,6 +27,7 @@
 
 (defmethod equals ((a standard-text-cursor) (b standard-text-cursor))
   (and (coordinate= (slot-value a 'x) (slot-value b 'x))
+       (coordinate= (slot-value a 'y) (slot-value b 'y))
        (coordinate= (cursor-offset-x a) (cursor-offset-x b))
        (coordinate= (cursor-offset-y a) (cursor-offset-y b))
        (coordinate= (cursor-width a) (cursor-width b))
@@ -102,6 +103,12 @@
   (with-slots (width height) cursor
     (setf (values width height)
           (values (or new-w width) (or new-h height)))))
+
+(defun update-cursor (target source)
+  (setf (cursor-position target) (cursor-position source)
+        (cursor-baseline target) (cursor-baseline source)
+        (cursor-size target) (cursor-size source))
+  target)
 
 ;;; This macro is used to ensure that the cursor is restored to its old state
 ;;; after the operation. -- jd 2024-01-05
