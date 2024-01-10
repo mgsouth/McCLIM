@@ -99,7 +99,7 @@
                         target property requestor selection
                         request first-keycode count
                         &allow-other-keys)
-  (declare (ignore first-keycode count))
+  (declare (ignore first-keycode count root-x root-y))
   (when (eql event-key :mapping-notify)
     (xlib:mapping-notify display request 0 0)
     (return-from event-handler (maybe-funcall *wait-function*)))
