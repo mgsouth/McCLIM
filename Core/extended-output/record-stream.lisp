@@ -24,22 +24,6 @@
 ;;; Output recording streams.
 ;;;
 
-;;; TODO streams:
-;;;
-;;; - Scrolling does not work correctly. Region is given in "window"
-;;;   coordinates, without bounding-rectangle-position transformation.
-;;;   (Is it still valid?)
-;;;
-;;; - When DRAWING-P is NIL, should stream cursor move?
-;;;
-;;; - Document carefully the interface of STANDARD-OUTPUT-RECORDING-STREAM.
-;;;
-;;; - Some GFs are defined to have "a default method on CLIM's
-;;;   standard output record class". What does it mean? What is
-;;;   "CLIM's standard output record class"? Is it OUTPUT-RECORD or
-;;;   BASIC-OUTPUT-RECORD?  Now they are defined on OUTPUT-RECORD.
-;;;
-
 (in-package #:clim-internals)
 
 ;;; Macro masturbation...
@@ -389,12 +373,6 @@ according to the flags RECORD and DRAW."
                   (bounding-rectangle*
                    (region-intersection (sheet-region sheet) clip))))))
       (call-next-method)))
-
-;;; Additional methods
-(defmethod handle-repaint :around ((stream output-recording-stream) region)
-  (declare (ignore region))
-  (with-output-recording-options (stream :record nil)
-    (call-next-method)))
 
 ;;; FIXME: Change things so the rectangle below is only drawn in response
 ;;;        to explicit repaint requests from the user, not exposes from X.

@@ -1533,40 +1533,18 @@ were added."
   ((string :initarg :string :reader styled-string-string)))
 
 (defun ensure-styled-string (stream previous string text-style start end)
-  (flet ((compatible-p ()
-           (and (typep previous 'styled-string)
-                (match-output-records previous
-                                      :text-style text-style
-                                      :ink (medium-ink stream))))
-         (append-string ()
-           ;; Simply append the string to the last one.
-           (let* ((length (max 0 (- end start)))
-                  (last-string (styled-string-string previous))
-                  (last-string-length (length last-string))
-                  (start1 (length last-string))
-                  (end1 (+ start1 length)))
-             (when (< (array-dimension last-string 0) end1)
-               (adjust-array last-string (max end1 (* 2 last-string-length))))
-             (setf (fill-pointer last-string) end1)
-             (string (replace last-string string
-                              :start1 start1 :end1 end1
-                              :start2 start :end2 end))
-             previous))
-         (create-string ()
-           ;; Create a new styled string.
-           (let* ((length (max 0 (- end start)))
-                  (vector (make-array length :element-type 'character
-                                             :adjustable t
-                                             :fill-pointer t))
-                  (sstring (make-instance 'styled-string
-                                          :text-style text-style
-                                          :stream stream :string vector)))
-             (replace (styled-string-string sstring) string
-                      :start2 start :end2 end)
-             sstring)))
-    (if (compatible-p)
-        (values (append-string) nil)
-        (values (create-string) t))))
+  (if (and (typep previous 'styled-string)
+           (match-output-records previous
+                                 :text-style text-style
+                                 :ink (medium-ink stream)))
+      (progn
+        (append-string (styled-string-string previous) string start end)
+        (values previous nil))
+      (values (make-instance 'styled-string
+                             :text-style text-style
+                             :stream stream
+                             :string (create-string string start end))
+              t)))
 
 (defmethod output-record-equal and ((record styled-string)
                                     (record2 styled-string))
