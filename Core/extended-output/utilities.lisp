@@ -284,3 +284,28 @@ COUNT specifies how many breaks we want to collect."
                    (return)))
             until (and count (zerop (decf count))))
       (break-line))))
+
+(defun create-string (source start end)
+  (orf start 0)
+  (orf end (length source))
+  (let* ((length (max 0 (- end start)))
+         (vector (make-array length :element-type 'character
+                                    :adjustable t
+                                    :fill-pointer t)))
+    (replace vector source :start2 start :end2 end)
+    vector))
+
+(defun append-string (target source start end)
+  (orf start 0)
+  (orf end (length source))
+  (let* ((length (max 0 (- end start)))
+         (target-length (length target))
+         (start1 (length target))
+         (end1 (+ start1 length)))
+    (when (< (array-dimension target 0) end1)
+      (adjust-array target (max end1 (* 2 target-length))))
+    (setf (fill-pointer target) end1)
+    (replace target source
+             :start1 start1 :end1 end1
+             :start2 start :end2 end)
+    target))
