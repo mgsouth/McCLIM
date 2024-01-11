@@ -237,7 +237,7 @@ add output recording facilities. It is not instantiable."))
 
 ;;; Text output catching methods
 (defmethod stream-write-output
-    ((stream standard-output-recording-stream) (line string) &key (start 0) end)
+    ((stream standard-output-recording-stream) (line string) x y &key (start 0) end)
   (unless (stream-recording-p stream)
     (return-from stream-write-output
       (when (stream-drawing-p stream)
@@ -252,7 +252,7 @@ add output recording facilities. It is not instantiable."))
                                 width height base-y))))
 
 (defmethod stream-write-output
-    ((stream standard-output-recording-stream) (line character) &rest args)
+    ((stream standard-output-recording-stream) (line character) x y &rest args)
   (declare (ignore args))
   (unless (stream-recording-p stream)
     (return-from stream-write-output
@@ -266,7 +266,7 @@ add output recording facilities. It is not instantiable."))
       (stream-add-character-output stream line text-style width height base-y))))
 
 (defmethod stream-write-output
-    ((stream standard-output-recording-stream) (object bounding-rectangle) &rest args)
+    ((stream standard-output-recording-stream) (object bounding-rectangle) x y &rest args)
   (declare (ignore args))
   (unless (stream-recording-p stream)
     (return-from stream-write-output

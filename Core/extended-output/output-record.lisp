@@ -1608,10 +1608,9 @@ were added."
 (defmethod tree-recompute-extent ((self standard-text-displayed-output-record))
   (nest
    (let ((start-cursor (start-cursor self))
-         (fx (output-record-end-position-x self))
-         (fy (output-record-end-position-y self))
          (stream (slot-value self 'stream))))
    (multiple-value-bind (cx cy) (cursor-position start-cursor))
+   (multiple-value-bind (fx fy) (output-record-end-cursor-position self))
    (multiple-value-bind (sw sh) (cursor-size start-cursor))
    (let (x1 y1 x2 y2)
      (ecase (stream-line-direction stream)

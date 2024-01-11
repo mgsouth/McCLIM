@@ -123,15 +123,17 @@
   `(letf (((stream-end-of-page-action ,stream) ,action))
      ,@body))
 
-(defgeneric stream-write-output (stream line &rest args)
+(defgeneric stream-write-output (stream line x y &rest args)
   (:documentation
    "Writes the object on the current line of the STREAM. The caller is responsible
 for estabilishing an appropriate drawing system with origin at (0,0) and updating
 the cursor after the operation. This function does not wrap.")
-  (:method ((stream standard-extended-output-stream) (line string) &rest args)
-    (apply #'draw-text* stream line 0 0 args))
-  (:method ((stream standard-extended-output-stream) (item bounding-rectangle) &rest args)
-    (apply #'draw-design stream item args)))
+  (:method ((stream standard-extended-output-stream) (line string) x y &rest args)
+    (apply #'draw-text* stream line x y args))
+  (:method ((stream standard-extended-output-stream)
+            (item bounding-rectangle) x y &rest args)
+    (with-translation (stream x y)
+      (apply #'draw-design stream item args))))
 
 (defun seos-finish-output (stream)
   (when (stream-drawing-p stream)
@@ -192,8 +194,7 @@ the cursor after the operation. This function does not wrap.")
           (go :break-page))
         (when (and eol-p wrapl (plusp (stream-text-offset stream cursor)))
           (go :break-line))
-        (with-translation (stream dx dy)
-          (stream-write-output stream object))
+        (stream-write-output stream object dx dy)
         (setf (cursor-position cursor) (values fx fy))))))
 
 ;;; This function is responsible for managing the cursor and invoking drawing.
@@ -231,8 +232,7 @@ the cursor after the operation. This function does not wrap.")
           (go :break-page))
         (when (and eol-p wrapl)
           (setf split (stream-text-break stream cursor vector start end)))
-        (with-translation (stream dx dy)
-          (stream-write-output stream vector :start start :end split))
+        (stream-write-output stream vector dx dy :start start :end split)
         (when (/= split end)
           (go :break-line))
         (setf (cursor-position cursor) (values fx fy))))))
