@@ -359,15 +359,14 @@ maximum size according to `frame')."
      default-presentation pointer-documentation)
   (declare (ignore cache unique-id
                    id-test cache-value cache-test default-presentation))
-  (with-room-for-graphics (menu :first-quadrant nil)
+  (with-identity-transformation (menu)
     (funcall drawer menu presentation-type))
   (adjust-menu-size-and-position menu :x-position x-position
                                       :y-position y-position)
   ;; The menu is enabled (make visible) after the size is adjusted.
   (enable-menu menu)
   (let ((*pointer-documentation-output* pointer-documentation)
-        (*abort-gestures* (append *menu-choose-abort-gestures*
-                                  *abort-gestures*)))
+        (*abort-gestures* (append *menu-choose-abort-gestures* *abort-gestures*)))
     (handler-case
         (with-input-focus (menu)
           (with-pointer-grabbed ((port menu) menu)

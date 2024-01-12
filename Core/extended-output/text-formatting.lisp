@@ -110,97 +110,73 @@
          (declare (dynamic-extent #',continuation))
          (invoke-with-indenting-output ,stream #',continuation :indent ,indentation ,@args)))))
 
-;;; This fallback implementation is meant to work on any sheet with the output
-;;; protocol.
-(defmethod invoke-with-room-for-graphics (cont stream
-                                          &key (first-quadrant t)
-                                               (width 100)
-                                               (height 100)
-                                               (move-cursor t)
-                                               (record-type nil))
-  (declare (ignore record-type))
-  (with-sheet-medium (medium stream)
-    (multiple-value-bind (cx cy) (transform-position (medium-transformation medium) 0 0)
-      (multiple-value-bind (cy* transformation)
-          (if (not first-quadrant)
-              (values cy +identity-transformation+)
-              (values (+ cy height)
-                      (make-scaling-transformation 1 -1)))
-        (letf (((medium-transformation medium)
-                (compose-transformation-with-translation transformation cx cy*)))
-          (funcall cont stream)))
-      (if move-cursor
-          (values (+ cx width) cy)
-          (values cx cy)))))
+
+(defparameter +quadrant-transformation+
+  (make-scaling-transformation 1 -1))
 
-(defmethod invoke-with-room-for-graphics (cont (stream extended-output-stream)
-                                          &key (first-quadrant t)
-                                            (width (stream-character-width stream #\M))
-                                            (height (stream-cursor-height stream))
-                                            (move-cursor t)
-                                            (record-type nil))
-  (declare (ignore record-type))
-  (with-sheet-medium (medium stream)
-    (multiple-value-bind (cx cy) (stream-cursor-position stream)
-      (multiple-value-bind (cy* transformation)
-          (if (not first-quadrant)
-              (values cy +identity-transformation+)
-              (values (+ cy (stream-baseline stream))
-                      (make-scaling-transformation 1 -1)))
-        (letf (((medium-transformation medium)
-                (compose-transformation-with-translation transformation cx cy*)))
-          (funcall cont stream)))
-      (maxf (stream-cursor-height stream) height)
-      (setf (stream-cursor-position stream)
-            (if move-cursor
-                (values (+ cx width) cy)
-                (values cx cy))))))
+(defun %invoke-wrfg (sheet cont transf width height move-cursor)
+  (let ((cursor (stream-text-cursor sheet))
+        (region (make-rectangle* 0 0 width height)))
+   (multiple-value-bind (dx dy cx cy bx by ax ay)
+       (stream-cursor-motion sheet cursor region)
+     (with-identity-transformation (sheet)
+       (with-translation (sheet dx dy)
+         (with-drawing-options (sheet :transformation transf)
+           (funcall cont sheet))))
+     (when move-cursor
+       (setf (cursor-position cursor) (values cx cy)
+             (cursor-offset cursor) (values bx by)
+             (cursor-size cursor) (values ax ay))))))
 
+(defmethod invoke-with-room-for-graphics
+    (cont (stream extended-output-stream)
+     &key (first-quadrant t) width height (move-cursor t)
+          (record-type nil))
+  (declare (ignore record-type))
+  (unless (and width height)
+    (let ((cursor (stream-text-cursor stream)))
+      (orf width  (cursor-offset-x cursor))
+      (orf height (cursor-offset-y cursor))))
+  (let ((transf (if (not first-quadrant)
+                    +identity-transformation+
+                    +quadrant-transformation+)))
+    (%invoke-wrfg stream cont transf width height move-cursor))
+  (stream-cursor-position stream))
 
 (defmethod invoke-with-room-for-graphics
     (cont (stream output-recording-stream)
      &key (first-quadrant t) width height (move-cursor t)
-       (record-type 'standard-sequence-output-record))
-  (with-sheet-medium (medium stream)
-    (multiple-value-bind (cx cy) (stream-cursor-position stream)
-      (multiple-value-bind (cy* transformation)
-          (if (not first-quadrant)
-              (values cy +identity-transformation+)
-              (values (+ cy (stream-baseline stream))
-                      (make-scaling-transformation 1 -1)))
-        (letf (((medium-transformation medium)
-                (compose-transformation-with-translation transformation cx cy*)))
-          (let ((record (with-new-output-record (stream record-type)
-                          (funcall cont stream))))
-            (with-bounding-rectangle* (:x2 x2 :y2 y2) record
-              (orf width (- x2 cx))
-              (orf height (- y2 cy))))))
-      (maxf (stream-cursor-height stream) height)
-      (setf (stream-cursor-position stream)
-            (if move-cursor
-                (values (+ cx width) cy)
-                (values cx cy))))))
+          (record-type 'standard-sequence-output-record))
+  (unless (stream-recording-p stream)
+    (return-from invoke-with-room-for-graphics
+      (when (stream-drawing-p stream)
+        (call-next-method))))
+  (nest
+   (let ((transf (if (not first-quadrant)
+                     +identity-transformation+
+                     +quadrant-transformation+))))
+   (with-identity-transformation (stream))
+   (with-translation (stream (or width 0) (or height 0)))
+   (with-drawing-options (stream :transformation transf))
+   (let ((cursor (stream-text-cursor stream))
+         (record (with-output-to-output-record (stream record-type)
+                   (funcall cont stream))))
+     (if (null move-cursor)
+         (progn
+           (setf (output-record-position record)
+                 (cursor-position cursor))
+           (stream-add-output-record stream record))
+         (stream-write-object stream record))))
+  (stream-cursor-position stream))
 
-;;; FIXME: think about merging behavior by using WITH-LOCAL-COORDINATES and
-;;; WITH-FIRST-QUADRANT-COORDINATES which both work on both mediums and
-;;; streams. Also write a documentation chapter describing behavior and
-;;; providing some examples.
-;;;
-;;; ----------------------------------------------------------------------------
-;;; Complicated, underspecified...
-;;;
-;;; From examining old Genera documentation, I believe that
-;;; with-room-for-graphics is supposed to set the medium transformation to
-;;; give the desired coordinate system; i.e., it doesn't preserve any
-;;; rotation, scaling or translation in the current medium transformation.
-
-(defmacro with-room-for-graphics ((&optional (stream t)
-                                   &rest arguments
+;;; This macro is badly specified in CLIM II. McCLIM implements it for extended
+;;; output streams that maintain the text line. WIDTH and HEIGHT are interpreted
+;;; as baselines for appropriate line directions. There is no implicit clipping.
+(defmacro with-room-for-graphics ((&optional (stream t) &rest arguments
                                    &key (first-quadrant t)
-                                     width
-                                     height
-                                     (move-cursor t)
-                                     (record-type ''standard-sequence-output-record))
+                                        width height
+                                        (move-cursor t)
+                                        (record-type ''standard-sequence-output-record))
                                   &body body)
   (declare (ignore first-quadrant width height move-cursor record-type))
   (let ((cont (gensym "CONT.")))
