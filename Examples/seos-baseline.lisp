@@ -22,6 +22,7 @@
 (defvar *data3*)
 (defvar *size2*)
 (defvar *inks2*)
+(defvar *picks*)
 
 (define-seos-baseline-command (com-new-data :keystroke (#\r :control)) ()
   (setf *data1* (lorem-ipsum:paragraph :word-count 32)
@@ -30,7 +31,9 @@
         *size2* (loop with elts = '(:tiny :small :normal :large :huge)
                       repeat 32 collect (elt elts (random (length elts))))
         *inks2* (loop with inks = (make-contrasting-inks 8)
-                      repeat 32 collect (elt inks (random (length inks))))))
+                      repeat 32 collect (elt inks (random (length inks))))
+        *picks* (loop repeat 32
+                      collect (zerop (random 4)))))
 
 (com-new-data)
 
@@ -64,28 +67,47 @@
         (format nil "line ~s, page ~s"
                 (stream-end-of-line-action stream)
                 (stream-end-of-page-action stream)))
-  (print-header "1. One paragraph:" stream)
-  (princ *data1* stream)
-  (print-header "2. Long line, varying size:" stream)
-  (loop for iter from 0
-        for word in *data2*
-        for size in *size2*
-        for ink  in *inks2*
-        do (with-drawing-options (stream :text-size size :ink ink)
-             (format stream "~a " word)))
-  (print-header "3. Long line, varying size, without spaces:" stream)
-  (loop for iter from 0
-        for word in *data2*
-        for size in *size2*
-        for ink  in *inks2*
-        do (with-drawing-options (stream :text-size size :ink ink)
-             (format stream "~a" word)))
-  (print-header "4. Mean scenario for word wrap:" stream)
-  (format stream "AAA BBBBBBBBBBBBBBB CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD EEE FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
-  (print-header "5. Three paragraphs:" stream)
-  (format stream "~{~a~%~}" *data3*)
-  (print-header "6. Mean scenario for the last line's size" stream)
-  (with-drawing-options (stream :text-size :huge)
-    (format stream "Good bye with a twist!")))
+  (progn
+    (print-header "One paragraph:" stream)
+    (princ *data1* stream))
+  (progn
+    (print-header "Long line, varying size:" stream)
+    (loop for iter from 0
+          for word in *data2*
+          for size in *size2*
+          for ink  in *inks2*
+          do (with-drawing-options (stream :text-size size :ink ink)
+               (format stream "~a " word))))
+  (progn
+    (print-header "Long line, varying size, without spaces:" stream)
+    (loop for iter from 0
+          for word in *data2*
+          for size in *size2*
+          for ink  in *inks2*
+          do (with-drawing-options (stream :text-size size :ink ink)
+               (format stream "~a" word))))
+  (progn
+    (print-header "Long line, mixed graphics:" stream)
+    (loop for iter from 0
+          for word in *data2*
+          for size in *size2*
+          for ink  in *inks2*
+          for pick in *picks*
+          do (if (null pick)
+                 (with-drawing-options (stream :text-size size :ink ink)
+                   (format stream "~a " word))
+                 (with-room-for-graphics (stream :first-quadrant t :move-cursor t)
+                   (draw-polygon* stream '(-20 0 0 25 20 0)
+                                  :ink (compose-in ink (make-opacity .5)))))))
+  (progn
+    (print-header "Mean scenario for word wrap:" stream)
+    (format stream "AAA BBBBBBBBBBBBBBB CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD EEE FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"))
+  (progn
+    (print-header "Three paragraphs:" stream)
+    (format stream "~{~a~%~}" *data3*))
+  (progn
+    (print-header "Mean scenario for the last line's size" stream)
+    (with-drawing-options (stream :text-size :huge)
+      (format stream "Good bye with a twist!"))))
 
 ;; (find-application-frame 'seos-baseline)
