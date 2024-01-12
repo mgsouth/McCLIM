@@ -32,7 +32,7 @@
 (define-accessor cursor-visibility (value cursor))
 
 ;;; Extra:
-(define-accessor cursor-baseline (offset-y offset-x cursor))
+(define-accessor cursor-offset (offset-x offset-y cursor))
 (define-accessor cursor-size (width height cursor))
 (define-accessor cursor-width (value cursor))
 (define-accessor cursor-height (value cursor))
@@ -56,7 +56,7 @@
   (:documentation "McCLIM extension which returns a space between left and right margin for text output."))
 
 ;;; McCLIM extends these protocols to allow for multidirectional pages.
-(define-accessor stream-baseline (base-y base-x stream))
+(define-accessor stream-baseline (baseline stream))
 (define-accessor stream-vertical-spacing (value stream))
 (define-accessor stream-horizontal-spacing (value stream))
 
@@ -74,8 +74,7 @@
 
 ;;; Extra
 
-;;; Returns two values - horizontal line baseline and vertical line baseline.
-(defgeneric output-record-baseline (record))
+(defgeneric output-record-offset (record))
 
 ;;; 15.4.2 Wrapping of Text Lines [complete]
 

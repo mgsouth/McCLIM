@@ -505,8 +505,8 @@
     ;; Note: for the purpose of layout it is pretty much irrelevant if
     ;;       this is a table by rows or a table by columns
     ;;
-    ;; Since we have :baseline vertical alignment (and no :char
-    ;; horizontal alignment like in HTML), we always work from rows.
+    ;; Since we have :baseline vertical alignment (and no :char horizontal
+    ;; alignment like in HTML), we always work from rows.
     (multiple-value-bind (rows nrows ncols)
         (make-table-array table-record)
       (unless rows
@@ -530,9 +530,9 @@
                             (maxf (aref heights i)
                                   (max height (cell-min-height cell)))
                             (when (eq (cell-align-y cell) :baseline)
-                              (multiple-value-bind (baseline) (output-record-baseline cell)
-                                (maxf (aref ascents i) baseline)
-                                (maxf (aref descents i) (- height baseline))))))))
+                              (multiple-value-bind (bx by) (output-record-offset cell)
+                                (maxf (aref ascents i) by)
+                                (maxf (aref descents i) (- height by))))))))
 
         ;; baseline aligned cells can force the row to be taller.
         (loop for i from 0 below nrows do
@@ -628,7 +628,7 @@
                                             current-x cell-y
                                             current-max-w
                                             cell-h
-                                            (output-record-baseline item))))
+                                            (output-record-offset-y item))))
                  (setf current-n 0)
                  (if row-wise-p
                      (setf current-x x0
@@ -650,7 +650,7 @@
                      (finish-slice))
                    (maxf current-max-w cell-w)
                    (maxf current-max-h cell-h)
-                   (maxf current-max-b (output-record-baseline item))
+                   (maxf current-max-b (output-record-offset-y item))
                    (incf current-n)
                    (if row-wise-p
                        (progn
@@ -701,7 +701,6 @@
            (:bottom (- (+ y h) (bounding-rectangle-height cell)))
            (:center (+ y (/ (- h (bounding-rectangle-height cell)) 2)))
            ((nil :baseline)
-            (multiple-value-bind (baseline) (output-record-baseline cell)
-              ;; make (+ y ascents) line up with (+ y1 b)
-              ;; that is y+a = y1+b -> y1= y+a-b
-              (+ y (- ascent baseline))))))))
+            ;; make (+ y ascents) line up with (+ y1 b)
+            ;; that is y+a = y1+b -> y1= y+a-b
+            (+ y (- ascent (output-record-offset-y cell))))))))

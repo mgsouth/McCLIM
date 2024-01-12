@@ -1708,22 +1708,38 @@ were added."
 
 ;;; Baseline
 
-(defmethod output-record-baseline ((record output-record))
+(defun output-record-baseline (record)
+  (multiple-value-bind (bx by) (output-record-offset record)
+    (values by bx)))
+
+(defun output-record-offset-x (record)
+  (nth-value 0 (output-record-offset record)))
+
+(defun output-record-offset-y (record)
+  (nth-value 1 (output-record-offset record)))
+
+(defmethod output-record-offset ((record output-record))
   "Fall back method"
   (with-bounding-rectangle* (:height height) record
-    (values height 0 nil)))
+    (values 0 height nil)))
 
-(defmethod output-record-baseline ((self standard-text-displayed-output-record))
-  (multiple-value-bind (base-y base-x) (cursor-baseline (start-cursor self))
+(defmethod output-record-offset ((record basic-output-record))
+  "Fall back method"
+  (multiple-value-bind (x0 y0) (output-record-origin record)
+    (with-bounding-rectangle* (:x1 x1 :y1 y1) record
+      (values (- x0 x1) (- y0 y1) t))))
+
+(defmethod output-record-offset ((self standard-text-displayed-output-record))
+  (multiple-value-bind (base-y base-x) (cursor-offset (start-cursor self))
     (values base-y base-x t)))
 
-(defmethod output-record-baseline ((record compound-output-record))
+(defmethod output-record-offset ((record compound-output-record))
   (map-over-output-records (lambda (sub-record)
-                             (multiple-value-bind (base-y base-x definitive)
-                                 (output-record-baseline sub-record)
+                             (multiple-value-bind (bx by definitive)
+                                 (output-record-offset sub-record)
                                (when definitive
-                                 (return-from output-record-baseline
-                                   (values base-y base-x t)))))
+                                 (return-from output-record-offset
+                                   (values bx by t)))))
                            record)
   (call-next-method))
 

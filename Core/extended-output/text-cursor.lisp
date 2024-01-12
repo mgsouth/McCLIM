@@ -37,7 +37,7 @@
     ((object standard-text-cursor) &key (visibility :on))
   (setf (cursor-visibility object) visibility)
   (setf (cursor-position object) (values 0 0))
-  (setf (cursor-baseline object) (values 0 0))
+  (setf (cursor-offset object) (values 0 0))
   (setf (cursor-size object) (values 4 16)))
 
 (defmethod bounding-rectangle* ((cursor standard-text-cursor))
@@ -87,13 +87,13 @@
   (with-slots (x y) cursor
     (setf (values x y) (values (or nx x) (or ny y)))))
 
-(defmethod cursor-baseline ((cursor standard-text-cursor))
-  (with-slots (dy dx) cursor
-    (values dy dx)))
+(defmethod cursor-offset ((cursor standard-text-cursor))
+  (with-slots (dx dy) cursor
+    (values dx dy)))
 
-(defmethod* (setf cursor-baseline) (ny nx (cursor standard-text-cursor))
-  (with-slots (dy dx) cursor
-    (setf (values dy dx) (values (or ny dy) (or nx dx)))))
+(defmethod* (setf cursor-offset) (nx ny (cursor standard-text-cursor))
+  (with-slots (dx dy) cursor
+    (setf (values dx dy) (values (or nx dx) (or ny dy)))))
 
 (defmethod cursor-size ((cursor standard-text-cursor))
   (with-slots (width height) cursor
@@ -106,7 +106,7 @@
 
 (defun update-cursor (target source)
   (setf (cursor-position target) (cursor-position source)
-        (cursor-baseline target) (cursor-baseline source)
+        (cursor-offset target) (cursor-offset source)
         (cursor-size target) (cursor-size source))
   target)
 
@@ -115,6 +115,6 @@
 (defmacro with-cursor-off ((cursor) &body body)
   `(letf (((cursor-visibility ,cursor) nil)
           ((cursor-position ,cursor) (values 0 0))
-          ((cursor-baseline ,cursor) (values 0 0))
+          ((cursor-offset ,cursor)   (values 0 0))
           ((cursor-size ,cursor)     (values 0 0)))
      ,@body))

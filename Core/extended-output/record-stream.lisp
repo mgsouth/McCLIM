@@ -245,7 +245,7 @@ add output recording facilities. It is not instantiable."))
   (let* ((medium (sheet-medium stream))
          (text-style (medium-text-style medium))
          (height (text-style-height text-style medium))
-         (base-y (text-style-baseline text-style stream)))
+         (base-y (text-style-ascent text-style stream)))
     (let ((width (stream-string-width stream line :text-style text-style
                                                   :start start :end end)))
       (stream-add-string-output stream line start end text-style
@@ -261,7 +261,7 @@ add output recording facilities. It is not instantiable."))
   (let* ((medium (sheet-medium stream))
          (text-style (medium-text-style medium))
          (height (text-style-height text-style medium))
-         (base-y (text-style-baseline text-style stream)))
+         (base-y (text-style-ascent text-style stream)))
     (let ((width (stream-character-width stream line :text-style text-style)))
       (stream-add-character-output stream line text-style width height base-y))))
 
