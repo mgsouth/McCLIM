@@ -1610,15 +1610,15 @@ the associated sheet can be determined."
   (let* ((stream (slot-value self 'stream))
          (start-cursor (start-cursor self))
          (sheet-cursor (stream-text-cursor stream)))
-    (multiple-value-bind (x0 y0 fx fy bx by cw ch)
+    (multiple-value-bind (x0 y0 fx fy bx by ex ey)
         (stream-cursor-motion stream sheet-cursor object)
       (declare (ignore x0 y0))
       (setf (output-record-end-cursor-position self) (values fx fy)
             (cursor-position sheet-cursor) (values fx fy)
             (cursor-offset start-cursor) (values bx by)
             (cursor-offset sheet-cursor) (values bx by)
-            (cursor-size start-cursor) (values cw ch)
-            (cursor-size sheet-cursor) (values cw ch)))))
+            (cursor-extent start-cursor) (values ex ey)
+            (cursor-extent sheet-cursor) (values ex ey)))))
 
 (defmethod tree-recompute-extent ((self standard-text-displayed-output-record))
   (nest

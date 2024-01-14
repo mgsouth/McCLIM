@@ -12,13 +12,13 @@
 
 ;;; Standard-Text-Cursor class
 (defclass standard-text-cursor (cursor)
-  ((sheet :initarg :sheet :reader cursor-sheet)
+  ((sheet :initarg :sheet :accessor cursor-sheet)
    (x :initarg :x-position :accessor cursor-position-x)
    (y :initarg :y-position :accessor cursor-position-y)
    (dx :initarg :x-offset :accessor cursor-offset-x)
    (dy :initarg :y-offset :accessor cursor-offset-y)
-   (width  :initarg :width  :accessor cursor-width)
-   (height :initarg :height :accessor cursor-height)
+   (ex :initarg :x-extent :accessor cursor-extent-x)
+   (ey :initarg :y-extent :accessor cursor-extent-y)
    ;; XXX what does "cursor is active" mean?
    ;; It means that the sheet (stream) updates the cursor, though currently the
    ;; cursor appears to be always updated after stream text operations. -- moore
@@ -30,19 +30,19 @@
        (coordinate= (slot-value a 'y) (slot-value b 'y))
        (coordinate= (cursor-offset-x a) (cursor-offset-x b))
        (coordinate= (cursor-offset-y a) (cursor-offset-y b))
-       (coordinate= (cursor-width a) (cursor-width b))
-       (coordinate= (cursor-height a) (cursor-height b))))
+       (coordinate= (cursor-extent-x a) (cursor-extent-x b))
+       (coordinate= (cursor-extent-y a) (cursor-extent-y b))))
 
 (defmethod initialize-instance :after
     ((object standard-text-cursor) &key (visibility :on))
   (setf (cursor-visibility object) visibility)
   (setf (cursor-position object) (values 0 0))
   (setf (cursor-offset object) (values 0 0))
-  (setf (cursor-size object) (values 4 16)))
+  (setf (cursor-extent object) (values 0 0)))
 
 (defmethod bounding-rectangle* ((cursor standard-text-cursor))
-  (with-slots (x y width height) cursor
-    (values x y (+ x width) (+ y height))))
+  (with-slots (x y dx dy ex ey) cursor
+    (values x y (+ x dx ex) (+ y dy ey))))
 
 (defmethod print-object ((cursor standard-text-cursor) stream)
   (with-slots (x y) cursor
@@ -95,19 +95,27 @@
   (with-slots (dx dy) cursor
     (setf (values dx dy) (values (or nx dx) (or ny dy)))))
 
-(defmethod cursor-size ((cursor standard-text-cursor))
-  (with-slots (width height) cursor
-    (values width height)))
+(defmethod cursor-extent ((cursor standard-text-cursor))
+  (with-slots (ex ey) cursor
+    (values ex ey)))
 
-(defmethod* (setf cursor-size) (new-w new-h (cursor standard-text-cursor))
-  (with-slots (width height) cursor
-    (setf (values width height)
-          (values (or new-w width) (or new-h height)))))
+(defmethod* (setf cursor-extent) (nx ny (cursor standard-text-cursor))
+  (with-slots (ex ey) cursor
+    (setf (values ex ey) (values (or nx ex) (or ny ey)))))
+
+(defun cursor-width (cursor)
+  (+ (cursor-offset-x cursor) (cursor-extent-x cursor)))
+
+(defun cursor-height (cursor)
+  (+ (cursor-offset-y cursor) (cursor-extent-y cursor)))
+
+(defun cursor-size (cursor)
+  (values (cursor-width cursor) (cursor-height cursor)))
 
 (defun update-cursor (target source)
   (setf (cursor-position target) (cursor-position source)
         (cursor-offset target) (cursor-offset source)
-        (cursor-size target) (cursor-size source))
+        (cursor-extent target) (cursor-extent source))
   target)
 
 ;;; This macro is used to ensure that the cursor is restored to its old state
@@ -116,5 +124,5 @@
   `(letf (((cursor-visibility ,cursor) nil)
           ((cursor-position ,cursor) (values 0 0))
           ((cursor-offset ,cursor)   (values 0 0))
-          ((cursor-size ,cursor)     (values 0 0)))
+          ((cursor-extent ,cursor)   (values 0 0)))
      ,@body))

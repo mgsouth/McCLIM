@@ -33,9 +33,7 @@
 
 ;;; Extra:
 (define-accessor cursor-offset (offset-x offset-y cursor))
-(define-accessor cursor-size (width height cursor))
-(define-accessor cursor-width (value cursor))
-(define-accessor cursor-height (value cursor))
+(define-accessor cursor-extent (extent-x extent-y cursor))
 
 ;;; 15.3.2 Stream Text Cursor Protocol [complete]
 

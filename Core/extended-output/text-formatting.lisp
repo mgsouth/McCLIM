@@ -117,7 +117,7 @@
 (defun %invoke-wrfg (sheet cont transf width height move-cursor)
   (let ((cursor (stream-text-cursor sheet))
         (region (make-rectangle* 0 0 width height)))
-   (multiple-value-bind (dx dy cx cy bx by ax ay)
+   (multiple-value-bind (dx dy cx cy bx by ex ey)
        (stream-cursor-motion sheet cursor region)
      (with-identity-transformation (sheet)
        (with-translation (sheet dx dy)
@@ -126,7 +126,7 @@
      (when move-cursor
        (setf (cursor-position cursor) (values cx cy)
              (cursor-offset cursor) (values bx by)
-             (cursor-size cursor) (values ax ay))))))
+             (cursor-extent cursor) (values ex ey))))))
 
 (defmethod invoke-with-room-for-graphics
     (cont (stream extended-output-stream)

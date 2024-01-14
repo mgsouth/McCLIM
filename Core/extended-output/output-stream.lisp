@@ -55,26 +55,6 @@
      ((:left-to-right :right-to-left) (setf (cursor-offset-y cursor) baseline))
      ((:top-to-bottom :bottom-to-top) (setf (cursor-offset-x cursor) baseline)))))
 
-(defmethod stream-cursor-size ((stream standard-extended-output-stream))
-  (let ((cursor (stream-text-cursor stream)))
-    (values (cursor-width cursor) (cursor-height cursor))))
-
-(defmethod* (setf stream-cursor-size) ((stream standard-extended-output-stream))
-  (let ((cursor (stream-text-cursor stream)))
-    (values (cursor-width cursor) (cursor-height cursor))))
-
-(defmethod stream-cursor-height ((sheet standard-extended-output-stream))
-  (cursor-height (stream-text-cursor sheet)))
-
-(defun (setf stream-cursor-height) (value stream)
-  (setf (cursor-height (stream-text-cursor stream)) value))
-
-(defmethod stream-cursor-width ((sheet standard-extended-output-stream))
-  (cursor-width (stream-text-cursor sheet)))
-
-(defun (setf stream-cursor-width) (value stream)
-  (setf (cursor-width (stream-text-cursor stream)) value))
-
 (defmethod stream-set-cursor-position ((stream standard-extended-output-stream) x y)
   (setf (stream-cursor-position stream) (values x y)))
 
@@ -90,10 +70,11 @@
 (defun reset-stream-cursor (stream cursor)
   (let* ((text-style (stream-text-style stream))
          (width (text-style-width text-style stream))
-         (height (text-style-height text-style stream)))
+         (ascent (text-style-ascent text-style stream))
+         (descent (text-style-descent text-style stream)))
     (setf (cursor-position cursor) (stream-cursor-initial-position stream)
-          (cursor-offset cursor) (values 0 0)
-          (cursor-size cursor) (values width height))))
+          (cursor-offset cursor) (values 0 ascent)
+          (cursor-extent cursor) (values width descent))))
 
 (defun text-style-offset (text-style stream)
   (ecase (stream-page-direction stream)
@@ -196,14 +177,14 @@ the cursor after the operation. This function does not wrap.")
     :break-line
       (seos-write-newline stream t)
     :start-line
-      (multiple-value-bind (dx dy fx fy bx by cw ch eol-p eop-p)
+      (multiple-value-bind (dx dy fx fy bx by ex ey eol-p eop-p)
           (stream-cursor-motion stream cursor object)
         (when (and eop-p (member end-of-page-action '(:wrap :wrap*)))
           (go :break-page))
         (when (and eol-p wrapl (plusp (stream-text-offset stream cursor)))
           (go :break-line))
         (setf (cursor-offset cursor) (values bx by))
-        (setf (cursor-size cursor) (values cw ch))
+        (setf (cursor-extent cursor) (values ex ey))
         (stream-write-output stream object dx dy)
         (setf (cursor-position cursor) (values fx fy))))))
 
@@ -233,7 +214,7 @@ the cursor after the operation. This function does not wrap.")
       (setf start split
             split end)
     :start-line
-      (multiple-value-bind (dx dy fx fy bx by cw ch eol-p eop-p)
+      (multiple-value-bind (dx dy fx fy bx by ex ey eol-p eop-p)
           (stream-cursor-motion stream cursor vector :start start :end end
                                                      :text-style text-style)
         (when (and eop-p (member end-of-page-action '(:wrap :wrap*)))
@@ -241,7 +222,7 @@ the cursor after the operation. This function does not wrap.")
         (when (and eol-p wrapl)
           (setf split (stream-text-break stream cursor vector start end)))
         (setf (cursor-offset cursor) (values bx by))
-        (setf (cursor-size cursor) (values cw ch))
+        (setf (cursor-extent cursor) (values ex ey))
         (stream-write-output stream vector dx dy :start start :end split)
         (when (/= split end)
           (go :break-line))
