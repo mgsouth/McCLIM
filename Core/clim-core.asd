@@ -81,9 +81,9 @@
                  ;; Output streams and records:
                  (:file "output-buffer"    :depends-on ("protocol" "utilities" "text-cursor"))
                  (:file "output-record"    :depends-on ("protocol" "utilities" "text-cursor" "output-buffer"))
-                 (:file "output-stream"    :depends-on ("protocol" "utilities" "views" "text-cursor" "output-record"))
-                 (:file "record-stream"    :depends-on ("protocol" "output-stream" "output-record"))
+                 (:file "record-stream"    :depends-on ("protocol" "output-record"))
                  (:file "redisplay"        :depends-on ("protocol" "output-record" "record-stream"))
+                 (:file "output-stream"    :depends-on ("protocol" "utilities" "views" "text-cursor" "record-stream"))
                  ;; Formatting:
                  (:file "text-formatting"  :depends-on ("protocol" "record-stream" "utilities"))
                  (:file "graph-formatting" :depends-on ("protocol" "record-stream"))

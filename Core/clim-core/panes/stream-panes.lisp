@@ -20,7 +20,6 @@
 (in-package #:clim-internals)
 
 (defclass clim-stream-pane (text-selection-mixin
-                            standard-output-recording-stream
                             standard-extended-input-stream
                             standard-extended-output-stream
                             ;; sheet-leaf-mixin

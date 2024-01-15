@@ -4,6 +4,7 @@
 ;;;
 ;;;  (c) Copyright 1998-2001 by Michael McDonald <mikemac@mikemac.com>
 ;;;  (c) Copyright 2000,2014 by Robert Strandh <robert.strandh@gmail.com>
+;;;  (c) Copyright 2016-2024 by Daniel Kochmański <daniel@turtleware.eu>
 ;;;
 ;;; ---------------------------------------------------------------------------
 ;;;
@@ -15,15 +16,14 @@
 ;;; Standard-Output-Stream class
 (defclass standard-output-stream (output-stream) ())
 
-(defmethod stream-recording-p ((stream output-stream)) nil)
-(defmethod stream-drawing-p ((stream output-stream)) t)
-
+
 ;;; Standard-Extended-Output-Stream class
 
 (defclass standard-extended-output-stream (extended-output-stream
                                            standard-output-stream
                                            standard-page-layout
-                                           filling-output-mixin)
+                                           filling-output-mixin
+                                           standard-output-recording-stream)
   ((foreground :initarg :foreground :reader foreground)
    (background :initarg :background :reader background)
    (text-style :initarg :text-style :reader stream-text-style)
@@ -41,6 +41,7 @@
   (cursor-position (stream-text-cursor stream)))
 
 (defmethod* (setf stream-cursor-position) (x y (stream standard-extended-output-stream))
+  (stream-close-text-output-record stream)
   (setf (cursor-position (stream-text-cursor stream)) (values x y)))
 
 (defmethod stream-baseline ((sheet standard-extended-output-stream))
@@ -83,34 +84,22 @@
     (:left-to-right (values (text-style-width text-style stream) 0))
     (:right-to-left (values (- (text-style-width text-style stream)) 0))))
 
-(defmethod stream-force-output :after
-    ((stream standard-extended-output-stream))
+(defmethod stream-force-output :after ((stream standard-extended-output-stream))
+  (stream-close-text-output-record stream)
   (with-sheet-medium (medium stream)
     (medium-force-output medium)))
 
-(defmethod stream-finish-output :after
-    ((stream standard-extended-output-stream))
+(defmethod stream-finish-output :after ((stream standard-extended-output-stream))
+  (stream-close-text-output-record stream)
   (with-sheet-medium (medium stream)
     (medium-finish-output medium)))
+
+(defmethod stream-terpri :after ((stream standard-extended-output-stream))
+  (stream-close-text-output-record stream))
 
 (defmethod note-sheet-grafted :after ((stream standard-extended-output-stream))
   (reset-stream-cursor stream (stream-text-cursor stream)))
 
-(defgeneric stream-write-output (stream line x y &rest args)
-  (:documentation
-   "Writes the object on the current line of the STREAM. The caller is responsible
-for estabilishing an appropriate drawing system with origin at (0,0) and updating
-the cursor after the operation. This function does not wrap.")
-  (:method ((stream standard-extended-output-stream) (line string) x y &rest args)
-    (apply #'draw-text* stream line x y args))
-  (:method ((stream standard-extended-output-stream)
-            (item bounding-rectangle) x y &rest args)
-    (with-translation (stream x y)
-      (apply #'draw-design stream item args)))
-  (:method ((stream standard-extended-output-stream)
-            (item output-record) x y &rest args)
-    (declare (ignore args))
-    (replay-output-record item stream nil x y)))
 
 (defun seos-record-output (stream object &optional start end)
   (etypecase object
@@ -190,13 +179,14 @@ the cursor after the operation. This function does not wrap.")
     :start-line
       (multiple-value-bind (dx dy fx fy bx by ex ey eol-p eop-p)
           (stream-cursor-motion stream cursor object)
+        (declare (ignore dx dy))
         (when (and eop-p (member end-of-page-action '(:wrap :wrap*)))
           (go :break-page))
         (when (and eol-p wrapl (plusp (stream-text-offset stream cursor)))
           (go :break-line))
         (setf (cursor-offset cursor) (values bx by))
         (setf (cursor-extent cursor) (values ex ey))
-        (stream-write-output stream object dx dy)
+        (seos-record-output stream object)
         (setf (cursor-position cursor) (values fx fy))))))
 
 ;;; This function is responsible for managing the cursor and invoking drawing.
@@ -228,24 +218,26 @@ the cursor after the operation. This function does not wrap.")
       (multiple-value-bind (dx dy fx fy bx by ex ey eol-p eop-p)
           (stream-cursor-motion stream cursor vector :start start :end end
                                                      :text-style text-style)
+        (declare (ignore dx dy))
         (when (and eop-p (member end-of-page-action '(:wrap :wrap*)))
           (go :break-page))
         (when (and eol-p wrapl)
           (setf split (stream-text-break stream cursor vector start end)))
         (setf (cursor-offset cursor) (values bx by))
         (setf (cursor-extent cursor) (values ex ey))
-        (stream-write-output stream vector dx dy :start start :end split)
+        (seos-record-output stream vector start split)
         (when (/= split end)
           (go :break-line))
         (setf (cursor-position cursor) (values fx fy))))))
 
+
 (defgeneric stream-write-object (stream object)
   (:method ((stream standard-extended-output-stream) object)
     (seos-write-object stream object)
     (seos-finish-output stream)))
 
 ;;; FIXME we can call STREAM-CURSOR-MOTION for the whole vector, but what about
-;;; drawing then? (in other words - implement line-aware STREAM-WRITE-OUTPUT).
+;;; drawing then? (in other words - implement line-aware REPLAY-OUTPUT-RECORD).
 (defgeneric stream-write-vector (stream vector start end)
   (:method ((stream standard-extended-output-stream) vector start end)
     #+ (or) (seos-write-vector stream vector start end)
@@ -279,6 +271,7 @@ the cursor after the operation. This function does not wrap.")
   (seos-finish-output stream)
   string)
 
+
 (defmethod stream-character-width ((stream standard-extended-output-stream) char
                                    &key (text-style nil))
   (with-sheet-medium (medium stream)

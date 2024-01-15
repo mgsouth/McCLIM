@@ -44,8 +44,7 @@
                            sheet-mute-repainting-mixin
                            basic-sheet
                            standard-extended-output-stream
-                           permanent-medium-sheet-output-mixin
-                           standard-output-recording-stream)
+                           permanent-medium-sheet-output-mixin)
   ((port :initform nil :initarg :port :accessor port)
    (title :initarg :title)
    (author :initarg :author)

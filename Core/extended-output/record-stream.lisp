@@ -240,10 +240,6 @@ add output recording facilities. It is not instantiable."))
         (with-identity-transformation (stream)
           (replay-output-record record stream))))))
 
-(defmethod stream-write-output
-    ((stream standard-output-recording-stream) object x y &key (start 0) end)
-  (seos-record-output stream object start end))
-
 (defmethod stream-add-character-output ((stream standard-output-recording-stream)
                                         character text-style width height baseline)
   (add-character-output-to-text-record (stream-text-output-record stream text-style)
@@ -258,20 +254,6 @@ add output recording facilities. It is not instantiable."))
 
 (defun stream-add-record-output (stream record width height base-x base-y)
   (add-object-to-text-record (stream-text-output-record stream nil) record))
-
-
-(defmethod stream-finish-output :after ((stream standard-output-recording-stream))
-  (stream-close-text-output-record stream))
-
-(defmethod stream-force-output :after ((stream standard-output-recording-stream))
-  (stream-close-text-output-record stream))
-
-(defmethod stream-terpri :after ((stream standard-output-recording-stream))
-  (stream-close-text-output-record stream))
-
-(defmethod* (setf stream-cursor-position) :after (x y (stream standard-output-recording-stream))
-  (declare (ignore x y))
-  (stream-close-text-output-record stream))
 
 
 ;;; 16.4.4. Output Recording Utilities
