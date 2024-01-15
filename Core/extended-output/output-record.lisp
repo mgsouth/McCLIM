@@ -2049,3 +2049,14 @@ the associated sheet can be determined."
            :check-overlapping check-overlapping)))
       (destructuring-bind (erases moves draws erases* moves*) difference-set
         (incremental-redisplay stream nil erases moves draws erases* moves*))))
+
+
+;;; 16.3.4. Top-Level Output Records
+
+(defclass standard-sequence-output-history
+    (standard-sequence-output-record stream-output-history-mixin)
+  ())
+
+(defclass standard-tree-output-history
+    (standard-tree-output-record stream-output-history-mixin)
+  ())

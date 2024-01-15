@@ -128,18 +128,42 @@ recording stream. If it is T, *STANDARD-OUTPUT* is used.")
        (dispatch-repaint stream (bounding-rectangle record))))))
 
 
-;;; 16.3.4. Top-Level Output Records
+(defclass updating-output-stream-mixin (updating-output-map-mixin)
+  ((redisplaying-p
+    :initform nil
+    :reader stream-redisplaying-p)
+   (incremental-redisplay
+    :initform nil
+    :initarg :incremental-redisplay
+    :accessor pane-incremental-redisplay)
+   ;; For incremental output, holds the top level updating-output-record.
+   (updating-record
+    :initform nil
+    :initarg :updating-record
+    :accessor updating-record)))
 
-(defclass standard-sequence-output-history
-    (standard-sequence-output-record stream-output-history-mixin)
-  ())
+(defmacro with-stream-redisplaying ((stream) &body body)
+  `(letf (((slot-value ,stream 'redisplaying-p) t)) ,@body))
 
-(defclass standard-tree-output-history
-    (standard-tree-output-record stream-output-history-mixin)
-  ())
+(defmethod redisplayable-stream-p ((stream updating-output-stream-mixin))
+  (declare (ignore stream))
+  t)
+
+(defmethod pane-needs-redisplay :around ((pane updating-output-stream-mixin))
+  (let ((redisplayp (call-next-method)))
+    (values redisplayp (and (not (eq redisplayp :no-clear))
+                            (not (pane-incremental-redisplay pane))))))
+
+(defmethod window-clear :after ((pane updating-output-stream-mixin))
+  "Get rid of any updating output records stored in the stream; they're gone
+  from the screen."
+  (clear-map pane))
+
+
 
 ;;; 16.4. Output Recording Streams
-(defclass standard-output-recording-stream (output-recording-stream)
+(defclass standard-output-recording-stream (updating-output-stream-mixin
+                                            output-recording-stream)
   ((recording-p :initform t :reader stream-recording-p)
    (drawing-p :initform t :accessor stream-drawing-p)
    (output-history :initform (make-instance 'standard-tree-output-history)
@@ -388,37 +412,3 @@ according to the flags RECORD and DRAW."
   (declare (ignore x y))
   (when (stream-drawing-p stream)
     (call-next-method)))
-
-
-;;; FIXME this should be pulled into STANDARD-OUTPUT-RECORDING-STREAM.
-(defclass updating-output-stream-mixin (updating-output-map-mixin
-                                        extended-output-stream)
-  ((redisplaying-p
-    :initform nil
-    :reader stream-redisplaying-p)
-   (incremental-redisplay
-    :initform nil
-    :initarg :incremental-redisplay
-    :accessor pane-incremental-redisplay)
-   ;; For incremental output, holds the top level updating-output-record.
-   (updating-record
-    :initform nil
-    :initarg :updating-record
-    :accessor updating-record)))
-
-(defmacro with-stream-redisplaying ((stream) &body body)
-  `(letf (((slot-value ,stream 'redisplaying-p) t)) ,@body))
-
-(defmethod redisplayable-stream-p ((stream updating-output-stream-mixin))
-  (declare (ignore stream))
-  t)
-
-(defmethod pane-needs-redisplay :around ((pane updating-output-stream-mixin))
-  (let ((redisplayp (call-next-method)))
-    (values redisplayp (and (not (eq redisplayp :no-clear))
-                            (not (pane-incremental-redisplay pane))))))
-
-(defmethod window-clear :after ((pane updating-output-stream-mixin))
-  "Get rid of any updating output records stored in the stream; they're gone
-  from the screen."
-  (clear-map pane))

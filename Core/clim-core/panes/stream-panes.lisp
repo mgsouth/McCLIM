@@ -21,7 +21,7 @@
 
 ;;; A class that implements the display function invocation. It's put
 ;;; in a super class of clim-stream-pane so that redisplay-frame-pane
-;;; on updating-output-stream-mixin can override that method.
+;;; on standard-recording-output-stream can override that method.
 
 (defclass pane-display-mixin ()
   ((display-function :initform (constantly nil)
@@ -35,11 +35,10 @@
   (invoke-display-function frame pane))
 
 (defclass clim-stream-pane (text-selection-mixin
-                            updating-output-stream-mixin
-                            pane-display-mixin
                             standard-output-recording-stream
                             standard-extended-input-stream
                             standard-extended-output-stream
+                            pane-display-mixin
                             ;; sheet-leaf-mixin
                             sheet-multiple-child-mixin   ; needed for GADGET-OUTPUT-RECORD
                             basic-pane)
@@ -53,7 +52,7 @@
     extended input and output, and output recording protocols."))
 
 (defmethod redisplay-frame-pane
-    ((frame application-frame) (pane updating-output-stream-mixin) &key force-p)
+    ((frame application-frame) (pane standard-output-recording-stream) &key force-p)
   (setf (id-counter pane) 0)
   (let ((incremental-redisplay (pane-incremental-redisplay pane)))
     (cond ((not incremental-redisplay)
