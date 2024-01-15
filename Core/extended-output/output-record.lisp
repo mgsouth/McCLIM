@@ -1571,7 +1571,7 @@ the associated sheet can be determined."
   (;; Stream is used to query record dimensions and drawing options.
    (stream :initarg :stream)
    ;; All objects making the output record.
-   (objects :initform nil)))
+   (objects :initform (make-array 0 :adjustable t :fill-pointer t))))
 
 (defmethod initialize-instance :after
     ((self standard-text-displayed-output-record) &key stream)
@@ -1603,8 +1603,8 @@ the associated sheet can be determined."
   (nest
    (with-end-of-line-action (stream :allow))
    (with-end-of-page-action (stream :allow))
-   (dolist (object (slot-value self 'objects))
-     (seos-write-object stream object))))
+   (loop for object across (slot-value self 'objects)
+         do (seos-write-object stream object))))
 
 (defun update-output-record-cursor (self object)
   (let* ((stream (slot-value self 'stream))
@@ -1645,7 +1645,7 @@ the associated sheet can be determined."
 
 (defun add-object-to-text-record (self object)
   (with-slots (objects) self
-    (nconcf objects (list object))
+    (vector-push-extend object objects)
     (update-output-record-cursor self object)
     (tree-recompute-extent self)))
 
@@ -1661,7 +1661,8 @@ the associated sheet can be determined."
      string start end text-style width height baseline)
   (orf end (length string))
   (with-slots (objects stream) self
-    (let ((last-object (car (last objects)))
+    (let ((last-object (unless (emptyp objects)
+                         (last-elt objects)))
           (ink (medium-ink stream)))
       (if (and (typep last-object 'draw-text-output-record)
                (match-output-records last-object
@@ -1680,7 +1681,7 @@ the associated sheet can be determined."
                                         :toward-x nil :toward-y nil
                                         :transform-glyphs nil
                                         :ink ink :text-style text-style)))
-            (nconcf objects (list record))
+            (vector-push-extend record objects)
             (update-output-record-cursor self record))))
     (tree-recompute-extent self)))
 
@@ -1692,13 +1693,13 @@ the associated sheet can be determined."
              (string object)
              (otherwise "@"))))
     (with-slots (objects) record
-      (cond ((null objects)
+      (cond ((= 0 (length objects))
              "")
-            ((null (rest objects))
-             (to-string (first objects)))
+            ((= 1 (length objects))
+             (to-string (elt objects 0)))
             (t
              (with-output-to-string (result)
-               (loop for object in objects
+               (loop for object across objects
                      do (write-string (to-string object) result))))))))
 
 
