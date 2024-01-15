@@ -111,63 +111,27 @@
          (invoke-with-indenting-output ,stream #',continuation :indent ,indentation ,@args)))))
 
 
-(defparameter +quadrant-transformation+
-  (make-scaling-transformation 1 -1))
-
-(defun %invoke-wrfg (sheet cont transf width height move-cursor)
-  (let ((cursor (stream-text-cursor sheet))
-        (region (make-rectangle* 0 0 width height)))
-   (multiple-value-bind (dx dy cx cy bx by ex ey)
-       (stream-cursor-motion sheet cursor region)
-     (with-identity-transformation (sheet)
-       (with-translation (sheet dx dy)
-         (with-drawing-options (sheet :transformation transf)
-           (funcall cont sheet))))
-     (when move-cursor
-       (setf (cursor-position cursor) (values cx cy)
-             (cursor-offset cursor) (values bx by)
-             (cursor-extent cursor) (values ex ey))))))
-
-(defmethod invoke-with-room-for-graphics
-    (cont (stream extended-output-stream)
+;;; FIXME even when we don't move the cursor, we still should add the record to
+;;; the text line, so it is repositioned after adjusting the baseline.
+(defun invoke-with-room-for-graphics
+    (cont stream
      &key (first-quadrant t) width height (move-cursor t)
-          (record-type nil))
-  (declare (ignore record-type))
-  (unless (and width height)
-    (let ((cursor (stream-text-cursor stream)))
-      (orf width  (cursor-offset-x cursor))
-      (orf height (cursor-offset-y cursor))))
-  (let ((transf (if (not first-quadrant)
-                    +identity-transformation+
-                    +quadrant-transformation+)))
-    (%invoke-wrfg stream cont transf width height move-cursor))
-  (stream-cursor-position stream))
-
-(defmethod invoke-with-room-for-graphics
-    (cont (stream output-recording-stream)
-     &key (first-quadrant t) width height (move-cursor t)
-          (record-type 'standard-sequence-output-record))
-  (unless (stream-recording-p stream)
-    (return-from invoke-with-room-for-graphics
-      (when (stream-drawing-p stream)
-        (call-next-method))))
-  (nest
-   (let ((transf (if (not first-quadrant)
-                     +identity-transformation+
-                     +quadrant-transformation+))))
-   (with-identity-transformation (stream))
-   (with-translation (stream (or width 0) (or height 0)))
-   (with-drawing-options (stream :transformation transf))
-   (let ((cursor (stream-text-cursor stream))
-         (record (with-output-to-output-record (stream record-type)
-                   (funcall cont stream))))
-     (if (null move-cursor)
-         (progn
-           (setf (output-record-position record)
-                 (cursor-position cursor))
-           (stream-add-output-record stream record))
-         (stream-write-object stream record))))
-  (stream-cursor-position stream))
+       (record-type 'standard-sequence-output-record))
+  (orf width 0)
+  (orf height 0)
+  (let ((record (with-output-to-output-record (stream record-type)
+                  (if first-quadrant
+                      (with-first-quadrant-coordinates (stream width height)
+                        (funcall cont stream))
+                      (with-local-coordinates (stream width height)
+                        (funcall cont stream))))))
+    (if (null move-cursor)
+        (progn
+          (setf (output-record-position record)
+                (stream-cursor-position stream))
+          (stream-add-output-record stream record))
+        (stream-write-object stream record))
+    (stream-cursor-position stream)))
 
 ;;; This macro is badly specified in CLIM II. McCLIM implements it for extended
 ;;; output streams that maintain the text line. WIDTH and HEIGHT are interpreted
@@ -183,8 +147,8 @@
     (with-stream-designator (stream '*standard-output*)
       `(labels ((,cont (,stream)
                   ,@body))
-         (declare (dynamic-extent #',cont))
-         (invoke-with-room-for-graphics #',cont ,stream ,@arguments)))))
+         (declare (dynamic-extent (function ,cont)))
+         (invoke-with-room-for-graphics (function ,cont) ,stream ,@arguments)))))
 
 
 ;;; formatting functions

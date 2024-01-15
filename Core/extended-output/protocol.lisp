@@ -67,8 +67,8 @@
 (declmacro with-room-for-graphics
   ((&optional stream &key first-quadrant width height move-cursor record-type) &body body))
 
-(defgeneric invoke-with-room-for-graphics
-    (cont stream &key first-quadrant width height move-cursor record-type))
+(declfun invoke-with-room-for-graphics
+  (cont stream &key first-quadrant width height move-cursor record-type))
 
 ;;; Extra
 
