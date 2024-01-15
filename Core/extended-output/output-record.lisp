@@ -1528,6 +1528,18 @@ the associated sheet can be determined."
                                     (+ x dx)
                                     (+ y dy)))))
 
+#+ (or) ;; debugging
+(defmethod replay-output-record :after
+    ((record basic-output-record) stream
+     &optional region (x-offset 0) (y-offset 0))
+  (declare (ignore region))
+  (with-translation (stream x-offset y-offset)
+    (let ((rect (copy-bounding-rectangle record))
+          (ink1 (compose-in +blue+ (make-opacity .1)))
+          (ink2 +black+))
+      (draw-design stream rect :filled t :ink ink1)
+      (draw-design stream rect :filled nil :ink ink2 :line-thickness .5))))
+
 (defrecord-predicate draw-text-output-record
     (string start end
      point-x point-y align-x align-y toward-x toward-y transform-glyphs)
