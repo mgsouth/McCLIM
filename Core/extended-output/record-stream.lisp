@@ -170,8 +170,7 @@ recording stream. If it is T, *STANDARD-OUTPUT* is used.")
                    :initarg :output-record
                    :reader stream-output-history)
    (current-output-record :accessor stream-current-output-record)
-   (current-text-output-record :initform nil
-                               :accessor stream-current-text-output-record))
+   (current-text-output-record :accessor stream-current-text-output-record))
   (:documentation "This class is mixed into some other stream class to
 add output recording facilities. It is not instantiable."))
 
@@ -180,6 +179,7 @@ add output recording facilities. It is not instantiable."))
   (declare (ignore args))
   (let ((history (stream-output-history stream)))
     (setf (slot-value history 'stream) stream
+          (slot-value stream 'current-text-output-record) nil
           (slot-value stream 'output-history) history
           (stream-current-output-record stream) history)))
 
@@ -233,15 +233,16 @@ add output recording facilities. It is not instantiable."))
 (defmethod stream-close-text-output-record ((stream standard-output-recording-stream))
   (when-let ((record (stream-current-text-output-record stream)))
     (setf (stream-current-text-output-record stream) nil)
-    #|record stream-current-cursor-position to (end-x record) - already done|#
-    (stream-add-output-record stream record)
-    ;; STREAM-WRITE-OUTPUT on recorded stream inhibits eager drawing to collect
-    ;; whole output record in order to align line's baseline between strings of
-    ;; different height. See \"15.3 The Text Cursor\". -- jd 2019-01-07
+    (when (stream-recording-p stream)
+      (stream-add-output-record stream record))
     (when (stream-drawing-p stream)
       (with-output-recording-options (stream :record nil)
         (with-identity-transformation (stream)
           (replay-output-record record stream))))))
+
+(defmethod stream-write-output
+    ((stream standard-output-recording-stream) object x y &key (start 0) end)
+  (seos-record-output stream object start end))
 
 (defmethod stream-add-character-output ((stream standard-output-recording-stream)
                                         character text-style width height baseline)
@@ -258,45 +259,6 @@ add output recording facilities. It is not instantiable."))
 (defun stream-add-record-output (stream record width height base-x base-y)
   (add-object-to-text-record (stream-text-output-record stream nil) record))
 
-;;; Text output catching methods
-(defmethod stream-write-output
-    ((stream standard-output-recording-stream) (line string) x y &key (start 0) end)
-  (unless (stream-recording-p stream)
-    (return-from stream-write-output
-      (when (stream-drawing-p stream)
-        (call-next-method))))
-  (let* ((medium (sheet-medium stream))
-         (text-style (medium-text-style medium))
-         (height (text-style-height text-style medium))
-         (base-y (text-style-ascent text-style stream)))
-    (let ((width (stream-string-width stream line :text-style text-style
-                                                  :start start :end end)))
-      (stream-add-string-output stream line start end text-style
-                                width height base-y))))
-
-(defmethod stream-write-output
-    ((stream standard-output-recording-stream) (line character) x y &rest args)
-  (declare (ignore args))
-  (unless (stream-recording-p stream)
-    (return-from stream-write-output
-      (when (stream-drawing-p stream)
-        (call-next-method))))
-  (let* ((medium (sheet-medium stream))
-         (text-style (medium-text-style medium))
-         (height (text-style-height text-style medium))
-         (base-y (text-style-ascent text-style stream)))
-    (let ((width (stream-character-width stream line :text-style text-style)))
-      (stream-add-character-output stream line text-style width height base-y))))
-
-(defmethod stream-write-output
-    ((stream standard-output-recording-stream) (object bounding-rectangle) x y &rest args)
-  (declare (ignore args))
-  (unless (stream-recording-p stream)
-    (return-from stream-write-output
-      (when (stream-drawing-p stream)
-        (call-next-method))))
-  (multiple-value-bind (ws hs after below) (text-metrics stream object)
-    (stream-add-record-output stream object ws hs (- ws after) (- hs below))))
 
 (defmethod stream-finish-output :after ((stream standard-output-recording-stream))
   (stream-close-text-output-record stream))

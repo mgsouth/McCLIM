@@ -112,6 +112,31 @@ the cursor after the operation. This function does not wrap.")
     (declare (ignore args))
     (replay-output-record item stream nil x y)))
 
+(defun seos-record-output (stream object &optional start end)
+  (etypecase object
+    (character
+     (let* ((record (stream-text-output-record stream nil))
+            (medium (sheet-medium stream))
+            (text-style (medium-text-style medium))
+            (height (text-style-height text-style medium))
+            (base-y (text-style-ascent text-style stream))
+            (width (stream-character-width stream object :text-style text-style)))
+       (add-character-output-to-text-record
+        record object text-style width height base-y)))
+    (string
+     (let* ((record (stream-text-output-record stream nil))
+            (medium (sheet-medium stream))
+            (text-style (medium-text-style medium))
+            (height (text-style-height text-style medium))
+            (base-y (text-style-ascent text-style stream))
+            (width (stream-string-width stream object :text-style text-style
+                                                      :start start :end end)))
+       (add-string-output-to-text-record
+        record object start end text-style width height base-y)))
+    (output-record
+     (let ((record (stream-text-output-record stream nil)))
+       (add-object-to-text-record record object)))))
+
 (defun seos-finish-output (stream)
   (when (stream-drawing-p stream)
     (change-stream-space-requirements stream)
