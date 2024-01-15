@@ -96,20 +96,6 @@
 (defmethod note-sheet-grafted :after ((stream standard-extended-output-stream))
   (reset-stream-cursor stream (stream-text-cursor stream)))
 
-(defmacro with-end-of-line-action ((stream action) &body body)
-  (when (eq stream t)
-    (setq stream '*standard-output*))
-  (check-type stream symbol)
-  `(letf (((stream-end-of-line-action ,stream) ,action))
-     ,@body))
-
-(defmacro with-end-of-page-action ((stream action) &body body)
-  (when (eq stream t)
-    (setq stream '*standard-output*))
-  (check-type stream symbol)
-  `(letf (((stream-end-of-page-action ,stream) ,action))
-     ,@body))
-
 (defgeneric stream-write-output (stream line x y &rest args)
   (:documentation
    "Writes the object on the current line of the STREAM. The caller is responsible

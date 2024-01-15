@@ -57,6 +57,20 @@
     (setf (slot-value instance 'margins)
           (normalize-margin-spec text-margins defaults))))
 
+(defmacro with-end-of-line-action ((stream action) &body body)
+  (when (eq stream t)
+    (setq stream '*standard-output*))
+  (check-type stream symbol)
+  `(letf (((stream-end-of-line-action ,stream) ,action))
+     ,@body))
+
+(defmacro with-end-of-page-action ((stream action) &body body)
+  (when (eq stream t)
+    (setq stream '*standard-output*))
+  (check-type stream symbol)
+  `(letf (((stream-end-of-page-action ,stream) ,action))
+     ,@body))
+
 (defmethod (setf stream-text-margins) (margins (self standard-page-layout))
   (let* ((old (stream-text-margins self))
          (new (normalize-margin-spec margins old)))
