@@ -22,7 +22,8 @@
                 ((:file "utilities")
                  (:file "protocol")
                  (:file "resources")
-                 (:file "internal-buffer")
+                 (:file "cluffer-clim")
+                 (:file "internal-buffer" :depends-on ("cluffer-clim"))
                  (:file "encapsulating-streams" :depends-on ("protocol"))))
                (:module "geometry"
                 :depends-on ("system")
