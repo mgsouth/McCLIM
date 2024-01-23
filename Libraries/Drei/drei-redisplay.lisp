@@ -1102,8 +1102,8 @@ calculated by `drei-bounding-rectangle*'."
                     (null (output-record-parent drei)))
           (recompute-extent-for-changed-child (output-record-parent drei) drei
                                               old-x1 old-y1 old-x2 old-y2))))
-    (when (and (point-cursor drei) (active drei))
-      (climi::scroll-extent* stream (point-cursor drei)))
+    (when (active drei)
+      (climi::scroll-extent* stream (stream-text-cursor stream)))
     (finish-output stream)))
 
 ;;; Drei pane redisplay.

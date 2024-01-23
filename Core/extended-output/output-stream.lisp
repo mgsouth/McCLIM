@@ -85,12 +85,14 @@
     (:right-to-left (values (- (text-style-width text-style stream)) 0))))
 
 (defmethod stream-force-output :after ((stream standard-extended-output-stream))
-  (stream-close-text-output-record stream)
+  (when (stream-close-text-output-record stream)
+    (seos-finish-output stream))
   (with-sheet-medium (medium stream)
     (medium-force-output medium)))
 
 (defmethod stream-finish-output :after ((stream standard-extended-output-stream))
-  (stream-close-text-output-record stream)
+  (when (stream-close-text-output-record stream)
+    (seos-finish-output stream))
   (with-sheet-medium (medium stream)
     (medium-finish-output medium)))
 
