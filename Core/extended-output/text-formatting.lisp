@@ -126,9 +126,8 @@
                       (with-local-coordinates (stream width height)
                         (funcall cont stream))))))
     (if (null move-cursor)
-        (progn
-          (setf (output-record-position record)
-                (stream-cursor-position stream))
+        (multiple-value-bind (cx cy) (stream-cursor-position stream)
+          (set-output-record-origin* record cx cy)
           (stream-add-output-record stream record))
         (stream-write-object stream record))
     (stream-cursor-position stream)))
