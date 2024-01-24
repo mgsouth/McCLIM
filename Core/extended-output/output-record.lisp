@@ -272,26 +272,40 @@ the associated sheet can be determined."
   (with-slots (x y) record
     (values x y)))
 
-(defun set-output-record-origin (record nx ny)
-  (with-slots (x y) record
+(defun set-output-record-origin (self nx ny)
+  (with-slots (x y) self
     (and nx (setf x nx))
     (and ny (setf y ny))))
 
+(defun set-output-record-origin* (self nx ny)
+  (multiple-value-bind (ox oy) (output-record-origin self)
+    (let ((dx (- nx ox))
+          (dy (- ny oy)))
+      (multiple-value-bind (x1 y1) (output-record-position self)
+        (setf (output-record-position self) (values (+ x1 dx) (+ y1 dy)))))))
+
+(defmacro with-output-record-offset ((dx dy ox oy nx ny self) &body body)
+  `(multiple-value-bind (,ox ,oy) (output-record-position ,self)
+     (let ((,dx (- ,nx ,ox))
+           (,dy (- ,ny ,oy)))
+       ,@body
+       (values ,nx ,ny))))
+
 (defmethod* (setf output-record-position) :before (nx ny (self basic-output-record))
-  (set-output-record-origin self nx ny))
+  (with-output-record-offset (dx dy ox oy nx ny self)
+    (multiple-value-bind (x0 y0) (output-record-origin self)
+      (set-output-record-origin self (+ x0 dx) (+ y0 dy)))))
 
 ;;; 16.2.1. The Basic Output Record Protocol
 
 (defmethod output-record-position ((record basic-output-record))
   (bounding-rectangle-position record))
 
-(defmethod* (setf output-record-position) (nx ny (record basic-output-record))
-  (with-standard-rectangle* (x1 y1 x2 y2) record
-    (let ((dx (- nx x1))
-          (dy (- ny y1)))
-      (setf (rectangle-edges* record)
-            (values nx ny (+ x2 dx) (+ y2 dy)))))
-  (values nx ny))
+(defmethod* (setf output-record-position) (nx ny (self basic-output-record))
+  (with-output-record-offset (dx dy ox oy nx ny self)
+    (with-standard-rectangle* (x1 y1 x2 y2) self
+      (setf (rectangle-edges* self)
+            (values (+ x1 dx) (+ y1 dy) (+ x2 dx) (+ y2 dy))))))
 
 (defmethod* (setf output-record-position)
     :around (nx ny (record basic-output-record))
@@ -371,17 +385,15 @@ the associated sheet can be determined."
   (:documentation "Implementation class for output records with children."))
 
 (defmethod* (setf output-record-position)
-    :before (nx ny (record compound-output-record))
-  (with-standard-rectangle* (x1 y1) record
-    (letf (((slot-value record 'in-moving-p) t))
-      (let ((dx (- nx x1))
-            (dy (- ny y1)))
-        (map-over-output-records
-         (lambda (child)
-           (multiple-value-bind (x y) (output-record-position child)
-             (setf (output-record-position child)
-                   (values (+ x dx) (+ y dy)))))
-         record)))))
+    :before (nx ny (self compound-output-record))
+  (with-output-record-offset (dx dy ox oy nx ny self)
+    (letf (((slot-value self 'in-moving-p) t))
+      (map-over-output-records
+       (lambda (child)
+         (multiple-value-bind (x y) (output-record-position child)
+           (setf (output-record-position child)
+                 (values (+ x dx) (+ y dy)))))
+       self))))
 
 (defmethod replay-output-record ((record compound-output-record) stream
                                  &optional region (x-offset 0) (y-offset 0))
@@ -817,14 +829,12 @@ the associated sheet can be determined."
     (call-next-method)))
 
 (defmethod* (setf output-record-position) :before
-    (nx ny (record gs-ink-mixin))
-    (with-standard-rectangle* (x1 y1) record
-      (let* ((dx (- nx x1))
-             (dy (- ny y1))
-             (tr (make-translation-transformation dx dy)))
-        (with-slots (ink) record
-          (setf (graphics-state-ink record)
-                (transform-region tr ink))))))
+  (nx ny (self gs-ink-mixin))
+  (with-output-record-offset (dx dy ox oy nx ny self)
+    (let ((tr (make-translation-transformation dx dy)))
+      (with-slots (ink) self
+        (setf (graphics-state-ink self)
+              (transform-region tr ink))))))
 
 (defrecord-predicate gs-ink-mixin (ink)
   (if-supplied (ink)
@@ -857,13 +867,13 @@ the associated sheet can be determined."
       (call-next-method record stream region 0 0))))
 
 (defmethod* (setf output-record-position) :around
-  (nx ny (record gs-transformation-mixin))
-  (with-standard-rectangle* (x1 y1) record
-    (let ((dx (- nx x1))
-          (dy (- ny y1)))
-      (multiple-value-prog1 (call-next-method)
-        (setf #1=(graphics-state-transformation record)
-              (compose-transformation-with-translation #1# dx dy))))))
+  (nx ny (self gs-transformation-mixin))
+  (with-output-record-offset (dx dy ox oy nx ny self)
+    ;; We don't call the next method, because that'd apply the transformation
+    ;; twice. -- jd 2024-01-024
+    (progn ;; multiple-value-prog1 (call-next-method)
+      (setf #1=(graphics-state-transformation self)
+            (compose-transformation-with-translation #1# dx dy)))))
 
 (defrecord-predicate gs-transformation-mixin (transformation)
   (if-supplied (transformation)
@@ -1222,22 +1232,18 @@ the associated sheet can be determined."
 
 ;;; record must be a standard-rectangle
 
-(defmethod* (setf output-record-position) :around (nx ny (record coord-seq-mixin))
-  (with-standard-rectangle* (x1 y1) record
-    (let ((dx (- nx x1))
-          (dy (- ny y1))
-          (coords (slot-value record 'coord-seq)))
-      (multiple-value-prog1
-          (call-next-method)
-        (let ((odd nil))
-          (map-into coords
-                    (lambda (val)
-                      (prog1
-                          (if odd
-                              (incf val dy)
-                              (incf val dx))
-                        (setf odd (not odd))))
-                    coords))))))
+(defmethod* (setf output-record-position) :around (nx ny (self coord-seq-mixin))
+  (with-output-record-offset (dx dy ox oy nx ny self)
+    (multiple-value-prog1 (call-next-method)
+      (let ((coords (slot-value self 'coord-seq))
+            (odd nil))
+        (map-into coords
+                  (lambda (val)
+                    (prog1 (if odd
+                               (incf val dy)
+                               (incf val dx))
+                      (setf odd (not odd))))
+                  coords)))))
 
 (defmethod match-output-records-1 and ((record coord-seq-mixin)
                                        &key (coord-seq nil coord-seq-p))
@@ -1260,15 +1266,12 @@ the associated sheet can be determined."
               (+ point-y border)))))
 
 (defmethod* (setf output-record-position) :around
-    (nx ny (record draw-point-output-record))
-    (with-standard-rectangle* (x1 y1) record
-      (with-slots (point-x point-y) record
-        (let ((dx (- nx x1))
-              (dy (- ny y1)))
-          (multiple-value-prog1
-              (call-next-method)
-            (incf point-x dx)
-            (incf point-y dy))))))
+  (nx ny (self draw-point-output-record))
+  (with-output-record-offset (dx dy ox oy nx ny self)
+    (multiple-value-prog1 (call-next-method)
+      (with-slots (point-x point-y) self
+        (incf point-x dx)
+        (incf point-y dy)))))
 
 (defrecord-predicate draw-point-output-record (point-x point-y)
   (and (if-supplied (point-x coordinate)
@@ -1303,17 +1306,14 @@ the associated sheet can be determined."
                 (+ (max point-y1 point-y2) border))))))
 
 (defmethod* (setf output-record-position) :around
-    (nx ny (record draw-line-output-record))
-  (with-standard-rectangle* (x1 y1) record
-    (with-slots (point-x1 point-y1 point-x2 point-y2) record
-      (let ((dx (- nx x1))
-            (dy (- ny y1)))
-        (multiple-value-prog1
-            (call-next-method)
-          (incf point-x1 dx)
-          (incf point-y1 dy)
-          (incf point-x2 dx)
-          (incf point-y2 dy))))))
+  (nx ny (self draw-line-output-record))
+  (with-output-record-offset (dx dy ox oy nx ny self)
+    (multiple-value-prog1 (call-next-method)
+      (with-slots (point-x1 point-y1 point-x2 point-y2) self
+        (incf point-x1 dx)
+        (incf point-y1 dy)
+        (incf point-x2 dx)
+        (incf point-y2 dy)))))
 
 (defrecord-predicate draw-line-output-record (point-x1 point-y1
                                               point-x2 point-y2)
@@ -1429,17 +1429,14 @@ the associated sheet can be determined."
     (call-next-method)))
 
 (defmethod* (setf output-record-position) :around
-  (nx ny (record draw-rectangle-output-record))
-  (with-standard-rectangle* (x1 y1) record
-    (with-slots (left top right bottom) record
-      (let ((dx (- nx x1))
-            (dy (- ny y1)))
-        (multiple-value-prog1
-            (call-next-method)
-          (incf left dx)
-          (incf top dy)
-          (incf right dx)
-          (incf bottom dy))))))
+  (nx ny (self draw-rectangle-output-record))
+  (with-output-record-offset (dx dy ox oy nx ny self)
+    (multiple-value-prog1 (call-next-method)
+      (with-slots (left top right bottom) self
+        (incf left dx)
+        (incf top dy)
+        (incf right dx)
+        (incf bottom dy)))))
 
 (defrecord-predicate draw-rectangle-output-record (left top right bottom filled)
   (and (if-supplied (left coordinate)
@@ -1485,15 +1482,12 @@ the associated sheet can be determined."
                     (ceiling (+ max-y border))))))))
 
 (defmethod* (setf output-record-position) :around
-    (nx ny (record draw-ellipse-output-record))
-  (with-standard-rectangle* (x1 y1) record
-    (with-slots (center-x center-y) record
-      (let ((dx (- nx x1))
-            (dy (- ny y1)))
-        (multiple-value-prog1
-            (call-next-method)
-          (incf center-x dx)
-          (incf center-y dy))))))
+    (nx ny (self draw-ellipse-output-record))
+  (with-output-record-offset (dx dy ox oy nx ny self)
+    (multiple-value-prog1 (call-next-method)
+      (with-slots (center-x center-y) self
+        (incf center-x dx)
+        (incf center-y dy)))))
 
 (defrecord-predicate draw-ellipse-output-record (center-x center-y filled)
   (and (if-supplied (center-x coordinate)
@@ -1733,14 +1727,12 @@ the associated sheet can be determined."
       (call-next-method))))
 
 (defmethod* (setf output-record-position) :around
-  (nx ny (record clipping-output-record))
-  (with-bounding-rectangle* (x1 y1) (graphics-state-clip record)
-    (let* ((dx (- nx x1))
-           (dy (- ny y1))
-           (tr (make-translation-transformation dx dy)))
-      (multiple-value-prog1 (call-next-method)
-        (setf (graphics-state-clip record)
-              (transform-region tr (graphics-state-clip record)))))))
+  (nx ny (self clipping-output-record))
+  (with-output-record-offset (dx dy ox oy nx ny self)
+    (multiple-value-prog1 (call-next-method)
+      (let ((tr (make-translation-transformation dx dy)))
+        (setf (graphics-state-clip self)
+              (transform-region tr (graphics-state-clip self)))))))
 
 (defmethod output-record-refined-position-test
     ((record clipping-output-record) x y)
