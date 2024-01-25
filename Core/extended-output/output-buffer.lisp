@@ -57,6 +57,20 @@
     (setf (slot-value instance 'margins)
           (normalize-margin-spec text-margins defaults))))
 
+(defmacro with-end-of-line-action ((stream action) &body body)
+  (when (eq stream t)
+    (setq stream '*standard-output*))
+  (check-type stream symbol)
+  `(letf (((stream-end-of-line-action ,stream) ,action))
+     ,@body))
+
+(defmacro with-end-of-page-action ((stream action) &body body)
+  (when (eq stream t)
+    (setq stream '*standard-output*))
+  (check-type stream symbol)
+  `(letf (((stream-end-of-page-action ,stream) ,action))
+     ,@body))
+
 (defmethod (setf stream-text-margins) (margins (self standard-page-layout))
   (let* ((old (stream-text-margins self))
          (new (normalize-margin-spec margins old)))
@@ -134,8 +148,8 @@
                                             :right  (:relative 0)
                                             :bottom (:relative 0)))
              ((cursor-position cursor) (stream-cursor-initial-position sheet))
-             ((cursor-baseline cursor) (values 0 0))
-             ((cursor-size cursor) (values 0 0)))
+             ((cursor-offset cursor) (values 0 0))
+             ((cursor-extent cursor) (values 0 0)))
         (funcall cont sheet)))))
 
 (defmacro with-pristine-viewport ((stream) &body body)
@@ -275,7 +289,7 @@
   (declare (ignore sheet))
   ;; Here we may decide on padding in the future.
   (with-bounding-rectangle* (:x2 x2 :y2 y2 :width w :height h) record
-    (multiple-value-bind (y0 x0) (output-record-baseline record)
+    (multiple-value-bind (x0 y0) (output-record-offset record)
       (values w h (- x2 x0) (- y2 y0)))))
 
 (defmethod text-metrics (sheet (record string) &rest args)
@@ -353,8 +367,8 @@
          (page-region (stream-page-region sheet))))
    (with-bounding-rectangle* (px1 py1 px2 py2) page-region)
    (multiple-value-bind (cx cy) (cursor-position cursor))
-   (multiple-value-bind (by bx) (cursor-baseline cursor))
-   (multiple-value-bind (ax ay) (cursor-size cursor))
+   (multiple-value-bind (bx by) (cursor-offset cursor))
+   (multiple-value-bind (ex ey) (cursor-extent cursor))
    (multiple-value-bind (w h r b) (apply #'text-metrics sheet record args))
    (let ((l (- w r))
          (a (- h b))
@@ -370,14 +384,14 @@
      (ecase page-direction
        (:top-to-bottom
         (maxf by a)             (setf y0 (+ cy by))
-        (maxf ay (+ by b))      (setf eop-p (> (+ cy ay) py2)))
+        (maxf ey b)             (setf eop-p (> (+ cy by ey) py2)))
        (:bottom-to-top
         (minf by (- b))         (setf y0 (+ cy by))
-        (maxf ay (+ (- by) a))  (setf eop-p (< (- cy ay) py1)))
+        (minf ey (- a))         (setf eop-p (< (+ cy by ey) py1)))
        (:left-to-right
         (maxf bx l)             (setf x0 (+ cx bx))
-        (maxf ax (+ bx r))      (setf eop-p (> (+ cx w) px2)))
+        (maxf ex r)             (setf eop-p (> (+ cx bx ex) px2)))
        (:right-to-left
         (minf bx (- r))         (setf x0 (+ cx bx))
-        (maxf ax (+ (- bx) l))  (setf eop-p (> (- cx w) px1))))
-     (values x0 y0 cx cy bx by ax ay eol-p eop-p))))
+        (minf ex (- l))         (setf eop-p (< (+ cx bx ex) px1))))
+     (values x0 y0 cx cy bx by ex ey eol-p eop-p))))

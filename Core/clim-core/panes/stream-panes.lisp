@@ -19,31 +19,16 @@
 
 (in-package #:clim-internals)
 
-;;; A class that implements the display function invocation. It's put
-;;; in a super class of clim-stream-pane so that redisplay-frame-pane
-;;; on updating-output-stream-mixin can override that method.
-
-(defclass pane-display-mixin ()
-  ((display-function :initform (constantly nil)
-                     :initarg :display-function
-                     :accessor pane-display-function)))
-
-(defmethod redisplay-frame-pane ((frame application-frame)
-                                 (pane pane-display-mixin)
-                                 &key force-p)
-  (declare (ignore force-p))
-  (invoke-display-function frame pane))
-
 (defclass clim-stream-pane (text-selection-mixin
-                            updating-output-stream-mixin
-                            pane-display-mixin
-                            standard-output-recording-stream
                             standard-extended-input-stream
                             standard-extended-output-stream
                             ;; sheet-leaf-mixin
                             sheet-multiple-child-mixin   ; needed for GADGET-OUTPUT-RECORD
                             basic-pane)
   ((redisplay-needed :initarg :display-time)
+   (display-function :initform (constantly nil)
+                     :initarg :display-function
+                     :accessor pane-display-function)
    ;; size required by the stream
    (stream-width :initform 100 :accessor stream-width)
    (stream-height :initform 100 :accessor stream-height))
@@ -53,11 +38,11 @@
     extended input and output, and output recording protocols."))
 
 (defmethod redisplay-frame-pane
-    ((frame application-frame) (pane updating-output-stream-mixin) &key force-p)
+    ((frame application-frame) (pane clim-stream-pane) &key force-p)
   (setf (id-counter pane) 0)
   (let ((incremental-redisplay (pane-incremental-redisplay pane)))
     (cond ((not incremental-redisplay)
-           (call-next-method))
+           (invoke-display-function frame pane))
           ((or (null (updating-record pane))
                force-p)
            (setf (updating-record pane)

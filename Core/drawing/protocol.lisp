@@ -67,8 +67,8 @@
 (pledge :macro with-rotation ((medium angle &optional origin) &body body))
 (pledge :macro with-identity-transformation)
 (defgeneric invoke-with-identity-transformation (medium continuation))
-(defgeneric invoke-with-local-coordinates (medium continuation x y))
-(defgeneric invoke-with-first-quadrant-coordinates (medium continuation x y))
+(declfun invoke-with-local-coordinates (medium continuation x y))
+(declfun invoke-with-first-quadrant-coordinates (medium continuation x y))
 
 ;;; 10.2.2 Estabilishing Local Coordinate System
 (pledge :macro with-local-coordinates ((medium &optional x y) &body body))

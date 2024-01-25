@@ -42,11 +42,9 @@
                            sheet-transformation-mixin
                            sheet-mute-input-mixin
                            sheet-mute-repainting-mixin
-                           climi::updating-output-stream-mixin
                            basic-sheet
                            standard-extended-output-stream
-                           permanent-medium-sheet-output-mixin
-                           standard-output-recording-stream)
+                           permanent-medium-sheet-output-mixin)
   ((port :initform nil :initarg :port :accessor port)
    (title :initarg :title)
    (author :initarg :author)

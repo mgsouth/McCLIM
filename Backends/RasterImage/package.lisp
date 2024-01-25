@@ -2,7 +2,6 @@
     (:use :clim :clim-lisp :clim-backend :mcclim-render)
     (:import-from :climi
                   #:port-grafts
-                  #:updating-output-stream-mixin
                   #:do-sequence
                   #:with-transformed-position
                   #:with-transformed-positions

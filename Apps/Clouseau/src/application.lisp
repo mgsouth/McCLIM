@@ -55,8 +55,8 @@
   (:layouts
    (with-interactor
     (vertically ()
-      (scrolling (:scroll-bars :horizontal :suggested-height 48)
-        history)
+      (48 (scrolling (:scroll-bars :horizontal)
+            history))
       (:fill (scrolling (:width 920 :height 480) inspector))
       (make-pane 'clime:box-adjuster-gadget)
       (1/16 interactor :height 200)))

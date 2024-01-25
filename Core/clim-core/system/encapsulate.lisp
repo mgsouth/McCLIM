@@ -394,9 +394,6 @@
     (apply #'invoke-with-drawing-options
            (slot-value medium 'stream) #'trampoline drawing-options)))
 
-(def-stream-method invoke-with-room-for-graphics
-    (cont (stream standard-encapsulating-stream) &rest options))
-
 ;;; Extended Input Streams
 
 (def-stream-method extended-input-stream-p

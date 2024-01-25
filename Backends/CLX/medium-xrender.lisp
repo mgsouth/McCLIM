@@ -378,7 +378,7 @@
                          (port (port medium))
                          (font (text-style-mapping port text-style)))
   (declare (optimize (speed 3))
-           (ignore translate direction)
+           (ignore translate direction transform-glyphs)
            (type #-sbcl (integer 0 #.array-dimension-limit)
                  #+sbcl sb-int:index
                  start end)
@@ -402,8 +402,7 @@
                     (:top    (incf y (font-ascent font)))
                     (:center (incf y (/ (- (font-ascent font) (font-descent font)) 2.0)))
                     (:bottom (decf y (font-descent font)))))))
-    (when (and transform-glyphs
-               (not (translation-transformation-p transformation)))
+    (when (not (translation-transformation-p transformation))
       (setq string (subseq string start end))
       (symbol-macrolet ((origin-x (text-size medium string :text-style text-style)))
         (fix-alignment))

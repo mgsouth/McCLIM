@@ -4,6 +4,7 @@
 ;;;
 ;;;  (c) Copyright 1998-2001 by Michael McDonald <mikemac@mikemac.com>
 ;;;  (c) Copyright 2000,2014 by Robert Strandh <robert.strandh@gmail.com>
+;;;  (c) Copyright 2016-2024 by Daniel Kochmański <daniel@turtleware.eu>
 ;;;
 ;;; ---------------------------------------------------------------------------
 ;;;
@@ -15,15 +16,14 @@
 ;;; Standard-Output-Stream class
 (defclass standard-output-stream (output-stream) ())
 
-(defmethod stream-recording-p ((stream output-stream)) nil)
-(defmethod stream-drawing-p ((stream output-stream)) t)
-
+
 ;;; Standard-Extended-Output-Stream class
 
 (defclass standard-extended-output-stream (extended-output-stream
                                            standard-output-stream
                                            standard-page-layout
-                                           filling-output-mixin)
+                                           filling-output-mixin
+                                           standard-output-recording-stream)
   ((foreground :initarg :foreground :reader foreground)
    (background :initarg :background :reader background)
    (text-style :initarg :text-style :reader stream-text-style)
@@ -41,37 +41,20 @@
   (cursor-position (stream-text-cursor stream)))
 
 (defmethod* (setf stream-cursor-position) (x y (stream standard-extended-output-stream))
-  (let ((cursor (stream-text-cursor stream)))
-    (setf (cursor-position cursor) (values x y))
-    (when (and (cursor-active cursor)
-               (output-recording-stream-p stream))
-      (stream-close-text-output-record (cursor-sheet cursor)))))
+  (stream-close-text-output-record stream)
+  (setf (cursor-position (stream-text-cursor stream)) (values x y)))
 
 (defmethod stream-baseline ((sheet standard-extended-output-stream))
-  (cursor-baseline (stream-text-cursor sheet)))
+  (let ((cursor (stream-text-cursor sheet)))
+    (ecase (stream-line-direction sheet)
+      ((:left-to-right :right-to-left) (cursor-offset-y cursor))
+      ((:top-to-bottom :bottom-to-top) (cursor-offset-x cursor)))))
 
-(defmethod* (setf stream-baseline) (y x (stream standard-extended-output-stream))
-  (setf (cursor-baseline (stream-text-cursor stream)) (values y x)))
-
-(defmethod stream-cursor-size ((stream standard-extended-output-stream))
-  (let ((cursor (stream-text-cursor stream)))
-    (values (cursor-width cursor) (cursor-height cursor))))
-
-(defmethod* (setf stream-cursor-size) ((stream standard-extended-output-stream))
-  (let ((cursor (stream-text-cursor stream)))
-    (values (cursor-width cursor) (cursor-height cursor))))
-
-(defmethod stream-cursor-height ((sheet standard-extended-output-stream))
-  (cursor-height (stream-text-cursor sheet)))
-
-(defun (setf stream-cursor-height) (value stream)
-  (setf (cursor-height (stream-text-cursor stream)) value))
-
-(defmethod stream-cursor-width ((sheet standard-extended-output-stream))
-  (cursor-width (stream-text-cursor sheet)))
-
-(defun (setf stream-cursor-width) (value stream)
-  (setf (cursor-width (stream-text-cursor stream)) value))
+(defmethod (setf stream-baseline) (baseline (sheet standard-extended-output-stream))
+  (let ((cursor (stream-text-cursor sheet)))
+   (ecase (stream-line-direction sheet)
+     ((:left-to-right :right-to-left) (setf (cursor-offset-y cursor) baseline))
+     ((:top-to-bottom :bottom-to-top) (setf (cursor-offset-x cursor) baseline)))))
 
 (defmethod stream-set-cursor-position ((stream standard-extended-output-stream) x y)
   (setf (stream-cursor-position stream) (values x y)))
@@ -88,54 +71,62 @@
 (defun reset-stream-cursor (stream cursor)
   (let* ((text-style (stream-text-style stream))
          (width (text-style-width text-style stream))
-         (height (text-style-height text-style stream)))
+         (ascent (text-style-ascent text-style stream))
+         (descent (text-style-descent text-style stream)))
     (setf (cursor-position cursor) (stream-cursor-initial-position stream)
-          (cursor-baseline cursor) (values 0 0)
-          (cursor-size cursor) (values width height))))
+          (cursor-offset cursor) (values 0 ascent)
+          (cursor-extent cursor) (values width descent))))
 
-(defun text-style-baseline (text-style stream)
+(defun text-style-offset (text-style stream)
   (ecase (stream-page-direction stream)
-    (:top-to-bottom (values (text-style-ascent text-style stream) 0))
-    (:bottom-to-top (values (- (text-style-ascent text-style stream)) 0))
-    (:left-to-right (values 0 (text-style-width text-style stream)))
-    (:right-to-left (values 0 (- (text-style-width text-style stream))))))
+    (:top-to-bottom (values 0 (text-style-ascent text-style stream)))
+    (:bottom-to-top (values 0 (- (text-style-ascent text-style stream))))
+    (:left-to-right (values (text-style-width text-style stream) 0))
+    (:right-to-left (values (- (text-style-width text-style stream)) 0))))
 
-(defmethod stream-force-output :after
-    ((stream standard-extended-output-stream))
+(defmethod stream-force-output :after ((stream standard-extended-output-stream))
+  (when (stream-close-text-output-record stream)
+    (seos-finish-output stream))
   (with-sheet-medium (medium stream)
     (medium-force-output medium)))
 
-(defmethod stream-finish-output :after
-    ((stream standard-extended-output-stream))
+(defmethod stream-finish-output :after ((stream standard-extended-output-stream))
+  (when (stream-close-text-output-record stream)
+    (seos-finish-output stream))
   (with-sheet-medium (medium stream)
     (medium-finish-output medium)))
+
+(defmethod stream-terpri :after ((stream standard-extended-output-stream))
+  (stream-close-text-output-record stream))
 
 (defmethod note-sheet-grafted :after ((stream standard-extended-output-stream))
   (reset-stream-cursor stream (stream-text-cursor stream)))
 
-(defmacro with-end-of-line-action ((stream action) &body body)
-  (when (eq stream t)
-    (setq stream '*standard-output*))
-  (check-type stream symbol)
-  `(letf (((stream-end-of-line-action ,stream) ,action))
-     ,@body))
 
-(defmacro with-end-of-page-action ((stream action) &body body)
-  (when (eq stream t)
-    (setq stream '*standard-output*))
-  (check-type stream symbol)
-  `(letf (((stream-end-of-page-action ,stream) ,action))
-     ,@body))
-
-(defgeneric stream-write-output (stream line &rest args)
-  (:documentation
-   "Writes the object on the current line of the STREAM. The caller is responsible
-for estabilishing an appropriate drawing system with origin at (0,0) and updating
-the cursor after the operation. This function does not wrap.")
-  (:method ((stream standard-extended-output-stream) (line string) &rest args)
-    (apply #'draw-text* stream line 0 0 args))
-  (:method ((stream standard-extended-output-stream) (item bounding-rectangle) &rest args)
-    (apply #'draw-design stream item args)))
+(defun seos-record-output (stream object &optional start end)
+  (etypecase object
+    (character
+     (let* ((record (stream-text-output-record stream nil))
+            (medium (sheet-medium stream))
+            (text-style (medium-text-style medium))
+            (height (text-style-height text-style medium))
+            (base-y (text-style-ascent text-style stream))
+            (width (stream-character-width stream object :text-style text-style)))
+       (add-character-output-to-text-record
+        record object text-style width height base-y)))
+    (string
+     (let* ((record (stream-text-output-record stream nil))
+            (medium (sheet-medium stream))
+            (text-style (medium-text-style medium))
+            (height (text-style-height text-style medium))
+            (base-y (text-style-ascent text-style stream))
+            (width (stream-string-width stream object :text-style text-style
+                                                      :start start :end end)))
+       (add-string-output-to-text-record
+        record object start end text-style width height base-y)))
+    (output-record
+     (let ((record (stream-text-output-record stream nil)))
+       (add-object-to-text-record record object)))))
 
 (defun seos-finish-output (stream)
   (when (stream-drawing-p stream)
@@ -188,16 +179,16 @@ the cursor after the operation. This function does not wrap.")
     :break-line
       (seos-write-newline stream t)
     :start-line
-      (multiple-value-bind (dx dy fx fy bx by cw ch eol-p eop-p)
+      (multiple-value-bind (dx dy fx fy bx by ex ey eol-p eop-p)
           (stream-cursor-motion stream cursor object)
-        (setf (cursor-baseline cursor) (values by bx))
-        (setf (cursor-size cursor) (values cw ch))
+        (declare (ignore dx dy))
         (when (and eop-p (member end-of-page-action '(:wrap :wrap*)))
           (go :break-page))
         (when (and eol-p wrapl (plusp (stream-text-offset stream cursor)))
           (go :break-line))
-        (with-translation (stream dx dy)
-          (stream-write-output stream object))
+        (setf (cursor-offset cursor) (values bx by))
+        (setf (cursor-extent cursor) (values ex ey))
+        (seos-record-output stream object)
         (setf (cursor-position cursor) (values fx fy))))))
 
 ;;; This function is responsible for managing the cursor and invoking drawing.
@@ -226,28 +217,29 @@ the cursor after the operation. This function does not wrap.")
       (setf start split
             split end)
     :start-line
-      (multiple-value-bind (dx dy fx fy bx by cw ch eol-p eop-p)
+      (multiple-value-bind (dx dy fx fy bx by ex ey eol-p eop-p)
           (stream-cursor-motion stream cursor vector :start start :end end
                                                      :text-style text-style)
-        (setf (cursor-baseline cursor) (values by bx))
-        (setf (cursor-size cursor) (values cw ch))
+        (declare (ignore dx dy))
         (when (and eop-p (member end-of-page-action '(:wrap :wrap*)))
           (go :break-page))
         (when (and eol-p wrapl)
           (setf split (stream-text-break stream cursor vector start end)))
-        (with-translation (stream dx dy)
-          (stream-write-output stream vector :start start :end split))
+        (setf (cursor-offset cursor) (values bx by))
+        (setf (cursor-extent cursor) (values ex ey))
+        (seos-record-output stream vector start split)
         (when (/= split end)
           (go :break-line))
         (setf (cursor-position cursor) (values fx fy))))))
 
+
 (defgeneric stream-write-object (stream object)
   (:method ((stream standard-extended-output-stream) object)
     (seos-write-object stream object)
     (seos-finish-output stream)))
 
 ;;; FIXME we can call STREAM-CURSOR-MOTION for the whole vector, but what about
-;;; drawing then? (in other words - implement line-aware STREAM-WRITE-OUTPUT).
+;;; drawing then? (in other words - implement line-aware REPLAY-OUTPUT-RECORD).
 (defgeneric stream-write-vector (stream vector start end)
   (:method ((stream standard-extended-output-stream) vector start end)
     #+ (or) (seos-write-vector stream vector start end)
@@ -281,6 +273,7 @@ the cursor after the operation. This function does not wrap.")
   (seos-finish-output stream)
   string)
 
+
 (defmethod stream-character-width ((stream standard-extended-output-stream) char
                                    &key (text-style nil))
   (with-sheet-medium (medium stream)
@@ -335,113 +328,8 @@ the cursor after the operation. This function does not wrap.")
       (when (sheetp *standard-output*)
         (medium-beep (sheet-medium *standard-output*)))))
 
-(defmacro with-room-for-graphics ((&optional (stream t)
-                                   &rest arguments
-                                   &key (first-quadrant t)
-                                     width
-                                     height
-                                     (move-cursor t)
-                                     (record-type ''standard-sequence-output-record))
-                                  &body body)
-  (declare (ignore first-quadrant width height move-cursor record-type))
-  (let ((cont (gensym "CONT.")))
-    (with-stream-designator (stream '*standard-output*)
-      `(labels ((,cont (,stream)
-                  ,@body))
-         (declare (dynamic-extent #',cont))
-         (invoke-with-room-for-graphics #',cont ,stream ,@arguments)))))
 
-;;; This fallback implementation is meant to work on any sheet with the output
-;;; protocol.
-(defmethod invoke-with-room-for-graphics (cont stream
-                                          &key (first-quadrant t)
-                                               (width 100)
-                                               (height 100)
-                                               (move-cursor t)
-                                               (record-type nil))
-  (declare (ignore record-type))
-  (with-sheet-medium (medium stream)
-    (multiple-value-bind (cx cy) (transform-position (medium-transformation medium) 0 0)
-      (multiple-value-bind (cy* transformation)
-          (if (not first-quadrant)
-              (values cy +identity-transformation+)
-              (values (+ cy height)
-                      (make-scaling-transformation 1 -1)))
-        (letf (((medium-transformation medium)
-                (compose-transformation-with-translation transformation cx cy*)))
-          (funcall cont stream)))
-      (if move-cursor
-          (values (+ cx width) cy)
-          (values cx cy)))))
-
-(defmethod invoke-with-room-for-graphics (cont (stream extended-output-stream)
-                                          &key (first-quadrant t)
-                                            (width (stream-character-width stream #\M))
-                                            (height (stream-cursor-height stream))
-                                            (move-cursor t)
-                                            (record-type nil))
-  (declare (ignore record-type))
-  (with-sheet-medium (medium stream)
-    (multiple-value-bind (cx cy) (stream-cursor-position stream)
-      (multiple-value-bind (cy* transformation)
-          (if (not first-quadrant)
-              (values cy +identity-transformation+)
-              (values (+ cy (stream-baseline stream))
-                      (make-scaling-transformation 1 -1)))
-        (letf (((medium-transformation medium)
-                (compose-transformation-with-translation transformation cx cy*)))
-          (funcall cont stream)))
-      (maxf (stream-cursor-height stream) height)
-      (setf (stream-cursor-position stream)
-            (if move-cursor
-                (values (+ cx width) cy)
-                (values cx cy))))))
-
-(defmethod invoke-with-local-coordinates ((medium extended-output-stream) cont x y)
-  ;; For now we do as real CLIM does.
-  ;; Default seems to be the cursor position.
-  ;; Moore suggests we use (0,0) if medium is no stream.
-  ;;
-  ;; Furthermore, the specification is vague about possible scalings ...
-  (unless (and x y)
-    (multiple-value-bind (cx cy) (stream-cursor-position medium)
-      (orf x cx)
-      (orf y cy)))
-  (multiple-value-bind (mxx mxy myy myx tx ty)
-      (get-transformation (medium-transformation medium))
-    (declare (ignore tx ty))
-    (with-identity-transformation (medium)
-      (with-drawing-options
-          (medium :transformation (make-transformation
-                                   mxx mxy myy myx
-                                   x y))
-        (funcall cont medium)))))
-
-(defmethod invoke-with-first-quadrant-coordinates ((medium extended-output-stream) cont x y)
-  ;; First we do the same as invoke-with-local-coordinates but rotate and deskew
-  ;; it so that it becomes first-quadrant. We do this by simply measuring the
-  ;; length of the transformed x and y "unit vectors".  [That is (0,0)-(1,0) and
-  ;; (0,0)-(0,1)] and setting up a transformation which features an upward
-  ;; pointing y-axis and a right pointing x-axis with a length equal to above
-  ;; measured vectors.
-  (unless (and x y)
-    (multiple-value-bind (cx cy) (stream-cursor-position medium)
-      (orf x cx)
-      (orf y cy)))
-  (let* ((tr (medium-transformation medium))
-         (xlen
-          (multiple-value-bind (dx dy) (transform-distance tr 1 0)
-            (sqrt (+ (expt dx 2) (expt dy 2)))))
-         (ylen
-          (multiple-value-bind (dx dy) (transform-distance tr 0 1)
-            (sqrt (+ (expt dx 2) (expt dy 2))))))
-    (with-identity-transformation (medium)
-      (with-drawing-options
-          (medium :transformation (make-transformation
-                                   xlen 0 0 (- ylen)
-                                   x y))
-        (funcall cont medium)))))
-
+
 ;;; Backend part of the output destination mechanism
 ;;;
 ;;; See clim-core/commands.lisp for the "user interface" part.

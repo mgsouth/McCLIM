@@ -340,7 +340,7 @@ modifier key."))
   `(exclusive-gadget-table
     ,(frame-command-table *application-frame*)))
 
-(defclass drei-area (drei displayed-output-record region
+(defclass drei-area (drei climi::standard-displayed-output-record region
                      climi::gs-text-style-mixin
                      command-processor
                      instant-macro-execution-mixin)
@@ -490,25 +490,25 @@ record."))
   (bounding-rectangle* rectangle))
 
 (defmethod region-union ((region1 drei-area) (region2 region))
-  (region-union (bounding-rectangle region1) region2))
+  (region-union (climi::copy-bounding-rectangle region1) region2))
 
 (defmethod region-union ((region1 region) (region2 drei-area))
-  (region-union region1 (bounding-rectangle region2)))
+  (region-union region1 (climi::copy-bounding-rectangle region2)))
 
 (defmethod region-intersection ((region1 drei-area) (region2 region))
-  (region-intersection (bounding-rectangle region1) region2))
+  (region-intersection (climi::copy-bounding-rectangle region1) region2))
 
 (defmethod region-intersection ((region1 region) (region2 drei-area))
-  (region-intersection region1 (bounding-rectangle region2)))
+  (region-intersection region1 (climi::copy-bounding-rectangle region2)))
 
 (defmethod region-difference ((region1 drei-area) (region2 region))
-  (region-difference (bounding-rectangle region1) region2))
+  (region-difference (climi::copy-bounding-rectangle region1) region2))
 
 (defmethod region-difference ((region1 region) (region2 drei-area))
-  (region-difference region1 (bounding-rectangle region2)))
+  (region-difference region1 (climi::copy-bounding-rectangle region2)))
 
 (defmethod transform-region (transformation (region drei-area))
-  (transform-region transformation (bounding-rectangle region)))
+  (transform-region transformation (climi::copy-bounding-rectangle region)))
 
 ;; For areas, we need to switch to ESA abort gestures after we have
 ;; left the CLIM gesture reading machinery, but before we start doing

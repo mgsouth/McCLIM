@@ -2,7 +2,7 @@
 ;;;   License: LGPL-2.1+ (See file 'Copyright' for details).
 ;;; ---------------------------------------------------------------------------
 ;;;
-;;;  (c) copyright 2020-2023 Daniel Kochmański <daniel@turtleware.eu>
+;;;  (c) copyright 2020-2024 Daniel Kochmański <daniel@turtleware.eu>
 ;;;
 ;;; ---------------------------------------------------------------------------
 ;;;
@@ -25,9 +25,9 @@
    ;; usually define their own cursors that are drawn.
    (headless-cursor
     :reader internal-buffer-cursor
-    :initform (make-instance 'cluffer-standard-line:right-sticky-cursor)))
+    :initform (make-instance 'cluffer-clim:cursor :stickiness :rsticky)))
   (:default-initargs
-   :initial-line (make-instance 'cluffer-standard-line:open-line)))
+   :initial-line (make-instance 'cluffer-clim:line)))
 
 (defmethod initialize-instance :after ((buffer internal-buffer) &key)
   (let ((cursor (internal-buffer-cursor buffer)))
@@ -114,7 +114,7 @@
 
 ;;; Cursors implement behavior of input cursor and a visual object.
 
-(defclass buffer-cursor (buffer-mark cluffer:cursor) ())
+(defclass buffer-cursor (buffer-mark standard-text-cursor cluffer-clim:cursor) ())
 
 (defmethod mark-attached-p ((mark buffer-cursor))
   (cluffer:cursor-attached-p mark))
@@ -126,18 +126,8 @@
   (when (mark-attached-p mark)
     (cluffer:detach-cursor mark)))
 
-(defclass buffer-lsticky-cursor
-    (buffer-cursor standard-text-cursor cluffer-standard-line:left-sticky-cursor)
-  ())
-
-(defclass buffer-rsticky-cursor
-    (buffer-cursor standard-text-cursor cluffer-standard-line:right-sticky-cursor)
-  ())
-
 (defun make-buffer-cursor (stickiness)
-  (ecase stickiness
-    (:lsticky (make-instance 'buffer-lsticky-cursor))
-    (:rsticky (make-instance 'buffer-rsticky-cursor))))
+  (make-instance 'buffer-cursor :stickiness stickiness))
 
 ;;; Slides may represent a pointer selection, last yank, an annotation etc. They
 ;;; may overlap or span multiple lines.

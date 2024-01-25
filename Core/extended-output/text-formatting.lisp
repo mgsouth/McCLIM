@@ -9,11 +9,6 @@
 ;;;
 ;;; Text formatting utilities.
 ;;;
-;;; Page layout may have numerous properties which arrange things on a stream
-;;; with having a broader picture in mind. Text on a page may have alignment and
-;;; direction, margins, columns, paragraph settings and much more. This file is
-;;; a beacon of the abstraction which may be used to specify these things.
-;;;
 
 (in-package #:clim-internals)
 
@@ -114,6 +109,45 @@
       `(flet ((,continuation (,stream) ,@body))
          (declare (dynamic-extent #',continuation))
          (invoke-with-indenting-output ,stream #',continuation :indent ,indentation ,@args)))))
+
+
+;;; FIXME even when we don't move the cursor, we still should add the record to
+;;; the text line, so it is repositioned after adjusting the baseline.
+(defun invoke-with-room-for-graphics
+    (cont stream
+     &key (first-quadrant t) width height (move-cursor t)
+       (record-type 'standard-sequence-output-record))
+  (orf width 0)
+  (orf height 0)
+  (let ((record (with-output-to-output-record (stream record-type)
+                  (if first-quadrant
+                      (with-first-quadrant-coordinates (stream width height)
+                        (funcall cont stream))
+                      (with-local-coordinates (stream width height)
+                        (funcall cont stream))))))
+    (if (null move-cursor)
+        (multiple-value-bind (cx cy) (stream-cursor-position stream)
+          (set-output-record-origin* record cx cy)
+          (stream-add-output-record stream record))
+        (stream-write-object stream record))
+    (stream-cursor-position stream)))
+
+;;; This macro is badly specified in CLIM II. McCLIM implements it for extended
+;;; output streams that maintain the text line. WIDTH and HEIGHT are interpreted
+;;; as baselines for appropriate line directions. There is no implicit clipping.
+(defmacro with-room-for-graphics ((&optional (stream t) &rest arguments
+                                   &key (first-quadrant t)
+                                        width height
+                                        (move-cursor t)
+                                        (record-type ''standard-sequence-output-record))
+                                  &body body)
+  (declare (ignore first-quadrant width height move-cursor record-type))
+  (let ((cont (gensym "CONT.")))
+    (with-stream-designator (stream '*standard-output*)
+      `(labels ((,cont (,stream)
+                  ,@body))
+         (declare (dynamic-extent (function ,cont)))
+         (invoke-with-room-for-graphics (function ,cont) ,stream ,@arguments)))))
 
 
 ;;; formatting functions

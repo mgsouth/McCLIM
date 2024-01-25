@@ -43,9 +43,7 @@
                                sheet-leaf-mixin
                                sheet-mute-input-mixin
                                sheet-mute-repainting-mixin
-                               updating-output-stream-mixin
                                standard-extended-output-stream
-                               standard-output-recording-stream
                                permanent-medium-sheet-output-mixin)
   ())
 

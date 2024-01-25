@@ -260,7 +260,9 @@
              (handler-case
                  (loop
                    (if first-time
-                       (setq first-time nil)
+                       (progn
+                         (setq first-time nil)
+                         (scroll-extent* stream arecord))
                        ;; XXX currently redisplay is broken for
                        ;; accpeting-values. Waits for a rewrite.
                        (when resynchronize-every-pass

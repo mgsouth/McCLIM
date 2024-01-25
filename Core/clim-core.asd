@@ -22,7 +22,8 @@
                 ((:file "utilities")
                  (:file "protocol")
                  (:file "resources")
-                 (:file "internal-buffer")
+                 (:file "cluffer-clim")
+                 (:file "internal-buffer" :depends-on ("cluffer-clim"))
                  (:file "encapsulating-streams" :depends-on ("protocol"))))
                (:module "geometry"
                 :depends-on ("system")
@@ -77,21 +78,18 @@
                  (:file "extra-colors")
                  (:file "utilities"        :depends-on ("protocol"))
                  (:file "views"            :depends-on ("protocol"))
-                 (:file "output-buffer"    :depends-on ("protocol" "utilities"))
-                 (:file "text-formatting"  :depends-on ("protocol" "utilities"))
                  (:file "text-cursor"      :depends-on ("protocol"))
-                 (:file "stream-output"    :depends-on ("protocol" "utilities" "views" "text-formatting" "text-cursor"))
-                 (:file "recording"        :depends-on ("protocol" "text-formatting"))
-                 (:file "graph-formatting" :depends-on ("protocol" "stream-output" "recording"))
-                 (:file "bordered-output"  :depends-on ("utilities" "extra-colors" "protocol" "recording"))
-                 (:file "table-formatting" :depends-on ("utilities" "protocol" "recording"))
-                 (:module "incremental-redisplay"
-                  :serial t
-                  :components ((:file "cache")
-                               (:file "updating-stream")
-                               (:file "updating-record")
-                               (:file "redisplay")
-                               (:file "propagate")))))
+                 ;; Output streams and records:
+                 (:file "output-buffer"    :depends-on ("protocol" "utilities" "text-cursor"))
+                 (:file "output-record"    :depends-on ("protocol" "utilities" "text-cursor" "output-buffer"))
+                 (:file "record-stream"    :depends-on ("protocol" "output-record"))
+                 (:file "redisplay"        :depends-on ("protocol" "output-record" "record-stream"))
+                 (:file "output-stream"    :depends-on ("protocol" "utilities" "views" "text-cursor" "record-stream"))
+                 ;; Formatting:
+                 (:file "text-formatting"  :depends-on ("protocol" "record-stream" "utilities"))
+                 (:file "graph-formatting" :depends-on ("protocol" "record-stream"))
+                 (:file "bordered-output"  :depends-on ("utilities" "extra-colors" "protocol" "record-stream"))
+                 (:file "table-formatting" :depends-on ("utilities" "protocol" "record-stream"))))
    (:module "extended-input"
     :depends-on ("windowing" "extended-output")
     :components ((:file "protocol")
