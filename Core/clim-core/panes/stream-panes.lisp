@@ -47,7 +47,7 @@
                force-p)
            (setf (updating-record pane)
                  (updating-output (pane :unique-id 'top-level)
-                   (call-next-method frame pane :force-p force-p))))
+                   (invoke-display-function frame pane))))
           ;; Implements the extension to the :incremental-redisplay
           ;; pane argument found in the Franz User Guide.
           (t (let ((record (updating-record pane)))
