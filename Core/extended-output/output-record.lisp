@@ -1536,13 +1536,13 @@ the associated sheet can be determined."
 
 (defrecord-predicate draw-text-output-record
     (string start end
-     point-x point-y align-x align-y toward-x toward-y transform-glyphs)
+     x y align-x align-y toward-x toward-y transform-glyphs)
   ;; Compare position first because it is cheap and an update is most
   ;; likely to change the position.
-  (and (if-supplied (point-x coordinate)
-         (coordinate= (slot-value record 'point-x) point-x))
-       (if-supplied (point-y coordinate)
-         (coordinate= (slot-value record 'point-y) point-y))
+  (and (if-supplied (x coordinate)
+         (coordinate= (slot-value record 'x) x))
+       (if-supplied (y coordinate)
+         (coordinate= (slot-value record 'y) y))
        (if-supplied (string)
          (let ((start1 0)
                (start2 0)
