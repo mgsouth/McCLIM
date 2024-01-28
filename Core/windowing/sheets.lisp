@@ -692,7 +692,8 @@ this might be different from the sheet's native region and transformation.")))
       (disable-mirror (port sheet) sheet)))
 
 (defmethod (setf sheet-pretty-name) :after (new-name (sheet mirrored-sheet-mixin))
-  (set-mirror-name (port sheet) sheet new-name))
+  (when-let ((port (port sheet)))
+    (set-mirror-name port sheet new-name)))
 
 (defmethod (setf sheet-icon) :after (new-value (sheet mirrored-sheet-mixin))
   (set-mirror-icon (port sheet) sheet new-value))
