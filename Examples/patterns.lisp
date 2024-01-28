@@ -98,48 +98,18 @@ Space: redisplay application")
 
 (defvar *draw* :pattern)
 
-(defclass my-basic-pane (basic-pane) ())
-
-(defmethod compose-space ((pane my-basic-pane) &key (width 100) (height 100))
-  (make-space-requirement :width (max 650 width) :height (max 400 height)))
-
 (define-application-frame pattern-design-test ()
   ()
   (:menu-bar nil)
-  (:geometry :width 1440 :height 635)
-  (:panes (info1 :application
-                 :display-function #'(lambda (frame pane)
-                                       (declare (ignore frame))
-                                       (let ((*text-right-margin* 600))
-                                         (draw-string pane *general-description* 20 30))))
-          (info2 :application
-                 :display-function #'(lambda (frame pane)
-                                       (declare (ignore frame))
-                                       (let ((*text-right-margin* 600))
-                                         (with-drawing-options (pane :text-family :fix)
-                                           (draw-string pane *options* 20 30)
-                                           (draw-string pane
-                                                        (format nil "Current draw is ~a." *draw*)
-                                                        20 220)))))
-          (pane1 :application :display-function 'display :scroll-bars :vertical)
-          (pane2 :application :display-function 'display :scroll-bars nil)
-          ;; Bug #7: clx-fb backend doesn't work with panes like this one.
-          (pane4 (make-pane 'my-basic-pane :height *total-height*)))
-  (:layouts (default (vertically ()
-                       (235
-                        (horizontally () info1 info2))
-                       (horizontally ()
-                         (1/4 (labelling (:label "Application :SCROLL-BARS :BOTH")
-                                pane1))
-                         (1/4 (labelling (:label "Application")
-                                (scrolling (:scroll-bars :vertical)
-                                  pane2)))
-                         ;; Bug #4: if basic-pane has its own scroll-bars, ink
-                         ;; doesn't follow the scroll what gives a weird
-                         ;; result. Fixing that for applicatioin pane broken
-                         ;; basic-pane. WIP.
-                         (1/4 (labelling (:label "Basic pane (no output recording)")
-                                (scrolling (:scroll-bars :vertical) pane4))))))))
+  (:geometry :width 1280 :height 720)
+  (:panes (pane1 :application :display-function 'display :scroll-bars :vertical)
+          (pane2 :application :display-function 'display :scroll-bars nil))
+  (:layouts (default (horizontally ()
+                       (1/4 (labelling (:label "Application :SCROLL-BARS :BOTH")
+                              pane1))
+                       (1/4 (labelling (:label "Application")
+                              (scrolling (:scroll-bars :vertical)
+                                pane2)))))))
 
 (defun draw-patterns (pane)
   (draw-rectangle* pane 5 5 (+ (* 60 (length *patterns*)) 5) 65
@@ -223,174 +193,30 @@ right-trimmed for spaces."
     (multiple-value-setq (string remainder)
       (%split-line #\space text :count count :from-end t))))
 
-(defun draw-string (pane string x y &rest args
-                    &key (align-x :left) (align-y :baseline) &allow-other-keys)
-  "Like format but works on medium and takes draw-text* arguments. Wraps by word"
-  (let* ((eosp         (extended-output-stream-p pane))
-         (medium       (if (not eosp)
-                           pane
-                           (sheet-medium pane)))
-         (text-style   (medium-text-style medium))
-         (text-ascent  (text-style-ascent text-style medium))
-         (text-margin  (ecase align-x
-                         (:left (- *text-right-margin* x))
-                         (:right x)
-                         (:center *text-right-margin*)))
-         (dy y)
-         (lines (do* ((strings (%split-sequence-to-list #\newline string)
-                               ;; (list
-                               ;;  ;; XXX: Hack to remove all newlines (M-q).
-                               ;;  (format nil "~{~A~^ ~}"
-                               ;;          (mapcar #'(lambda (s)
-                               ;;                      (string-trim '(#\newline #\space) s))
-                               ;;                  (%split-sequence-to-list #\newline string))))
-                               )
-                      (current #2=(pop strings) #2#)
-                      (final-lines nil))
-                     ((null current) (nreverse final-lines))
-                  (multiple-value-bind (current rem)
-                      (split-line-by-word current text-margin (curry #'text-size medium))
-                    (when rem (push rem strings))
-                    (push current final-lines)
-                    (incf dy text-ascent))))
-         (start-y (ecase align-y
-                    ((:top :baseline) y)
-                    ((:bottom :baseline*) (- y (* (1- (length lines)) text-ascent)))
-                    (:center (- y (* 0.5 (1- (length lines)) text-ascent))))))
-    (when (member align-y '(:baseline :baseline*))
-      (setf (getf args :align-y) :baseline))
-    (dolist (line lines)
-      (apply #'draw-text* pane line x start-y args)
-      (incf start-y text-ascent))))
-
 (defun test-example (pane &key first-quadrant transformation (description "") draw)
-  ;; Bug #5: draw-text* doesn't work with strings which start with a newline.
-  #+ (or) (draw-text* pane (format nil "~%foo") 10 10)
-  ;; Bug #6: draw-text* is not drawn at all in with-room-for-graphics for
-  ;; default first-quadrant (inverted Y). It should be either rotated or drawn
-  ;; without rotation at the correct position.
-  #+ (or) (with-room-for-graphics (pane)
-            (draw-text* pane "foo" 10 10)
-            (draw-text* pane "foo" 10 -10))
-  ;; XXX
   (with-room-for-graphics (pane :first-quadrant first-quadrant :move-cursor nil)
     (with-drawing-options (pane :transformation transformation)
       (ecase draw
         (:design (draw-designs pane))
         (:pattern (draw-patterns pane))
-        (:rectangle (draw-rects pane)))))
-  (multiple-value-bind (x y)
-      (if (extended-output-stream-p pane)
-          (stream-cursor-position pane)
-          (transform-position (medium-transformation (sheet-medium pane)) 0 0))
-    (with-identity-transformation (pane)
-      (draw-string pane (format nil description)
-                   (+ x 5)
-                   (+ y *block-height* -10)
-                   :align-y :bottom :align-x :left)
-      (if first-quadrant
-          (draw-arrow* pane
-                       (+ *text-right-margin* 16) (+ y 64)
-                       (+ *text-right-margin* 16) (+ y 16))
-          (draw-arrow* pane
-                       (+ *text-right-margin* 16) (+ y 16)
-                       (+ *text-right-margin* 16) (+ y 64))))))
-
-(defun ssop (pane &key (x 0 x-p) (y 0 y-p))
-  (multiple-value-bind (ox oy) (stream-cursor-position pane)
-    (setf (stream-cursor-position pane)
-          (values (if x-p x ox)
-                  (if y-p y oy)))))
-
-(defmacro layout-examples ((pane) &body examples)
-  (with-gensyms (eosp)
-    `(let ((,eosp (extended-output-stream-p ,pane)))
-       ,@(mapcar (let ((y 0))
-                   #'(lambda (ex)
-                       (prog1 `(progn
-                                 (if ,eosp
-                                     (progn (ssop ,pane :x 0 :y ,y) ,ex)
-                                     (with-translation (,pane 0 ,y) ,ex))
-                                 (draw-line* pane
-                                             0
-                                             ,(+ y *block-height* -10)
-                                             *text-right-margin*
-                                             ,(+ y *block-height* -10)
-                                             :ink +blue+
-                                             :line-dashes t))
-                         (incf y *block-height*))))
-                 examples))))
-
-(defmethod handle-repaint ((pane my-basic-pane) region)
-  (declare (ignore region))
-  (draw-rectangle* pane 0 0 (+ *text-right-margin* 100) *total-height* :ink +white+)
-  (display *application-frame* pane)
-  ;; (layout-examples (pane)
-  ;;   (test-example pane :description "hello world")
-  ;;   (test-example pane :description "hello world2"))
-  #+ (or)
-  (with-translation (pane 5 5)
-    (test-example pane)))
+        (:rectangle (draw-rects pane))))
+    (draw-arrow* pane *text-right-margin* 0 *text-right-margin* 75 :line-thickness 3)))
 
 (defun display (frame pane &aux (draw *draw*))
   (declare (ignore frame))
   (initialize-patterns)
-  (do ((i 5 (+ i 16))
-       (j 5 (+ j 16))
-       (max-i *text-right-margin*)
-       (max-j *total-height*))
-      ((and (> i max-i)
-            (> j max-j)))
-    (when (<= i max-i)
-      (draw-line* pane i 0 i max-j :ink +grey+))
-    (when (<= j max-j)
-      (draw-line* pane 0 j max-i j :ink +grey+)))
-  ;; Bug #1: width/height is not translated correctly (if we have anything
-  ;; before the pattern this height/width is substituted from the rest).
-  (draw-line* pane
-              *text-right-margin*
-              0
-              *text-right-margin*
-              *total-height*
-              :ink +red+
-              :line-dashes t )
-  (layout-examples (pane)
-    (test-example pane :first-quadrant nil
-                       :draw draw
-                       :description "[1] Basic case. Patterns are drawn with current
-                  transformation being just a translation. Ink should start at
-                  top-left corner of the square (should be aligned with
-                  it). Likely failures: ink has offset, ink not scrolling with a
-                  square.")
-    ;; Bug #2: if first-quadrant is t non-uniform design is not drawn.
-    (test-example pane :first-quadrant t
-                       :draw draw
-                       :description "[2] Y-axis is reverted (FIRST-QUADRANT=T). Since
-                  it is draw-pattern only translation is applied. Should look
-                  like the test [1]. Likely failures: inverted ink, squares not
-                  visible, additional vertical offset, error in basic-pane, same
-                  as test [1].")
-    (test-example pane
-                  :first-quadrant nil
-                  :draw draw
-                  :transformation (make-rotation-transformation (/ pi 8))
-                  :description "[5] Rotation by pi/4. Underlying rectangle is
-                  rotated, squares are not rotated but their start position is
-                  translated (so if they were rotated like the rectangle, they
-                  would start in the same position). Likely failures: position
-                  is not translated, ink is not translated (so in fact no
-                  visible), ink is not scrolling with the square, on a
-                  basic-pane rectangle itself may have wrong initial position.")
-    (test-example pane
-                  :first-quadrant t
-                  :draw draw
-                  :transformation (make-rotation-transformation (/ pi 8))
-                  :description "[6] Rotation by pi/4 with
-                  FIRST-QUADRANT=T. Underlying rectangle is rotated with
-                  inverted Y-axis. squares are not rotated but their start
-                  position is translated taking according to this
-                  reversal. Likely failures: position is translated as in [5],
-                  same as test [5].")))
+  (test-example pane :first-quadrant nil :draw draw)
+  (setf (stream-cursor-position pane) (values 0 200))
+  (draw-line* pane 0 100 *text-right-margin* 100)
+  (test-example pane :first-quadrant t :draw draw)
+  (draw-line* pane 0 225 *text-right-margin* 225)
+  (setf (stream-cursor-position pane) (values 0 250))
+  (test-example pane :first-quadrant nil :draw draw
+                     :transformation (make-rotation-transformation (/ pi 8)))
+  (draw-line* pane 0 475 *text-right-margin* 475)
+  (setf (stream-cursor-position pane) (values 0 700))
+  (test-example pane :first-quadrant t :draw draw
+                     :transformation (make-rotation-transformation (/ pi 8))))
 
 (define-pattern-design-test-command (refresh-pattern-design :keystroke #\space) ()
   (format *debug-io* "."))
