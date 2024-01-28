@@ -1631,6 +1631,18 @@ the associated sheet can be determined."
             (cursor-extent start-cursor) (values ex ey)
             (cursor-extent sheet-cursor) (values ex ey)))))
 
+;;; Recomputes the cursor motion from scratch.
+(defun compute-output-record-cursor (self)
+  (let ((stream (slot-value self 'stream))
+        (cursor (start-cursor self)))
+    (multiple-value-bind (x0 y0) (output-record-start-cursor-position self)
+      (reset-stream-cursor stream cursor)
+      (setf (cursor-position cursor) (values x0 y0))
+      (update-cursor (stream-text-cursor stream) cursor)))
+  (with-slots (objects) self
+    (loop for object across objects do
+      (update-output-record-cursor self object))))
+
 (defmethod tree-recompute-extent ((self standard-text-displayed-output-record))
   (nest
    (let ((start-cursor (start-cursor self))
@@ -1681,7 +1693,7 @@ the associated sheet can be determined."
           (with-slots ((record-string string)) last-object
             (append-string record-string string start end)
             (reinitialize-instance last-object)
-            (update-output-record-cursor self last-object))
+            (compute-output-record-cursor self))
           (let* ((string (create-string string start end))
                  (record (make-instance 'draw-text-output-record
                                         :stream stream
