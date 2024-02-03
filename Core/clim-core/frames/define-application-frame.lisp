@@ -98,8 +98,10 @@
   `(lambda (fm frame)
      (disown-frame-panes fm frame)
      (let ((named-panes (frame-panes-for-layout frame)))
+       (declare (ignorable named-panes))
        (let ,(loop for (name . nil) in panes
                    collect `(,name (assoc-value named-panes ',name :test #'eq)))
+         (declare (ignorable ,@(mapcar #'car panes)))
          (setf (frame-panes frame)
                (ecase (frame-current-layout frame)
                  ,@layouts))))
