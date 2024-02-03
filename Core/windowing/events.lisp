@@ -107,9 +107,7 @@
    (y :initarg :y :reader device-event-native-y)
    (sheet-x :reader device-event-x)
    (sheet-y :reader device-event-y))
-  (:default-initargs :modifier-state (required-argument :modifier-state)
-                     :x (required-argument :x)
-                     :y (required-argument :y)))
+  (:default-initargs :modifier-state +no-key+ :x 0 :y 0))
 
 ;;; This function is responsible for transforming the sheet of the event
 ;;; coordinates into target-sheet coordinates. Sheets may be cousins.
