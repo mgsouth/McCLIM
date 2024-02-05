@@ -19,20 +19,12 @@
     (make-pattern array (list (make-opacity 0.4) +red+ +green+ +blue+ +purple+ +yellow+
                               +grey+ +seagreen3+ +orange+ +dark-blue+ +dark-red+))))
 
-;;; Bug: something wrong with output record size (window is too big). More
-;;; apparent if we skip WITH-ROOM-FOR-GRAPHICS, but we want demo to look good.
 (defmethod display ((frame patterns-overlap) pane)
-  (clim:with-room-for-graphics (pane :first-quadrant nil)
+  (let ((transf-1 (make-rotation-transformation* (/ pi 4) 150 150))
+        (transf-2 (make-scaling-transformation* 1/2 1/2 0 0)))
     (draw-pattern* pane *pat* 0 0)
-    (draw-pattern* pane
-                   (transform-region (make-rotation-transformation* (/ pi 4) 150 150)
-                                     *pat*)
-                   0 0)
-    ;; Bug: this is wrong, we cut out 5 rectangles!
-    (draw-pattern* pane
-                   (transform-region (make-scaling-transformation* 1/2 1/2 0 0)
-                                     *pat*)
-                   75 250)))
+    (draw-pattern* pane (transform-region transf-1 *pat*) 0 0)
+    (draw-pattern* pane (transform-region transf-2 *pat*) 75 250)))
 
 (define-patterns-overlap-command (refresh-patterns-overlap :keystroke #\space) ()
   (format *debug-io* "."))
