@@ -224,8 +224,8 @@
              (result-w (max min-w buffer-w))
              (result-h (max min-h buffer-h)))
         (make-space-requirement
-         :width  result-w :min-width  min-w :max-width  result-w
-         :height result-h :min-height min-h :max-height result-h)))))
+         :width  result-w :min-width  min-w :max-width  +fill+
+         :height result-h :min-height min-h :max-height +fill+)))))
 
 (defclass text-field-pane (text-editing-gadget)
   ()
