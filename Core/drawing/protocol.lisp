@@ -202,6 +202,7 @@
 (defgeneric medium-draw-ellipse* (medium cx cy rdx1 rdy1 rdx2 rdy2 start-angle end-angle filled))
 (defgeneric medium-draw-text* (medium string x y start end align-x align-y toward-x toward-y transform-glyphs))
 (defgeneric medium-draw-bezigon* (medium coord-seq closed filled))
+(defgeneric medium-draw-pattern* (medium pattern x y))
 
 ;;; 12.7.3 Other Medium-specific Output Functions
 (defgeneric medium-finish-output (medium))

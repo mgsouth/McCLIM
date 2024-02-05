@@ -1567,6 +1567,17 @@ the associated sheet can be determined."
        (if-supplied (transform-glyphs)
          (eq (slot-value record 'transform-glyphs) transform-glyphs))))
 
+(def-grecording draw-pattern ()
+    (pattern x y)
+  (let* ((x2 (+ x (pattern-width pattern)))
+         (y2 (+ y (pattern-height pattern)))
+         (transf (medium-transformation medium))
+         (coords (expand-rectangle-coords x y x2 y2)))
+    (multiple-value-bind (x1 y1 x2 y2)
+        (coord-seq-bounds (transform-positions transf coords) 0)
+      (setf x x1 y y1)
+      (values x1 y1 x2 y2))))
+
 
 ;;; 16.3.3. Text Displayed Output Record
 

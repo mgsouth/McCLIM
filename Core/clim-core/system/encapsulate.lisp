@@ -271,6 +271,9 @@
 (def-stream-method medium-draw-bezigon* ((stream standard-encapsulating-stream)
                                          coord-seq closed filled))
 
+(def-stream-method medium-draw-pattern* ((stream standard-encapsulating-stream)
+                                         pattern x y))
+
 (def-stream-method medium-draw-rectangle*
     ((stream standard-encapsulating-stream) x1 y1 x2 y2 filled))
 

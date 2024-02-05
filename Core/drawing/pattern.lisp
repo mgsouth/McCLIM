@@ -310,7 +310,7 @@ Returns a pattern representing this file."
   (let ((old-transformation (transformed-design-transformation design)))
     (make-instance 'transformed-pattern
                    :design (transformed-design-design design)
-                   :transformation (compose-transformations old-transformation transformation))))
+                   :transformation (compose-transformations transformation old-transformation ))))
 
 (defmethod design-ink ((design transformed-design) x y)
   (let* ((source-pattern (transformed-design-design design))

@@ -316,6 +316,11 @@
                      align-x align-y
                      toward-x toward-y transform-glyphs))
 
+(define-drawing-function (draw-pattern* sheet pattern x y)
+    ()
+  (check-type pattern pattern)
+  (medium-draw-pattern* medium pattern x y))
+
 (defun draw-arrow (sheet point-1 point-2
                    &rest drawing-options
                    &key (to-head t) from-head (head-length 10) (head-width 5)
@@ -463,6 +468,7 @@
                                start end
                                align-x align-y
                                toward-x toward-y transform-glyphs))
+(def-graphic-op draw-pattern (pattern x y))
 
 (def-sheet-trampoline medium-clear-area (left top right bottom))
 (def-sheet-trampoline medium-finish-output ())

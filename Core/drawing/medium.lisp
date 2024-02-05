@@ -469,6 +469,10 @@
               (transform-ellipse tr cx cy rdx1 rdy1 rdx2 rdy2 eta1 eta2)
             (call-next-method medium cx cy rdx1 rdy1 rdx2 rdy2 eta1 eta2 filled))))))
 
+(defmethod medium-draw-pattern* :around ((medium transform-coordinates-mixin) pattern x y)
+  (with-identity-transformation* (medium x y)
+    (call-next-method medium pattern x y)))
+
 (defmethod medium-copy-area :around ((from-drawable transform-coordinates-mixin)
                                      from-x from-y width height
                                      (to-drawable transform-coordinates-mixin) to-x to-y)
@@ -535,6 +539,15 @@
 (defmethod medium-draw-rectangles* ((medium transform-coordinates-mixin) coord-seq filled)
   (do-sequence ((x1 y1 x2 y2) coord-seq)
     (medium-draw-rectangle* medium x1 y1 x2 y2 filled)))
+
+;;; Other fallback methods
+(defmethod medium-draw-pattern* ((medium basic-medium) pattern x y)
+  (let ((new (transform-region (make-translation-transformation x y) pattern)))
+    (letf (((medium-ink medium) new))
+      (medium-draw-rectangle* medium x y
+                              (+ x (pattern-width new))
+                              (+ y (pattern-height new))
+                              t))))
 
 
 ;;; Other Medium-specific Output Functions
