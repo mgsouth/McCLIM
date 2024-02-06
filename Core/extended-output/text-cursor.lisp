@@ -104,10 +104,10 @@
     (setf (values ex ey) (values (or nx ex) (or ny ey)))))
 
 (defun cursor-width (cursor)
-  (+ (cursor-offset-x cursor) (cursor-extent-x cursor)))
+  (abs (+ (cursor-offset-x cursor) (cursor-extent-x cursor))))
 
 (defun cursor-height (cursor)
-  (+ (cursor-offset-y cursor) (cursor-extent-y cursor)))
+  (abs (+ (cursor-offset-y cursor) (cursor-extent-y cursor))))
 
 (defun cursor-size (cursor)
   (values (cursor-width cursor) (cursor-height cursor)))
