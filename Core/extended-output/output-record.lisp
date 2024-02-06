@@ -1529,9 +1529,12 @@ the associated sheet can be determined."
   (with-translation (stream x-offset y-offset)
     (let ((rect (copy-bounding-rectangle record))
           (ink1 (compose-in +blue+ (make-opacity .1)))
-          (ink2 +black+))
+          (ink2 +black+)
+          (ink3 (compose-in +black+ (make-opacity .5))))
       (draw-design stream rect :filled t :ink ink1)
-      (draw-design stream rect :filled nil :ink ink2 :line-thickness .5))))
+      (draw-design stream rect :filled nil :ink ink2 :line-thickness .5)
+      (with-bounding-rectangle* (:center-x cx :center-y cy) rect
+        (draw-point* stream cx cy :line-thickness 10 :ink ink3)))))
 
 (defrecord-predicate draw-text-output-record
     (string start end
@@ -1682,10 +1685,26 @@ the associated sheet can be determined."
     (update-output-record-cursor self object)
     (tree-recompute-extent self)))
 
+;;; The newline character is not part of the text output record, however it may
+;;; influence the cursor (but only when there is no other content on the line).
+(defun add-newline-output-to-text-record (self)
+  (when (zerop (length (slot-value self 'objects)))
+    (let* ((stream (slot-value self 'stream))
+           (start-cursor (start-cursor self))
+           (sheet-cursor (stream-text-cursor stream)))
+      (multiple-value-bind (x0 y0 fx fy bx by ex ey)
+          (stream-cursor-motion stream sheet-cursor "M")
+        (declare (ignore x0 y0 fx fy))
+        (setf (cursor-offset start-cursor) (values bx by)
+              (cursor-offset sheet-cursor) (values bx by)
+              (cursor-extent start-cursor) (values ex ey)
+              (cursor-extent sheet-cursor) (values ex ey)))
+      (tree-recompute-extent self))))
+
 (defmethod add-character-output-to-text-record
-    ((text-record standard-text-displayed-output-record)
+    ((self standard-text-displayed-output-record)
      character text-style char-width line-height new-baseline)
-  (add-string-output-to-text-record text-record (string character)
+  (add-string-output-to-text-record self (string character)
                                     0 1 text-style
                                     char-width line-height new-baseline))
 
