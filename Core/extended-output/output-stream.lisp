@@ -171,15 +171,14 @@
     :start-line
       (multiple-value-bind (dx dy fx fy bx by ex ey eol-p eop-p)
           (stream-cursor-motion stream cursor object)
-        (declare (ignore dx dy))
+        (declare (ignore dx dy fx fy))
         (when (and eop-p (member end-of-page-action '(:wrap :wrap*)))
           (go :break-page))
         (when (and eol-p wrapl (plusp (stream-text-offset stream cursor)))
           (go :break-line))
         (setf (cursor-offset cursor) (values bx by))
         (setf (cursor-extent cursor) (values ex ey))
-        (seos-record-output stream object)
-        (setf (cursor-position cursor) (values fx fy))))))
+        (seos-record-output stream object)))))
 
 ;;; This function is responsible for managing the cursor and invoking drawing.
 ;;; Text wrapping and sheet dimensions are updated as we go, while scrolling
@@ -210,7 +209,7 @@
       (multiple-value-bind (dx dy fx fy bx by ex ey eol-p eop-p)
           (stream-cursor-motion stream cursor vector :start start :end end
                                                      :text-style text-style)
-        (declare (ignore dx dy))
+        (declare (ignore dx dy fx fy))
         (when (and eop-p (member end-of-page-action '(:wrap :wrap*)))
           (go :break-page))
         (when (and eol-p wrapl)
@@ -219,8 +218,7 @@
         (setf (cursor-extent cursor) (values ex ey))
         (seos-record-output stream vector start split)
         (when (/= split end)
-          (go :break-line))
-        (setf (cursor-position cursor) (values fx fy))))))
+          (go :break-line))))))
 
 
 (defgeneric stream-write-object (stream object)
