@@ -1,6 +1,7 @@
 (in-package #:clim-clx)
 
 (deftype clx-coordinate () '(signed-byte 16))
+(deftype index () `(integer 0 #.array-dimension-limit))
 
 (declaim (inline round-coordinate))
 (defun round-coordinate (x)
