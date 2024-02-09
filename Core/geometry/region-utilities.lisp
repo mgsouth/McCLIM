@@ -134,9 +134,14 @@ less than or equal to 2pi. Note that 4pi would be normalized to 0, not
            (incf end (* 2 pi)))
          (values start end))))))
 
+(defun find-angle (x1 y1 x2 y2)
+  "Returns the CW angle between two vectors described by x1, y1 and x2, y2."
+  (let ((theta (- (phase (complex y1 x1))
+                  (phase (complex y2 x2)))))
+    (normalize-angle theta)))
+
 (defun find-angle* (x1 y1 x2 y2)
-  "Returns the angle between two vectors described by x1, y1 and x2,
-y2."
+  "Returns the CCW angle between two vectors described by x1, y1 and x2, y2."
   (let ((theta (- (phase (complex y2 x2))
                   (phase (complex y1 x1)))))
     (normalize-angle theta)))

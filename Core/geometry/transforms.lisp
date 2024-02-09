@@ -187,7 +187,19 @@ This is not an exported function!"))
       (make-rotation-transformation* angle (point-x origin) (point-y origin))
     (make-rotation-transformation* angle 0 0)))
 
+;;; FIXME rotation is numerically unstable when represented as 3-point.
+;;; Implement rotation as instance with DX, DY and THETA and implement methods
+;;; for it like we do for translations.
+;;;
+;;; If we skip ZEROP test at the beginning, here's an example fail scenario:
+;;;
+;;;   (clim:make-rotation-transformation* 0 481 595.58374) -> #<hairy>
+;;;   (clim:make-rotation-transformation* 0 481 595)       -> #<ident>
+;;;
+;;; -- jd 2024-09-02
 (defun make-rotation-transformation* (angle &optional origin-x origin-y)
+  (when (zerop (mod angle (* 2 pi)))
+    (return-from make-rotation-transformation* +identity-transformation+))
   (let ((origin-x (or origin-x 0))
         (origin-y (or origin-y 0)))
     (let ((s (coerce (sin angle) 'coordinate))
