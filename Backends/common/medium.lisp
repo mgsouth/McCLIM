@@ -27,6 +27,23 @@
                           transform-glyphs))
       (incf y y-dx))))
 
+(defun draw-text-rotation* (x y toward-x toward-y)
+  ;; Rounding here is important to ensure a numerical stability of rotation.
+  (let* ((x (round-coordinate x))
+         (y (round-coordinate y))
+         (toward-x (round-coordinate toward-x))
+         (toward-y (round-coordinate toward-y))
+         (dx (- toward-x x))
+         (dy (- toward-y y))
+         (angle (find-angle 1 0 dx dy)))
+    (make-rotation-transformation* angle x y)))
+
+(defun medium-text-transformation (medium x y toward-x toward-y)
+  (if (and (= y toward-y) (< x toward-x))
+      (medium-device-transformation medium)
+      (compose-transformations (medium-device-transformation medium)
+                               (draw-text-rotation* x y toward-x toward-y))))
+
 ;; For multiline text alignment may change the bbox. For instance longest line
 ;; may start with a character with left-bearing=0 and shorter line starts with a
 ;; character which has left-bearing=-10. If text is left-aligned then bbox

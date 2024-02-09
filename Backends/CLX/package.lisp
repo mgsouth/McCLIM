@@ -57,6 +57,7 @@
                 #:get-transformation
                 ;;
                 #:medium-miter-limit
+                #:medium-text-transformation
                 ;; classes
                 #:window-destroy-event
                 #:pointer-grab-enter-event

@@ -351,7 +351,6 @@
                               &aux (end (if (null end)
                                             (length string)
                                             (min end (length string)))))
-  (declare (ignore toward-x toward-y))
   (when (or (alexandria:emptyp string) (>= start end))
     (return-from medium-draw-text*))
   (when (< (length (the (simple-array (unsigned-byte 32))
@@ -361,7 +360,7 @@
           (make-array (* 256 (ceiling (- end start) 256))
                       :element-type '(unsigned-byte 32)
                       :adjustable nil :fill-pointer nil)))
-  (let ((transformation (medium-device-transformation medium)))
+  (let ((transformation (medium-text-transformation medium x y toward-x toward-y)))
     (if (translation-transformation-p transformation)
         (clim-sys:with-lock-held (*draw-font-lock*)
           (draw-glyphs medium string x y

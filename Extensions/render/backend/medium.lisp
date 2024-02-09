@@ -123,7 +123,7 @@
                               start end
                               align-x align-y
                               toward-x toward-y transform-glyphs)
-  (declare (ignore transform-glyphs toward-x toward-y))
+  (declare (ignore transform-glyphs))
   (if (null end)
       (setf end (length string))
       (minf end (length string)))
@@ -132,29 +132,28 @@
   (let* ((port (port medium))
          (text-style (medium-text-style medium))
          (font (text-style-mapping port text-style)))
-    (ecase align-x
-      (:left)
-      (:center
-       (let ((origin-x (text-size medium string :text-style text-style)))
-         (decf x (/ origin-x 2.0))))
-      (:right
-       (let ((origin-x (text-size medium string :text-style text-style)))
-         (decf x origin-x))))
-    (ecase align-y
-      (:top
-       (incf y (font-ascent font)))
-      (:baseline)
-      (:center
-       (let* ((ascent (font-ascent font))
-              (descent (font-descent font))
-              (height (+ ascent descent))
-              (middle (- ascent (/ height 2.0s0))))
-         (incf y middle)))
-      (:baseline*)
-      (:bottom
-       (decf y (font-descent font))))
     (let ((codes (font-string-glyph-codes font string :start start :end end))
-          (dev-tr (medium-device-transformation medium)))
-      (multiple-value-setq (x y)
-        (transform-position dev-tr x y))
+          (dev-tr (climi::medium-text-transformation medium x y toward-x toward-y)))
+      (ecase align-x
+        (:left)
+        (:center
+         (let ((origin-x (text-size medium string :text-style text-style
+                                                  :start start :end end)))
+           (decf x (/ origin-x 2.0))))
+        (:right
+         (let ((origin-x (text-size medium string :text-style text-style)))
+           (decf x origin-x))))
+      (ecase align-y
+        (:top
+         (incf y (font-ascent font)))
+        (:baseline)
+        (:center
+         (let* ((ascent (font-ascent font))
+                (descent (font-descent font))
+                (height (+ ascent descent))
+                (middle (- ascent (/ height 2.0s0))))
+           (incf y middle)))
+        (:baseline*)
+        (:bottom
+         (decf y (font-descent font))))
       (string-primitive-paths medium x y codes dev-tr port font))))

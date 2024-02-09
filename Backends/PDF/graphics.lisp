@@ -231,7 +231,10 @@ is T."
                               start end
                               align-x align-y
                               toward-x toward-y transform-glyphs)
-  (declare (ignore start end toward-x toward-y transform-glyphs))
+  (declare (ignore transform-glyphs))
+  (unless (and (zerop start)
+               (or (null end) (= end (length string))))
+    (setf string (subseq string 0 end)))
   (pdf:with-saved-state
     (pdf:in-text-mode
       (pdf-actualize-graphics-state medium :text-style :color)
@@ -242,6 +245,10 @@ is T."
                  (size (clim-postscript-font:font-name-size font-name)))
             (clim-postscript-font:text-size-in-font font size string 0 nil))
         (declare (ignore final-x final-y))
+        (multiple-value-bind (mxx mxy myx myy tx ty)
+            (climi::get-transformation
+             (climi::medium-text-transformation medium x y toward-x toward-y))
+          (pdf:set-transform-matrix mxx mxy myx myy tx ty))
         (let  ((x (ecase align-x
                     (:left x)
                     (:center (- x (/ total-width 2)))
@@ -252,10 +259,6 @@ is T."
                     (:center (- y (- (/ total-height 2)
                                      baseline)))
                     (:bottom (- y (- total-height baseline))))))
-          (multiple-value-bind (mxx mxy myx myy tx ty)
-              (climi::get-transformation
-               (medium-device-transformation medium))
-            (pdf:set-transform-matrix mxx mxy myx myy tx ty))
           (pdf:set-text-matrix 1 0 0 -1 x y)
           (pdf:draw-text string))))))
 

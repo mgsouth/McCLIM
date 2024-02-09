@@ -101,7 +101,6 @@
               (:line      (* value (stream-line-height pane))))))))
 
 (defun change-stream-space-requirements (pane &key width height)
-  (check-type pane clim-stream-pane)
   (when width
     (setf (stream-width pane) width))
   (when height

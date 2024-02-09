@@ -3,6 +3,7 @@
 ;;; Converting string into paths
 
 (defun string-primitive-paths (medium x y glyph-codes transformation port font)
+  (multiple-value-setq (x y) (transform-position transformation x y))
   (loop
     with glyph-tr = (multiple-value-bind (x0 y0)
                         (transform-position transformation 0 0)
@@ -22,6 +23,4 @@
               (y1 (+ origin-y (- dy)))
               (x2 (+ x1 (pattern-width opacity-image)))
               (y2 (+ y1 (pattern-height opacity-image))))
-         (%medium-fill-image-mask medium opacity-image
-                                  x1 y1 x2 y2
-                                  (- x1) (- y1)))))
+         (%medium-fill-image-mask medium opacity-image x1 y1 x2 y2 (- x1) (- y1)))))
