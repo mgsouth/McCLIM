@@ -416,7 +416,7 @@
         (:center (decf x (/ origin-x 2.0)))
         (:right  (decf x origin-x)))
       (ecase align-y
-        ((:baseline :baseline*))
+        (:baseline)
         (:top    (incf y (font-ascent font)))
         (:center (incf y (/ (- (font-ascent font) (font-descent font)) 2.0)))
         (:bottom (decf y (font-descent font))))
@@ -450,7 +450,7 @@
         (:center (decf x (/ origin-x 2.0)))
         (:right  (decf x origin-x)))
       (ecase align-y
-        ((:baseline :baseline*))
+        (:baseline)
         (:top    (incf y (font-ascent font)))
         (:center (incf y (/ (- (font-ascent font) (font-descent font)) 2.0)))
         (:bottom (decf y (font-descent font)))))

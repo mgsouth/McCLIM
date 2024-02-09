@@ -433,7 +433,10 @@ cursor-dx cursor-dy"
           (if (alexandria:emptyp line)
               (values 0 0 0 0 0 0)
               (line-bbox font line 0 (length line) align-x))
-        (case align-y
+        (ecase align-y
+          (:baseline
+           (minf ymin (+ current-y ymin*))
+           (maxf ymax (+ current-y ymax*)))
           (:top
            (let ((height (- ymax* ymin*))
                  (ymin* (- ascent (abs ymin*))))
@@ -447,13 +450,7 @@ cursor-dx cursor-dy"
            (let ((height (- ymax* ymin*))
                  (ymax* (- ymax* descent)))
              (minf ymin (- (- ymax* height) current-y))
-             (maxf ymax ymax*)))
-          (:baseline*
-           (minf ymin (- ymin* current-y))
-           (maxf ymax ymax*))
-          (otherwise
-           (minf ymin (+ current-y ymin*))
-           (maxf ymax (+ current-y ymax*))))
+             (maxf ymax ymax*))))
         (minf xmin xmin*)
         (maxf xmax xmax*)
         (maxf dx dx*)

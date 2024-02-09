@@ -360,9 +360,8 @@ or NIL if the current transformation is the identity transformation."
           (setq y (ecase align-y
                     (:top (+ y ascent))                              ; OK
                     #+ (or) (:baseline y)                            ; OK
-                    (:center (+ y ascent (- (/ text-height 2.0s0)))) ; See :around for multiline
-                    (:baseline* y)                                   ; See :around for multiline
-                    (:bottom (- y descent))))))                      ; See :around for multiline
+                    (:center (+ y ascent (- (/ text-height 2.0s0))))
+                    (:bottom (- y descent))))))
       (unless (eq align-x :left)
         ;; This is the worst case - we need to compute whole text width what
         ;; requires walking all lines char-by char.

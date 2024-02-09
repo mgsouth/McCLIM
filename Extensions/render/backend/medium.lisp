@@ -1,7 +1,6 @@
 (in-package #:mcclim-render)
 
-(defclass render-medium-mixin
-    (ttf-medium-mixin multiline-text-medium-mixin basic-medium)
+(defclass render-medium-mixin (ttf-medium-mixin basic-medium)
   ())
 
 (defun %medium-stroke-paths (medium paths)
@@ -153,7 +152,6 @@
                 (height (+ ascent descent))
                 (middle (- ascent (/ height 2.0s0))))
            (incf y middle)))
-        (:baseline*)
         (:bottom
          (decf y (font-descent font))))
       (string-primitive-paths medium x y codes dev-tr port font))))

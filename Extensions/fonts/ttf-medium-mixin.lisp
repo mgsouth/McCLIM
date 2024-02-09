@@ -89,7 +89,7 @@ a font implementing the protocol defined below."))
                   (:center (- (/ width 2)))
                   (:right  (- width))))
             (dy (- (ecase align-y
-                     ((:baseline :baseline*) 0)
+                     (:baseline  0)
                      (:top       ascent)
                      (:center    (- ascent (/ height 2)))
                      (:bottom    (- ascent height))))))

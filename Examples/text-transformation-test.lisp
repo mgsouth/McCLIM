@@ -29,8 +29,7 @@
       (clim:draw-line* pane (* 6 x-offset) 0 (* 6 x-offset) (* 7 y-offset))
       ;; Reference
       (clim:draw-text* pane string 0 0 :transform-glyphs nil :ink +dark-red+)
-
-      ;; Multiline
+      ;; Long transformed line
       (with-drawing-options (pane :transformation
                                   (compose-transformation-with-translation
                                    (clim:make-rotation-transformation
@@ -41,7 +40,7 @@
         (clim:draw-point* pane 0 0 :ink +blue+ :line-thickness 10)
         ;; XXX: two ~%~% cause error (empty line)
         (let ((string "The quick brown fox jumps over the lazy dog"))
-          (clim:draw-text* pane (format nil "~A~%~A~%~A" string string string)
+          (clim:draw-text* pane string
                            0 0 :transform-glyphs t :ink +dark-red+))
         (clim:draw-line* pane 0 0 500 0))
 
@@ -69,12 +68,12 @@
       (do* ((scalings-x '(+1.5 +0.7 -1.0 -1.5 -0.7 +1.5 -1.5) (cdr scalings-x))
             (scalings-y '(+1.5 +0.7 -1.0 -1.5 -0.7 -1.5 +1.5) (cdr scalings-y))
             (toward-pairs (list (cons (* +2/3 x-offset) (* +2/3 x-offset))
-                                (cons nil (* 2/3 y-offset))
+                                (cons 0 (* 2/3 y-offset))
                                 (cons (* -2/3 x-offset) (* -2/3 x-offset))
-                                (cons (* -1/2 x-offset) nil)
+                                (cons (* -1/2 x-offset) 0)
                                 (cons (* -2/3 x-offset) (* +2/3 x-offset))
                                 (cons (* +2/3 x-offset) (* -2/3 x-offset))
-                                (cons x-offset nil))
+                                (cons x-offset 0))
                           (cdr toward-pairs))
             (pair #3=(car toward-pairs) #3#)
             (sx #1=(car scalings-x) #1#)

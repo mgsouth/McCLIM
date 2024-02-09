@@ -476,7 +476,8 @@
 ;; This is correct but first we need to tweak backends to respect the fact that
 ;; the rotation is specified by [X TOWARD-X] and [Y TOWARD-Y]. -- jd 2024-02-09
 #+ (or)
-(defmethod medium-draw-text* :around ((medium transform-coordinates-mixin) string x y start end
+(defmethod medium-draw-text* :around ((medium transform-coordinates-mixin)
+                                      string x y start end
                                       align-x align-y toward-x toward-y transform-glyphs)
   (with-identity-transformation* (medium x y toward-x toward-y)
     (call-next-method medium string x y start end align-x align-y toward-x toward-y transform-glyphs)))
