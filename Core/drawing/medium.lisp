@@ -462,7 +462,7 @@
 (defmethod medium-draw-ellipse* :around ((medium transform-coordinates-mixin)
                                          cx cy rdx1 rdy1 rdx2 rdy2 eta1 eta2 filled)
   (let ((tr (medium-transformation medium)))
-    (with-identity-transformation* (medium)
+    (with-identity-transformation (medium)
       (if (identity-transformation-p tr)
           (call-next-method)
           (multiple-value-bind (cx cy rdx1 rdy1 rdx2 rdy2 eta1 eta2)
@@ -472,6 +472,14 @@
 (defmethod medium-draw-pattern* :around ((medium transform-coordinates-mixin) pattern x y)
   (with-identity-transformation* (medium x y)
     (call-next-method medium pattern x y)))
+
+;; This is correct but first we need to tweak backends to respect the fact that
+;; the rotation is specified by [X TOWARD-X] and [Y TOWARD-Y]. -- jd 2024-02-09
+#+ (or)
+(defmethod medium-draw-text* :around ((medium transform-coordinates-mixin) string x y start end
+                                      align-x align-y toward-x toward-y transform-glyphs)
+  (with-identity-transformation* (medium x y toward-x toward-y)
+    (call-next-method medium string x y start end align-x align-y toward-x toward-y transform-glyphs)))
 
 (defmethod medium-copy-area :around ((from-drawable transform-coordinates-mixin)
                                      from-x from-y width height
@@ -491,12 +499,6 @@
                                      to-x to-y)
   (with-identity-transformation* (to-drawable to-x to-y)
     (call-next-method from-drawable from-x from-y width height to-drawable to-x to-y)))
-
-#+ (or) ;; This is not the right thing to do because the transformation is lost.
-(defmethod medium-draw-text* :around ((medium transform-coordinates-mixin) string x y start end
-                                      align-x align-y toward-x toward-y transform-glyphs)
-  (with-identity-transformation* (medium x y toward-x toward-y)
-    (call-next-method medium string x y start end align-x align-y toward-x toward-y transform-glyphs)))
 
 ;;; Fallback methods relying on MEDIUM-DRAW-POLYGON*
 

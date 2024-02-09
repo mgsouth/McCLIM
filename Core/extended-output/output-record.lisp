@@ -1730,7 +1730,7 @@ the associated sheet can be determined."
                                         :x 0 :y 0
                                         :start 0 :end nil
                                         :align-x :left :align-y :baseline
-                                        :toward-x nil :toward-y nil
+                                        :toward-x 1 :toward-y 0
                                         :transform-glyphs nil
                                         :ink ink :text-style text-style)))
             (vector-push-extend record objects)
