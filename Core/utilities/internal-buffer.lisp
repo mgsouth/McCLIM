@@ -290,7 +290,9 @@
                           (cluffer:line destination)
                           (cluffer:cursor-position destination)))
     (integer
-     (setf (cursor-linear-position cursor) destination)))
+     (setf (cursor-linear-position cursor) destination))
+    (null
+     #+ (or) (break "Null destination: ~a ~a." cursor destionation)))
   (when position
     (setf (cluffer:cursor-position cursor) position)))
 
