@@ -38,24 +38,31 @@
 (defun medium-target-picture (medium)
   (clx-drawable-picture medium))
 
-(defun medium-stencil-picture (medium)
+(defun medium-stencil-picture (medium x1 y1 x2 y2)
   (let* ((mirror (medium-drawable medium))
-         (width (mirror-width mirror))
-         (height (mirror-height mirror))
+         (width  (ceiling x2))
+         (height (ceiling y2))
          (pixmap (ensure-help-buffer mirror :stencil
                    (create-pixmap mirror width height 8))))
     (resize-pixmap pixmap width height)
-    (let ((picture (ensure-clx-drawable-object (pixmap 'clx-picture)
+    (ensure-clx-drawable-object (pixmap :gcontext)
+      (xlib:create-gcontext :drawable pixmap
+                            :function boole-1
+                            :foreground #xff
+                            :background #x00
+                            :fill-style :solid))
+    (let ((stencil (ensure-clx-drawable-object (pixmap 'clx-picture)
                      (let* ((display (xlib:drawable-display pixmap))
                             (format (xlib:find-standard-picture-format display :a8)))
                        (xlib:render-create-picture pixmap :format format)))))
-      (ensure-clx-drawable-object (pixmap :gcontext)
-        (xlib:create-gcontext :drawable pixmap
-                              :function boole-1
-                              :foreground #xff
-                              :background #x00
-                              :fill-style :solid))
-      picture)))
+      (clx-fill-rectangle :src +transparent-black+ stencil +identity-transformation+ x1 y1 x2 y2)
+      stencil)))
+
+(defun medium-stencil-format (medium)
+  (let* ((mirror  (clx-drawable medium))
+         (display (xlib:drawable-display mirror))
+         (format  (xlib:find-standard-picture-format display :a8)))
+    format))
 
 (defun medium-stencil-brush (medium)
   (let* ((pixmap (ensure-help-buffer (medium-drawable medium) :brush
@@ -267,19 +274,15 @@
   (:method ((medium clx-render-medium) design)
     (medium-source-picture medium (compose-in +deep-pink+ (make-opacity .75)))))
 
-(defmacro with-render-context ((source stencil target) medium &body body)
-  (let ((cont (gensym))
-        (svar (or stencil (gensym))))
-    `(flet ((,cont (,source ,svar ,target)
-              ,@(and (null stencil) `((declare (ignore ,svar))))
-              ,@body))
+(defmacro with-render-context ((source target) medium &body body)
+  (let ((cont (gensym)))
+    `(flet ((,cont (,source ,target) ,@body))
        (declare (dynamic-extent (function ,cont)))
-       (invoke-with-render-context (function ,cont) ,medium ',stencil))))
+       (invoke-with-render-context (function ,cont) ,medium))))
 
-(defun invoke-with-render-context (cont medium stencilp)
+(defun invoke-with-render-context (cont medium)
   (let ((target  (medium-target-picture medium))
-        (source  (medium-source-picture medium (medium-ink medium)))
-        (stencil (and stencilp (medium-stencil-picture medium))))
+        (source  (medium-source-picture medium (medium-ink medium))))
     (let* (;; "legacy" clipping.
            (^cleanup nil)
            (drawable (clx-drawable medium))
@@ -292,58 +295,56 @@
              (%set-gc-clipping-region medium gcontext)
              (setf (xlib:picture-clip-mask target)
                    (xlib:gcontext-clip-mask gcontext))
-             (when stencilp
-               (setf (xlib:picture-clip-mask stencil)
-                     (xlib:picture-clip-mask target))
-               (with-bounding-rectangle* (x1 y1 x2 y2)
-                   (medium-device-region medium)
-                 (clx-fill-rectangle :src +transparent-black+ stencil
-                                     +identity-transformation+ x1 y1 x2 y2)))
-             (funcall cont source stencil target))
+             (funcall cont source target))
         (mapc #'funcall ^cleanup)))))
 
 (defmethod invoke-with-clx-graphics (cont (medium clx-render-medium))
   (when (legacy-ink-p (medium-ink medium))
     (return-from invoke-with-clx-graphics
       (call-next-method)))
-  (with-render-context (source stencil target) medium
-    (let* ((mi (clx-drawable stencil))
-           (gc (ensure-clx-drawable-object (mi :gcontext)))
-           (tr (medium-device-transformation medium)))
-      (update-line-style gc medium (medium-line-style medium))
-      (funcall cont mi gc tr)
-      (with-bounding-rectangle* (x1 y1 x2 y2)
-          (medium-device-region medium)
-        (clx-fill-composite :over source stencil target
-                            +identity-transformation+ x1 y1 x2 y2)))))
+  (with-render-context (source target) medium
+    (with-bounding-rectangle* (x1 y1 x2 y2) (medium-device-region medium)
+      (let ((stencil (medium-stencil-picture medium x1 y1 x2 y2)))
+        (let* ((mi (clx-drawable stencil))
+               (gc (ensure-clx-drawable-object (mi :gcontext)))
+               (tr (medium-device-transformation medium)))
+          (update-line-style gc medium (medium-line-style medium))
+          (funcall cont mi gc tr)
+          (clx-fill-composite :over source stencil target
+                              +identity-transformation+ x1 y1 x2 y2))))))
 
 #+ (or)
 ;;; These methods work althought drawing is noticeably slow. The culpirt is
 ;;; CLX itself - sending coord-seq is 100s slower than "normal" drawing
 ;;; routines even for dummy calls with hardcoded coordinates. -- jd 2023-04-13
 (progn
-  (defmethod medium-draw-polygon* ((medium clx-render-medium) coord-seq closed filled)
+  (defmethod medium-draw-polygon* ((medium clx-render-medium) coords closed filled)
     (if (not filled)
         (call-next-method)
-        (with-render-context (source stencil target) medium
-          (clx-fill-polygon :over source target
-                            (xlib::picture-format stencil)
-                            (medium-device-transformation medium)
-                            coord-seq))))
+        (with-render-context (source target) medium
+          (let ((format (medium-stencil-format medium))
+                (transf (medium-device-transformation medium)))
+            (clx-fill-polygon :over source target format transf coords)))))
 
   (defmethod medium-draw-ellipse* ((medium clx-render-medium) cx cy
                                    rdx1 rdy1 rdx2 rdy2
                                    eta1 eta2 filled)
     (if (not filled)
         (call-next-method)
-        (with-render-context (source stencil target) medium
-          (clx-fill-trifan :over source target
-                           (xlib::picture-format stencil)
-                           (medium-device-transformation medium)
-                           (climi::polygonalize-ellipse cx cy rdx1 rdy1 rdx2 rdy2
-                                                        eta1 eta2 :filled t))))))
+        (with-render-context (source target) medium
+          (let ((format (medium-stencil-format medium))
+                (transf (medium-device-transformation medium))
+                (coords (climi::polygonalize-ellipse cx cy rdx1 rdy1 rdx2 rdy2
+                                                     eta1 eta2 :filled t)))
+            (clx-fill-trifan :over source target format transf coords))))))
 
 (defvar *draw-font-lock* (clim-sys:make-lock "draw-font"))
+;;; Restriction: no more than 65536 glyph pairs cached on a single display. I
+;;; don't think that's unreasonable. Having keys as glyph pairs is essential for
+;;; kerning where the same glyph may have different advance-width values for
+;;; different next elements. (byte 16 0) is the character code and (byte 16 16)
+;;; is the next character code. For standalone glyphs (byte 16 16) is zero.
+
 (defmethod medium-draw-text* ((medium clx-render-medium) string x y
                               start end
                               align-x align-y
@@ -363,24 +364,18 @@
   (let ((transformation (medium-text-transformation medium x y toward-x toward-y)))
     (if (translation-transformation-p transformation)
         (clim-sys:with-lock-held (*draw-font-lock*)
-          (draw-glyphs medium string x y
-                       start end
-                       align-x align-y
-                       transformation))
+          (draw-glyphs/fast
+           medium string x y start end align-x align-y transformation))
         (clim-sys:with-lock-held (*draw-font-lock*)
-          (draw-glyphs* medium string x y
-                        start end
-                        align-x align-y
-                        transformation)))))
+          (draw-glyphs/slow
+           medium string x y start end align-x align-y transformation)))))
 
-
-
-;;; Restriction: no more than 65536 glyph pairs cached on a single display. I
-;;; don't think that's unreasonable. Having keys as glyph pairs is essential for
-;;; kerning where the same glyph may have different advance-width values for
-;;; different next elements. (byte 16 0) is the character code and (byte 16 16)
-;;; is the next character code. For standalone glyphs (byte 16 16) is zero.
-(defun draw-glyphs (medium string x y start end align-x align-y transformation)
+;;; We don't need to use the stencil when the transformation is translation and
+;;; the ink is uniform[*]. For performance we don't call TEXT-SIZE and measure
+;;; the advance manually.
+;;;
+;;; [*] Rendering with non-uniform ink through the stencil is faster.
+(defun draw-glyphs/fast (medium string x y start end align-x align-y transformation)
   (declare (optimize (speed 3))
            (type index start end)
            (type string string))
@@ -424,23 +419,29 @@
       (setf y (truncate (+ y .5)))
       (when (and (typep x 'clx-coordinate)
                  (typep y 'clx-coordinate))
-        ;; When the source is not uniform then render-compsite-glyphs is
-        ;; much slower than first drawing on a stencil and then filling the
+        ;; When the source is not uniform then render-compsite-glyphs is much
+        ;; slower than first drawing on a stencil and then filling the
         ;; composite. Both paths are correct for any case. -- jd 2023-04-13
-        (if (uniform-ink-p (medium-ink medium))
-            (with-render-context (source nil target) medium
-              (xlib:render-composite-glyphs target glyph-set source
-                                            x y glyph-ids :end (- end start)))
-            (with-render-context (source stencil target) medium
-              (with-bounding-rectangle* (x1 y1 x2 y2) (medium-device-region medium)
-                (let ((brush (medium-stencil-brush medium)))
-                  (xlib:render-composite-glyphs stencil glyph-set brush
+        (with-render-context (source target) medium
+          (with-bounding-rectangle* (x1 y1 x2 y2) (medium-device-region medium)
+            (if (uniform-ink-p (medium-ink medium))
+                (xlib:render-composite-glyphs target glyph-set source
+                                              x y glyph-ids :end (- end start))
+                (let ((stencil (medium-stencil-picture medium x1 y1 x2 y2)))
+                  (xlib:render-composite-glyphs stencil glyph-set
+                                                (medium-stencil-brush medium)
                                                 x y glyph-ids :end (- end start))
                   (clx-fill-composite :over source stencil target
                                       +identity-transformation+ x1 y1 x2 y2)))))))))
 
-;;; Transforming glyphs is very inefficient because we don't cache them.
-(defun draw-glyphs* (medium string x y start end align-x align-y transformation)
+;;; This function is *very* slow, around 800x slower than DRAW-GLYPHS/FAST..
+;;; This is because for non-translation transformations we create and free the
+;;; glyphset on each render. That is to prevent a situation where a continuous
+;;; transformation change is applied to the text (i.e rotation) that would lead
+;;; to allocating a large number of glyph-sets, ultimately hogging the memory.
+;;; On the bright side the quality is top-notch, because we create a transformed
+;;; glyph for each individual position in arbitrary transformation.
+(defun draw-glyphs/slow (medium string x y start end align-x align-y transformation)
   (let* ((port (port medium))
          (text-style (medium-text-style medium))
          (font (text-style-mapping port text-style)))
@@ -454,7 +455,7 @@
         (:top    (incf y (font-ascent font)))
         (:center (incf y (/ (- (font-ascent font) (font-descent font)) 2.0)))
         (:bottom (decf y (font-descent font)))))
-    (with-render-context (source nil target) medium
+    (with-render-context (source target) medium
       (loop
         with glyph-tr = (multiple-value-bind (x0 y0)
                             (transform-position transformation 0 0)
