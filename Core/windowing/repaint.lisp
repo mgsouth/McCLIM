@@ -129,8 +129,8 @@
 (defmethod dispatch-repaint ((sheet immediate-repainting-mixin) region)
   ;; Only repaint when the sheet has a mirror. Repaint directly from the mirror
   ;; to ensure, that transparent parts are rendered correctly.
-  (setf region (sheet-repaint-region sheet region))
   (when-let ((msheet (sheet-mirrored-ancestor sheet)))
+    (setf region (sheet-repaint-region sheet region))
     (if (eq msheet sheet)
         (repaint-sheet sheet region)
         (let ((transf (sheet-delta-transformation sheet msheet)))

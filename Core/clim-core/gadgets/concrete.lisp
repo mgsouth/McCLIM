@@ -336,9 +336,6 @@
 
 ;;;; Redisplay
 
-(defun scroll-bar/update-display (scroll-bar)
-  (dispatch-repaint scroll-bar +everywhere+))
-
 (defun %scroll-bar/update-display (scroll-bar)
   (flet ((draw-sb-arrow (pg armedp)
            (multiple-value-bind (ink style)
@@ -377,6 +374,12 @@
                                      (polygon-points (make-rectangle* x1 y1 x2 y2))
                                      :style :outset
                                      :border-width 2))))))))
+
+;;; FIXME this should queue the repaint of scroll-bars (but not the content).
+;;; -- jd 2024-02-16
+(defun scroll-bar/update-display (scroll-bar)
+  #- (or) (%scroll-bar/update-display scroll-bar)
+  #+ (or) (dispatch-repaint scroll-bar +everywhere+))
 
 ;;;; SETF :after methods
 

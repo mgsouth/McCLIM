@@ -133,8 +133,8 @@
 
 (defmethod window-clear ((pane clim-stream-pane))
   (stream-close-text-output-record pane)
-  (clear-output-record (stream-output-history pane))
   (window-erase-viewport pane)
+  (clear-output-record (stream-output-history pane))
   (when-let ((cursor (stream-text-cursor pane)))
     (reset-stream-cursor pane cursor))
   (setf (stream-width pane) 0)
