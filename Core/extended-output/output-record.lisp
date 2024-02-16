@@ -1503,8 +1503,10 @@ the associated sheet can be determined."
      align-x align-y
      toward-x toward-y transform-glyphs)
   ;; FIXME Text direction.
-  (let* ((transformation (medium-transformation medium))
-         (text-style (graphics-state-text-style graphic)))
+  (let ((text-style (graphics-state-text-style graphic))
+        (transformation (compose-transformations
+                         (medium-transformation medium)
+                         (draw-text-rotation* x y toward-x toward-y))))
     (multiple-value-bind (sw sh dx dy)
         (text-metrics medium string :text-style text-style)
       (case align-x
@@ -1526,15 +1528,16 @@ the associated sheet can be determined."
     ((record basic-output-record) stream
      &optional region (x-offset 0) (y-offset 0))
   (declare (ignore region))
-  (with-translation (stream x-offset y-offset)
-    (let ((rect (copy-bounding-rectangle record))
-          (ink1 (compose-in +blue+ (make-opacity .1)))
-          (ink2 +black+)
-          (ink3 (compose-in +black+ (make-opacity .5))))
-      (draw-design stream rect :filled t :ink ink1)
-      (draw-design stream rect :filled nil :ink ink2 :line-thickness .5)
-      (with-bounding-rectangle* (:center-x cx :center-y cy) rect
-        (draw-point* stream cx cy :line-thickness 10 :ink ink3)))))
+  (with-identity-transformation (stream)
+   (with-translation (stream x-offset y-offset)
+     (let ((rect (copy-bounding-rectangle record))
+           (ink1 (compose-in +blue+ (make-opacity .1)))
+           (ink2 +black+)
+           (ink3 (compose-in +black+ (make-opacity .5))))
+       (draw-design stream rect :filled t :ink ink1)
+       (draw-design stream rect :filled nil :ink ink2 :line-thickness .5)
+       (with-bounding-rectangle* (:center-x cx :center-y cy) rect
+         (draw-point* stream cx cy :line-thickness 10 :ink ink3))))))
 
 (defrecord-predicate draw-text-output-record
     (string start end
