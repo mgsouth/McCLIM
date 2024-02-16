@@ -168,6 +168,10 @@
                      :disarmed-callback nil
                      :active t))
 
+(defmethod gadget-active-p :around ((gadget basic-gadget))
+  (and (sheet-grafted-p gadget)
+       (call-next-method)))
+
 ;;; "The default methods (on basic-gadget) call the function stored in
 ;;; gadget-armed-callback or gadget-disarmed-callback with one
 ;;; argument, the gadget."

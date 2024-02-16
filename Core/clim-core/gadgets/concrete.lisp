@@ -1597,7 +1597,7 @@ if INVOKE-CALLBACK is given."))
                       stream #'invoke-with-output-as-gadget-continuation
                       'gadget-output-record (append options (list :x x :y y))))
              (pane (gadget gadget-record)))
-        ;; We graft PANE here because SETUP-GADGET-RECORD calls COMOPSE-SPACE,
+        ;; We graft PANE here because SETUP-GADGET-RECORD calls COMPOSE-SPACE,
         ;; that needs mediums of the pane and its children. -- jd 2023-09-08
         (sheet-adopt-child stream pane)
         (setup-gadget-record stream gadget-record)
