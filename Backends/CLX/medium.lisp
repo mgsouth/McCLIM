@@ -32,8 +32,7 @@
 
 ;;; CLX-MEDIUM class
 
-(defclass clx-medium (multiline-text-medium-mixin
-                      basic-medium)
+(defclass clx-medium (basic-medium)
   ((last-medium-device-region :initform nil
                               :accessor last-medium-device-region)
    ;; CLIPPING-REGION-TMP is reused to avoid consing in the most common case
@@ -572,7 +571,6 @@ translated, so they begin at different position than [0,0])."))
                     (:top (+ y baseline))                              ; OK
                     (:baseline y)                                      ; OK
                     (:center (+ y baseline (- (floor text-height 2)))) ; change
-                    (:baseline*  y)                                    ; change
                     (:bottom (+ y baseline (- text-height)))))))       ; change
       (multiple-value-bind (x y)
           (transform-position merged-transform x y)

@@ -107,13 +107,13 @@
   (:documentation "Publish the object in the selection box.")
   (:method ((sheet basic-sheet) selection object type)
     (check-type selection symbol)
-    (publish-selection (port sheet)
-                       selection
-                       (make-instance 'selection-object
-                                      :content object
-                                      :type type
-                                      :owner sheet)
-                       nil))
+    (when-let ((port (port sheet)))
+      (publish-selection port selection
+                         (make-instance 'selection-object
+                                        :content object
+                                        :type type
+                                        :owner sheet)
+                         nil)))
   (:method ((port basic-port) selection (object selection-object) type)
     (declare (ignore type))
     (setf (stored-object port selection) object)))

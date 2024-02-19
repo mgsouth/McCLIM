@@ -57,6 +57,7 @@
                 #:get-transformation
                 ;;
                 #:medium-miter-limit
+                #:medium-text-transformation
                 ;; classes
                 #:window-destroy-event
                 #:pointer-grab-enter-event
@@ -64,6 +65,10 @@
                 #:pointer-ungrab-leave-event
                 #:pointer-ungrab-enter-event
                 #:device-font-text-style
+                ;; drawing utils
+                #:round-coordinate
+                #:with-round-positions
+                #:with-round-coordinates
                 ;; utils
                 #:dolines
                 #:maybe-funcall

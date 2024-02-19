@@ -336,9 +336,6 @@
 
 ;;;; Redisplay
 
-(defun scroll-bar/update-display (scroll-bar)
-  (dispatch-repaint scroll-bar +everywhere+))
-
 (defun %scroll-bar/update-display (scroll-bar)
   (flet ((draw-sb-arrow (pg armedp)
            (multiple-value-bind (ink style)
@@ -377,6 +374,12 @@
                                      (polygon-points (make-rectangle* x1 y1 x2 y2))
                                      :style :outset
                                      :border-width 2))))))))
+
+;;; FIXME this should queue the repaint of scroll-bars (but not the content).
+;;; -- jd 2024-02-16
+(defun scroll-bar/update-display (scroll-bar)
+  #- (or) (%scroll-bar/update-display scroll-bar)
+  #+ (or) (dispatch-repaint scroll-bar +everywhere+))
 
 ;;;; SETF :after methods
 
@@ -1594,7 +1597,7 @@ if INVOKE-CALLBACK is given."))
                       stream #'invoke-with-output-as-gadget-continuation
                       'gadget-output-record (append options (list :x x :y y))))
              (pane (gadget gadget-record)))
-        ;; We graft PANE here because SETUP-GADGET-RECORD calls COMOPSE-SPACE,
+        ;; We graft PANE here because SETUP-GADGET-RECORD calls COMPOSE-SPACE,
         ;; that needs mediums of the pane and its children. -- jd 2023-09-08
         (sheet-adopt-child stream pane)
         (setup-gadget-record stream gadget-record)

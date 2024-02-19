@@ -298,7 +298,7 @@ in an equalp hash table")
 (defmacro updating-output
     ((stream &key (unique-id '*no-unique-id*) (id-test '#'eql)
                   (cache-value ''no-cache-value cache-value-supplied-p)
-                  (cache-test '#'eql)
+                  (cache-test '#'eql cache-test-supplied-p)
                   (fixed-position nil fixed-position-p)
                   (all-new nil all-new-p)
                   (parent-cache nil parent-cache-p)
@@ -307,16 +307,16 @@ in an equalp hash table")
      &body body)
   (when (eq stream t)
     (setq stream '*standard-output*))
-  (unless cache-value-supplied-p
-    (setq cache-test '#'force-update-cache-test))
+  (unless (or cache-value-supplied-p cache-test-supplied-p)
+    (setq cache-test '(function force-update-cache-test)))
   (let ((func (gensym "UPDATING-OUTPUT-CONTINUATION")))
     `(flet ((,func (,stream)
               (declare (ignorable ,stream))
               ,@body))
        (invoke-updating-output ,stream (function ,func) ,record-type ,unique-id
                                ,id-test ,cache-value ,cache-test
-                               ,@ (and fixed-position-p
-                                       `(:fixed-position ,fixed-position))
+                               ,@(and fixed-position-p
+                                      `(:fixed-position ,fixed-position))
                                ,@(and all-new-p `(:all-new ,all-new))
                                ,@(and parent-cache-p
                                       `(:parent-cache ,parent-cache))))))

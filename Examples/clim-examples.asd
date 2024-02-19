@@ -54,7 +54,6 @@
                (:file "flipping-ink")
                (:file "patterns-overlap")
                (:file "text-transformation-test")
-               (:file "text-multiline-positioning")
                (:file "indentation")
                (:file "selection")
                (:file "frame-sheet-name-test")

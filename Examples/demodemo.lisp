@@ -3,8 +3,8 @@
 ;;; ---------------------------------------------------------------------------
 ;;;
 ;;;  (c) copyright 2002 by Gilbert Baumann
-;;;  (c) copyright 2017-2020 by Daniel Kochmański
 ;;;  (c) copyright 2018-2020 Jan Moringen <jmoringe@techfak.uni-bielefeld.de>
+;;;  (c) copyright 2017-2024 by Daniel Kochmański <daniel@turtleware.eu>
 ;;;
 ;;; ---------------------------------------------------------------------------
 ;;;
@@ -107,8 +107,7 @@ name."))
           (vertically (:equalize-width t)
             (make-demo-button "Border Styles Test" 'bordered-output)
             (make-demo-button "Tables with borders" 'table-demo)
-            (make-demo-button "Text transformations" 'text-transformations-test)
-            (make-demo-button "Text multiline positioning" 'text-multiline-positioning)
+            (make-demo-button "Draw Text test" 'draw-text-test)
             (make-demo-button "SEOS baseline and wrapping" 'clim-demo.seos-baseline:seos-baseline)
             (make-demo-button "Indentation" 'indentation)
             (make-demo-button "Graph formatting" 'clim-demo.graph-formatting-test:graph-formatting-test)

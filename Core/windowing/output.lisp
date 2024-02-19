@@ -90,16 +90,16 @@
     (continuation (sheet sheet-with-medium-mixin))
   (if-let ((sheet-medium (sheet-medium sheet)))
     (funcall continuation sheet-medium)
-    (let* ((port (port sheet))
-           (new-medium (allocate-medium port sheet)))
-      (unwind-protect
-           (progn
-             (engraft-medium new-medium port sheet)
-             (setf (%sheet-medium sheet) new-medium)
-             (funcall continuation new-medium))
-        (setf (%sheet-medium sheet) nil)
-        (degraft-medium new-medium port sheet)
-        (deallocate-medium port new-medium)))))
+    (when-let ((port (port sheet)))
+      (let ((new-medium (allocate-medium port sheet)))
+        (unwind-protect
+             (progn
+               (engraft-medium new-medium port sheet)
+               (setf (%sheet-medium sheet) new-medium)
+               (funcall continuation new-medium))
+          (setf (%sheet-medium sheet) nil)
+          (degraft-medium new-medium port sheet)
+          (deallocate-medium port new-medium))))))
 
 ;;; The purpose of this macro is not clearly spelled out in the specification.
 ;;; This macro is necessary when we want to use a medium before the sheet is

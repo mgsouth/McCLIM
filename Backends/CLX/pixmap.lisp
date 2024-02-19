@@ -66,7 +66,7 @@
     (let* ((depth (pixmap-depth pixmap))
            (old-pixmap (clx-drawable pixmap))
            (new-pixmap (%allocate-pixmap old-pixmap width height depth)))
-      (%deallocate-pixmap old-pixmap)
+      (deallocate-pixmap pixmap)
       (setf (mirror pixmap) new-pixmap
             (pixmap-width pixmap) width
             (pixmap-height pixmap) height)))

@@ -16,7 +16,6 @@
 ;;; - - more regions to draw
 ;;; - (?) blending
 ;;; - MEDIUM-DRAW-TEXT*
-;;; - - :towards-(x,y)
 ;;; - - landscape orientation
 ;;; - - (?) :transform-glyphs
 ;;; - POSTSCRIPT-ACTUALIZE-GRAPHICS-STATE: fix CLIPPING-REGION reusing logic
@@ -568,20 +567,24 @@ setmatrix")
                               start end
                               align-x align-y
                               toward-x toward-y transform-glyphs)
-  (declare (ignore toward-x toward-y transform-glyphs))
+  (declare (ignore transform-glyphs))
   (setq string (if (characterp string)
                    (make-string 1 :initial-element string)
                    (subseq string start end)))
   (let ((file-stream (medium-drawable medium)))
     (postscript-actualize-graphics-state file-stream medium :color :text-style)
     (with-graphics-state ((medium-sheet medium))
-      (multiple-value-bind (total-width total-height
-                            final-x final-y baseline)
+      (multiple-value-bind (total-width total-height final-x final-y baseline)
           (let* ((font-name (medium-font medium))
                  (font (clim-postscript-font:font-name-metrics-key font-name))
                  (size (clim-postscript-font:font-name-size font-name)))
             (clim-postscript-font:text-size-in-font font size string 0 nil))
         (declare (ignore final-x final-y))
+        (multiple-value-bind (mxx mxy myx myy tx ty)
+            (climi::get-transformation (climi::medium-text-transformation
+                                        medium x y toward-x toward-y))
+          (format file-stream "[~,3F ~,3F ~,3F ~,3F ~,3F ~,3F] concat~%"
+                  mxx mxy myx myy tx ty))
         ;; Only one line?
         (let ((x (ecase align-x
                    (:left x)
@@ -592,10 +595,6 @@ setmatrix")
                    (:center (+ y baseline (- (/ total-height 2))))
                    (:baseline y)
                    (:bottom (+ y (- total-height baseline))))))
-          (multiple-value-bind (mxx mxy myx myy tx ty)
-              (climi::get-transformation (medium-device-transformation medium))
-            (format file-stream "[~,3F ~,3F ~,3F ~,3F ~,3F ~,3F] concat~%"
-                    mxx mxy myx myy tx ty))
           (moveto* file-stream x y)
           (format file-stream "[~,3F ~,3F ~,3F ~,3F ~,3F ~,3F] concat~%"
                   1 0 0 -1 0 0)

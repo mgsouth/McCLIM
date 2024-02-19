@@ -95,7 +95,8 @@ recording stream. If it is T, *STANDARD-OUTPUT* is used.")
     (return-from replay (replay record (encapsulating-stream-stream stream) region)))
   (unless region
     (setf region (sheet-visible-region stream)))
-  (stream-close-text-output-record stream)
+  (with-output-recording-options (stream :draw nil)
+    (stream-close-text-output-record stream))
   (when (stream-drawing-p stream)
     (nest
      (with-cursor-off ((stream-text-cursor stream)))
@@ -344,7 +345,7 @@ according to the flags RECORD and DRAW."
 
 ;;; FIXME: Change things so the rectangle below is only drawn in response
 ;;;        to explicit repaint requests from the user, not exposes from X.
-;;; FIXME: Use DRAW-DESIGN*, that is fix DRAW-DESIGN*.
+;;; FIXME: Use DRAW-DESIGN, that is fix DRAW-DESIGN.
 (defmethod handle-repaint ((stream output-recording-stream) region)
   (unless (region-equal region +nowhere+) ; ignore repaint requests for +nowhere+
     (let ((region (if (region-equal region +everywhere+)

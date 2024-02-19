@@ -69,20 +69,9 @@
            (values (+ x dx) (+ y dy))))))
 
 (defun reset-stream-cursor (stream cursor)
-  (let* ((text-style (stream-text-style stream))
-         (width (text-style-width text-style stream))
-         (ascent (text-style-ascent text-style stream))
-         (descent (text-style-descent text-style stream)))
-    (setf (cursor-position cursor) (stream-cursor-initial-position stream)
-          (cursor-offset cursor) (values 0 ascent)
-          (cursor-extent cursor) (values width descent))))
-
-(defun text-style-offset (text-style stream)
-  (ecase (stream-page-direction stream)
-    (:top-to-bottom (values 0 (text-style-ascent text-style stream)))
-    (:bottom-to-top (values 0 (- (text-style-ascent text-style stream))))
-    (:left-to-right (values (text-style-width text-style stream) 0))
-    (:right-to-left (values (- (text-style-width text-style stream)) 0))))
+  (setf (cursor-position cursor) (stream-cursor-initial-position stream)
+        (cursor-offset cursor) (values 0 0)
+        (cursor-extent cursor) (values 0 0)))
 
 (defmethod stream-force-output :after ((stream standard-extended-output-stream))
   (when (stream-close-text-output-record stream)
@@ -101,7 +90,6 @@
 
 (defmethod note-sheet-grafted :after ((stream standard-extended-output-stream))
   (reset-stream-cursor stream (stream-text-cursor stream)))
-
 
 (defun seos-record-output (stream object &optional start end)
   (etypecase object
@@ -140,6 +128,8 @@
         (pscroll               (scroll-extent/page stream cursor))))))
 
 (defun seos-write-newline (stream soft-newline-p)
+  (add-newline-output-to-text-record
+   (stream-text-output-record stream (medium-text-style stream)))
   (nest
    (let ((cursor (stream-text-cursor stream))
          (hspace (stream-horizontal-spacing stream))
@@ -181,15 +171,14 @@
     :start-line
       (multiple-value-bind (dx dy fx fy bx by ex ey eol-p eop-p)
           (stream-cursor-motion stream cursor object)
-        (declare (ignore dx dy))
+        (declare (ignore dx dy fx fy))
         (when (and eop-p (member end-of-page-action '(:wrap :wrap*)))
           (go :break-page))
         (when (and eol-p wrapl (plusp (stream-text-offset stream cursor)))
           (go :break-line))
         (setf (cursor-offset cursor) (values bx by))
         (setf (cursor-extent cursor) (values ex ey))
-        (seos-record-output stream object)
-        (setf (cursor-position cursor) (values fx fy))))))
+        (seos-record-output stream object)))))
 
 ;;; This function is responsible for managing the cursor and invoking drawing.
 ;;; Text wrapping and sheet dimensions are updated as we go, while scrolling
@@ -220,7 +209,7 @@
       (multiple-value-bind (dx dy fx fy bx by ex ey eol-p eop-p)
           (stream-cursor-motion stream cursor vector :start start :end end
                                                      :text-style text-style)
-        (declare (ignore dx dy))
+        (declare (ignore dx dy fx fy))
         (when (and eop-p (member end-of-page-action '(:wrap :wrap*)))
           (go :break-page))
         (when (and eol-p wrapl)
@@ -229,8 +218,7 @@
         (setf (cursor-extent cursor) (values ex ey))
         (seos-record-output stream vector start split)
         (when (/= split end)
-          (go :break-line))
-        (setf (cursor-position cursor) (values fx fy))))))
+          (go :break-line))))))
 
 
 (defgeneric stream-write-object (stream object)
@@ -301,6 +289,9 @@
             `(:right (:absolute ,margin))
             `(:right (:relative 0)))))
 
+;;; FIXME this is incorrect -- CLIM II specifies this function to measure the
+;;; line "from the baseline of the text-style to its ascent". On the other hand
+;;; such definition doesn't seem to have much utility. -- jd 2024-02-06
 (defmethod stream-line-height ((stream standard-extended-output-stream)
                                &key (text-style nil))
   (with-sheet-medium (medium stream)

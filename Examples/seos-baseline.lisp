@@ -71,6 +71,14 @@
     (print-header "One paragraph:" stream)
     (princ *data1* stream))
   (progn
+    (print-header "Tiny paragraphs:" stream)
+    (with-drawing-options (stream :text-size :tiny)
+      (princ *data1* stream)
+      (terpri stream)
+      (terpri stream)
+      (princ *data1* stream)
+      (terpri stream)))
+  (progn
     (print-header "Long line, varying size:" stream)
     (loop for iter from 0
           for word in *data2*

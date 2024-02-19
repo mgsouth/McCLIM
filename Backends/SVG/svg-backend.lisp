@@ -389,7 +389,7 @@
 (defmethod medium-draw-text* ((medium svg-medium) string x y start end
                               align-x align-y toward-x toward-y
                               transform-glyphs)
-  (declare (ignore toward-x toward-y transform-glyphs))
+  (declare (ignore transform-glyphs))
   (with-drawing-context (drawable medium :text)
     (let ((text-anchor
             (ecase align-x
@@ -402,12 +402,14 @@
               (:center "central")
               (:baseline "alphabetic")
               (:bottom "text-after-edge"))))
-      (cl-who:with-html-output (stream drawable)
-        (:text :x (fmt x)
-               :y (fmt y)
-               :text-anchor text-anchor
-               :dominant-baseline dominant-baseline
-               (cl-who:esc (subseq string start (or end (length string)))))))))
+      (let ((transformation (climi::draw-text-rotation* x y toward-x toward-y)))
+        (cl-who:with-html-output (stream drawable)
+          (:text :x (fmt x)
+                 :y (fmt y)
+                 :transform (svg-transform transformation)
+                 :text-anchor text-anchor
+                 :dominant-baseline dominant-baseline
+                 (cl-who:esc (subseq string start (or end (length string))))))))))
 
 
 ;;; Patterns

@@ -125,7 +125,8 @@
     (setf stop (get-internal-real-time))
     (window-clear stream)
     (format stream "Score: ~A operations/s~%" (float (/ n (/ (- stop start) itups))))
-    (format *debug-io* "Score: ~A operations/s~%" (float (/ n (/ (- stop start) itups))))))
+    (format *debug-io* "Score: ~A operations/s~%" (float (/ n (/ (- stop start) itups))))
+    (dispatch-repaint stream +everywhere+)))
 
 (define-drawing-benchmark-command (com-quit-drawing-benchmark :menu "Quit") ()
   (frame-exit *application-frame*))

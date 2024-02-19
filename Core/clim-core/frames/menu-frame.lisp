@@ -35,6 +35,9 @@
 (defclass menu-unmanaged-top-level-sheet-pane (unmanaged-top-level-sheet-pane)
   ())
 
+(defmethod frame-name ((frame menu-frame))
+  'menu-frame)
+
 (defmethod enable-frame ((frame menu-frame))
   (setf (sheet-enabled-p (frame-top-level-sheet frame)) t)
   (setf (slot-value frame 'state) :enabled)

@@ -132,13 +132,16 @@
 (defun update-gadget (sheet)
   (change-space-requirements sheet)
   (dispatch-repaint sheet (sheet-region sheet))
-  (when (editable-p sheet)
-    (value-changed-callback sheet
-                            (gadget-client sheet)
-                            (gadget-id sheet)
-                            (gadget-value sheet)))
   (let ((edit (edit-cursor sheet)))
     (scroll-extent* sheet edit)))
+
+(defmethod note-input-editor-command-executed ((sheet text-editing-gadget) type)
+  (case type
+    ((:edit :kill :yank)
+     (value-changed-callback sheet
+                             (gadget-client sheet)
+                             (gadget-id sheet)
+                             (gadget-value sheet)))))
 
 (defmethod handle-event ((sheet text-editing-gadget) (event key-press-event))
   (if (handle-input-editor-event sheet event)

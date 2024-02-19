@@ -50,6 +50,7 @@
   :components
   ((:module "drawing"
     :components ((:file "protocol")
+                 (:file "utilities")
                  (:file "design")
                  (:file "text-style")
                  (:file "colors"   :depends-on ("design"))

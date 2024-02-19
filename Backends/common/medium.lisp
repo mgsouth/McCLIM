@@ -1,31 +1,21 @@
 (in-package #:climi)
 
-(defclass multiline-text-medium-mixin () ()
-  (:documentation "Takes care of splitting string into multiple lines and adjusts Y-position."))
+(defun draw-text-rotation* (x y toward-x toward-y)
+  ;; Rounding here is important to ensure a numerical stability of rotation.
+  (let* ((x (round-coordinate x))
+         (y (round-coordinate y))
+         (toward-x (round-coordinate toward-x))
+         (toward-y (round-coordinate toward-y))
+         (dx (- toward-x x))
+         (dy (- toward-y y))
+         (angle (find-angle 1 0 dx dy)))
+    (make-rotation-transformation* angle x y)))
 
-(defmethod medium-draw-text* :around ((medium multiline-text-medium-mixin) string x y
-                                      start end
-                                      align-x align-y
-                                      toward-x toward-y transform-glyphs)
-  (unless (position #\newline string :start start :end end)
-    (return-from medium-draw-text* (call-next-method)))
-  (setq string (subseq string start end))
-  (let* ((text-style (medium-text-style medium))
-         (y-dx (text-style-leading text-style medium)))
-    ;; Single line centering is figured out in the primary method, we just fix
-    ;; the X/Y if it will be different for the supplied positioning and then
-    ;; increase it for each line. -- jd 2018-10-08
-    (case align-y
-      (:center
-       (setq y (- y (/ (* y-dx (count #\newline string)) 2))))
-      ((:bottom :baseline*)
-       (setq y (- y (* y-dx (count #\newline string))))))
-    (dolines (line string)
-      (unless (alexandria:emptyp line)
-        (call-next-method medium line x y 0 (length line)
-                          align-x align-y toward-x toward-y
-                          transform-glyphs))
-      (incf y y-dx))))
+(defun medium-text-transformation (medium x y toward-x toward-y)
+  (if (and (= y toward-y) (< x toward-x))
+      (medium-device-transformation medium)
+      (compose-transformations (medium-device-transformation medium)
+                               (draw-text-rotation* x y toward-x toward-y))))
 
 ;; For multiline text alignment may change the bbox. For instance longest line
 ;; may start with a character with left-bearing=0 and shorter line starts with a
@@ -57,9 +47,6 @@
           (height (- bottom top)))
       (ecase align-y
         (:baseline)
-        (:baseline*
-         (setf top (- descent height))
-         (setf bottom descent))
         (:top
          (setf top (- ascent (abs top))
                bottom (+ top height)))
