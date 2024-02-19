@@ -182,7 +182,6 @@
              ;; all these values may be inferred from other glyph properties so
              ;; we do not return them. -- jd 2018-10-14
              width height left top array)
-
         (with-bounding-rectangle* (x1 y1 x2 y2)
             (transform-region transformation (make-rectangle* min-x min-y max-x max-y))
           (setq width  (- (ceiling x2) (floor x1)))
@@ -229,24 +228,15 @@
                                  (compose-transformations transformation #1#))
                                 udx udy)
           (values array (- left) top width height
-                  ;; X uses horizontal/vertical advance between letters. That
-                  ;; way glyph sequence may be rendered. This should not be
-                  ;; confused with font width/height! -- jd 2018-09-28
-                  (round dx)
-                  (round dy)
-                  ;; Transformed text is rendered glyph by glyph to mitigate
-                  ;; accumulation of the rounding error. For that we need values
-                  ;; without rounding nor transformation. -- jd 2018-10-04
-                  udx
-                  udy))))))
+                  (climi::round-coordinate dx)
+                  (climi::round-coordinate dy)))))))
 
 
 (deftype glyph-pixarray () '(simple-array (unsigned-byte 8) (* *)))
 
 (defstruct (glyph-info (:constructor glyph-info (id pixarray width height
                                                  left right top bottom
-                                                 advance-width advance-height
-                                                 advance-width* advance-height*)))
+                                                 advance-width advance-height)))
   (id 0                             :type fixnum)
   (pixarray nil        :read-only t :type (or null glyph-pixarray))
   (width 0             :read-only t)
@@ -256,10 +246,7 @@
   (top 0               :read-only t)
   (bottom 0            :read-only t)
   (advance-width 0     :read-only t)
-  (advance-height 0    :read-only t)
-  ;; untransformed values
-  (advance-width* 0s0  :read-only t)
-  (advance-height* 0s0 :read-only t))
+  (advance-height 0    :read-only t))
 
 (defclass cached-truetype-font (truetype-font)
   ((char->glyph-info  :initform (make-hash-table :size 512))))
@@ -280,11 +267,11 @@
           (transformation (let ((scale (make-scaling-transformation 1.0 -1.0)))
                             (compose-transformations
                              scale (compose-transformations transformation scale)))))
-      (multiple-value-bind (arr left top width height dx dy udx udy)
+      (multiple-value-bind (arr left top width height dx dy)
           (glyph-pixarray font character next-character transformation)
         (let ((right (+ left (1- (array-dimension arr 1))))
               (bottom (- top (1- (array-dimension arr 0)))))
-          (glyph-info code arr width height left right top bottom dx dy udx udy))))))
+          (glyph-info code arr width height left right top bottom dx dy))))))
 
 (defun font-glyph-id (font code)
   (glyph-info-id (font-glyph-info font code)))

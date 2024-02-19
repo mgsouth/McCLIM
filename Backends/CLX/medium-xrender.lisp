@@ -372,14 +372,14 @@
              (the (unsigned-byte 32) (glyph-info-id glyph)))
        (setf this-char next-char)
        (incf idx0)
-       (incf advance-x (glyph-info-advance-width* glyph))
+       (incf advance-x (glyph-info-advance-width glyph))
     finally
        (setf glyph (font-glyph-info font (char-code this-char)))
        (when (null origin-x)
          (setf origin-x (- (glyph-info-left glyph))))
        (setf (aref (the (simple-array (unsigned-byte 32)) glyph-ids) idx0)
              (the (unsigned-byte 32) (glyph-info-id glyph)))
-       (incf advance-x (glyph-info-advance-width* glyph))
+       (incf advance-x (glyph-info-advance-width glyph))
        (return (values origin-x origin-y advance-x advance-y))))
 
 (defun %draw-glyphs/align (x y origin-x origin-y advance-x advance-y align-x align-y)
