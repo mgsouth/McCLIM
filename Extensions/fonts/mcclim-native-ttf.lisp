@@ -58,36 +58,26 @@
             (font-face-name object)
             (if (preloadedp object) "yes" "no"))))
 
-(defgeneric font-leading (font)
-  (:method (font) 1.2))
-
 (defclass truetype-font ()
   ((face          :initarg :face     :reader font-face)
    (size          :initarg :size     :reader font-size)
    ;; Kerning is a customized advance-width between different pairs of letters
    ;; specified in a separate kerning-table.
    (kerning-p     :initarg :kerning  :reader font-kerning-p)
-   ;; Font tracking is an additional horizontal space between consecutive
-   ;; chracters also known as a letterspacing.
-   (tracking      :initarg :tracking :reader font-tracking)
-   ;; Font leading is a vertical space between baselines of a consecutive lines.
-   (leading       :initarg :leading  :reader font-leading)
    ;; Generalized boolean. If the font character width is fixed it is returned,
    ;; otherwise returns NIL.
    (fixed-width   :initarg :fixed    :reader font-fixed-width :type (or fixnum null))
    (ascent                           :reader font-ascent)
    (descent                          :reader font-descent)
    (units->pixels                    :reader zpb-ttf-font-units->pixels))
-  ;; Parameters TRACKING and LEADING are specified in [em]. Internally we keep
-  ;; them in [units].
-  (:default-initargs :fixed nil :dpi 72 :kerning t :tracking 0.0 :leading 1.2))
+  (:default-initargs :fixed nil :dpi 72 :kerning t))
 
 (defgeneric font-port (font)
   (:method ((font truetype-font))
     (font-family-port (font-face-family (font-face font)))))
 
 (defmethod initialize-instance :after
-    ((font truetype-font) &key dpi tracking leading &allow-other-keys)
+    ((font truetype-font) &key dpi &allow-other-keys)
   (with-slots (face size ascent descent font-loader) font
     (let* ((loader (zpb-ttf-font-loader face))
            (em->units (zpb-ttf:units/em loader))
@@ -95,8 +85,6 @@
            (units->pixels (/ (* size dpi-factor) em->units)))
       (setf ascent  (+ (* units->pixels (zpb-ttf:ascender loader)))
             descent (- (* units->pixels (zpb-ttf:descender loader)))
-            (slot-value font 'tracking) (* units->pixels (* em->units tracking))
-            (slot-value font 'leading)  (* units->pixels (* em->units leading))
             (slot-value font 'units->pixels) units->pixels))
     (pushnew font (all-fonts face))))
 
@@ -157,8 +145,7 @@
              ;; (left-side-bearing  (* units->pixels (zpb-ttf:left-side-bearing  glyph)))
              ;; (right-side-bearing (* units->pixels (zpb-ttf:right-side-bearing glyph)))
              (udx (+ (* units->pixels (zpb-ttf:advance-width glyph))
-                     (* units->pixels (zpb-ttf:kerning-offset char next font))
-                     (font-tracking font)))
+                     (* units->pixels (zpb-ttf:kerning-offset char next font))))
              (udy 0)
              (bounding-box (map 'vector (lambda (x) (float (* x units->pixels)))
                                 (zpb-ttf:bounding-box glyph)))
@@ -182,7 +169,6 @@
              ;; all these values may be inferred from other glyph properties so
              ;; we do not return them. -- jd 2018-10-14
              width height left top array)
-
         (with-bounding-rectangle* (x1 y1 x2 y2)
             (transform-region transformation (make-rectangle* min-x min-y max-x max-y))
           (setq width  (- (ceiling x2) (floor x1)))
@@ -229,24 +215,15 @@
                                  (compose-transformations transformation #1#))
                                 udx udy)
           (values array (- left) top width height
-                  ;; X uses horizontal/vertical advance between letters. That
-                  ;; way glyph sequence may be rendered. This should not be
-                  ;; confused with font width/height! -- jd 2018-09-28
-                  (round dx)
-                  (round dy)
-                  ;; Transformed text is rendered glyph by glyph to mitigate
-                  ;; accumulation of the rounding error. For that we need values
-                  ;; without rounding nor transformation. -- jd 2018-10-04
-                  udx
-                  udy))))))
+                  (climi::round-coordinate dx)
+                  (climi::round-coordinate dy)))))))
 
 
 (deftype glyph-pixarray () '(simple-array (unsigned-byte 8) (* *)))
 
 (defstruct (glyph-info (:constructor glyph-info (id pixarray width height
                                                  left right top bottom
-                                                 advance-width advance-height
-                                                 advance-width* advance-height*)))
+                                                 advance-width advance-height)))
   (id 0                             :type fixnum)
   (pixarray nil        :read-only t :type (or null glyph-pixarray))
   (width 0             :read-only t)
@@ -256,10 +233,7 @@
   (top 0               :read-only t)
   (bottom 0            :read-only t)
   (advance-width 0     :read-only t)
-  (advance-height 0    :read-only t)
-  ;; untransformed values
-  (advance-width* 0s0  :read-only t)
-  (advance-height* 0s0 :read-only t))
+  (advance-height 0    :read-only t))
 
 (defclass cached-truetype-font (truetype-font)
   ((char->glyph-info  :initform (make-hash-table :size 512))))
@@ -280,11 +254,11 @@
           (transformation (let ((scale (make-scaling-transformation 1.0 -1.0)))
                             (compose-transformations
                              scale (compose-transformations transformation scale)))))
-      (multiple-value-bind (arr left top width height dx dy udx udy)
+      (multiple-value-bind (arr left top width height dx dy)
           (glyph-pixarray font character next-character transformation)
         (let ((right (+ left (1- (array-dimension arr 1))))
               (bottom (- top (1- (array-dimension arr 0)))))
-          (glyph-info code arr width height left right top bottom dx dy udx udy))))))
+          (glyph-info code arr width height left right top bottom dx dy))))))
 
 (defun font-glyph-id (font code)
   (glyph-info-id (font-glyph-info font code)))
@@ -371,7 +345,7 @@ but argument must constitute exactly one character."
     (values (font-text-extents font string :start start :end end))))
 
 
-(defun line-bbox (font string start end align-x)
+(defun line-bbox (font string start end align-x align-y)
   (let ((origin-x 0)
         (origin-y 0)
         (xmin most-positive-fixnum)
@@ -386,15 +360,30 @@ but argument must constitute exactly one character."
              (incf origin-x (font-glyph-dx font code))
              (incf origin-y (font-glyph-dy font code))))
       (map-over-string-glyph-codes #'process-code string start end)
-      (case align-x
+      (ecase align-x
+        (:left)
         (:center
-         (let ((width/2 (/ (- xmax xmin) 2)))
-           (setf xmin (- width/2))
-           (setf xmax (+ width/2))))
+         (let ((hcenter (/ (- xmax xmin) 2)))
+           (setf xmin (- hcenter))
+           (setf xmax (+ hcenter))))
         (:right
-         (let ((width (- xmax xmin)))
-           (setf xmin (- width))
+         (let ((hsize (- xmax xmin)))
+           (setf xmin (- hsize))
            (setf xmax 0))))
+      (ecase align-y
+        (:top
+         (let ((vsize (- ymax ymin)))
+           (setf ymin 0)
+           (setf ymax vsize)))
+        (:center
+         (let ((vcenter (/ (- ymax ymin) 2)))
+           (setf ymin (- vcenter))
+           (setf ymax (+ vcenter))))
+        (:baseline)
+        (:bottom
+         (let ((vsize (- ymax ymin)))
+           (setf ymin (- vsize))
+           (setf ymax 0))))
       (values xmin ymin xmax ymax origin-x origin-y))))
 
 (defun font-text-extents (font string &key start end align-x align-y direction)
@@ -419,55 +408,11 @@ cursor-dx cursor-dy"
     (values 0 0 0 0 0 0))
   (let* ((ascent (font-ascent font))
          (descent (font-descent font))
-         (line-height (+ ascent descent))
-         (xmin most-positive-fixnum)
-         (ymin most-positive-fixnum)
-         (xmax most-negative-fixnum)
-         (ymax most-negative-fixnum)
-         (dx 0)
-         (dy 0)
-         (current-y 0)
-         (current-dx 0))
-    (climi::dolines (line (subseq string start end))
-      (multiple-value-bind (xmin* ymin* xmax* ymax* dx* dy*)
-          (if (alexandria:emptyp line)
-              (values 0 0 0 0 0 0)
-              (line-bbox font line 0 (length line) align-x))
-        (ecase align-y
-          (:baseline
-           (minf ymin (+ current-y ymin*))
-           (maxf ymax (+ current-y ymax*)))
-          (:top
-           (let ((height (- ymax* ymin*))
-                 (ymin* (- ascent (abs ymin*))))
-             (minf ymin (+ current-y ymin*))
-             (maxf ymax (+ current-y (+ ymin* height)))))
-          (:center
-           (let ((height/2 (/ (+ current-y (- ymax* ymin*)) 2)))
-             (minf ymin (- height/2))
-             (maxf ymax (+ height/2))))
-          (:bottom
-           (let ((height (- ymax* ymin*))
-                 (ymax* (- ymax* descent)))
-             (minf ymin (- (- ymax* height) current-y))
-             (maxf ymax ymax*))))
-        (minf xmin xmin*)
-        (maxf xmax xmax*)
-        (maxf dx dx*)
-        (maxf dy (+ current-y dy*))
-        (incf current-y (font-leading font))
-        (setf current-dx dx*)))
-    (return-from font-text-extents
-      (values
-       ;; text bounding box
-       xmin ymin xmax ymax
-       ;; text-bounding-rectangle
-       0 #|x0|# (font-ascent font) #|y0|# dx (+ dy line-height)
-       ;; line properties (ascent, descent, line gap)
-       (font-ascent font)
-       (font-descent font)
-       (- (font-leading font)
-          (+ (font-ascent font)
-             (font-descent font)))
-       ;; cursor-dx cursor-dy
-       current-dx dy))))
+         (line-height (+ ascent descent)))
+    (multiple-value-bind (xmin ymin xmax ymax dx dy)
+        (line-bbox font string start end align-x align-y)
+      (values xmin ymin xmax ymax            ; text bbox
+              0 ascent dx (+ dy line-height) ; x0 y0 xn yn
+              ascent descent 0               ; ascent, descent, line gap
+              dx dy                          ; cursor advancement
+              ))))

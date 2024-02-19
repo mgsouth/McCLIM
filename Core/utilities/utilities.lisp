@@ -610,16 +610,6 @@ be forms containing FORM."
           (c2mop:class-slots new-class))
     copy))
 
-(defmacro dolines ((line string &optional result) &body body)
-  "Iterates over lines in string separated by #\newline."
-  (with-gensyms (substr end)
-    (once-only (string)
-      `(do* ((,substr ,string (subseq ,substr (1+ ,end)))
-             (,end  #1=(position #\newline ,substr) #1#)
-             (,line #2=(subseq ,substr 0 ,end) #2#))
-            ((null ,end) ,@body ,result)
-         ,@body))))
-
 ;;;; The Collect macro:
 
 (eval-when (:compile-toplevel :load-toplevel :execute)

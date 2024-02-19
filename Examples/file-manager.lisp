@@ -164,19 +164,24 @@
                             (mapcar #'make-file
                                     (subseq *features* 0 (min (length *features*) 10)))))))
   (:panes
-   (explananation :label :label      *explanation*
-                         :background +beige+)
    (files :application :display-function (lambda (frame pane)
                                            (let ((root (root frame)))
                                              (present root (presentation-type-of root)
                                                       :stream     pane
                                                       :single-box t)))
                        :default-view (make-instance 'file-manager-view))
+   (explanation :application
+                :scroll-bars nil
+                :display-time t
+                :display-function (lambda (frame stream)
+                                    (declare (ignore frame))
+                                    (format stream *explanation*))
+                :background +beige+)
    (interactor :interactor))
   (:layouts
    (:default
     (vertically ()
-      explananation
+      explanation
       (7/9 files)
       (make-pane 'clime:box-adjuster-gadget)
       (1/9 interactor))))

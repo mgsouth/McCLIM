@@ -70,7 +70,6 @@
                 #:with-round-positions
                 #:with-round-coordinates
                 ;; utils
-                #:dolines
                 #:maybe-funcall
                 #:if-let
                 #:when-let

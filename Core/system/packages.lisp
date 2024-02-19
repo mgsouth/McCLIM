@@ -2092,7 +2092,6 @@
    ;; Text-style
    #:text-style-character-width
    #:text-bounding-rectangle*
-   #:text-style-leading
    #:normalize-font-size
    #:parse-text-style*
    ;; Mixins available for backends

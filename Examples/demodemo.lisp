@@ -205,18 +205,10 @@ name."))
                   :text-style (make-text-style :sans-serif :roman :huge)))
       10
       (9/10 (horizontally (:equalize-height t)
-              ;; Please keep the silly "good" so the label text goes
-              ;; below the baseline. -- jm 2019-12-14
-              (1/4 (make-label-test-column
+              (1/2 (make-label-test-column
                     "Labels with content" #1="Some good label" :child))
-              (1/4 (make-label-test-column
-                    "Labels without content" #1# :alignment))
-              (1/4 (make-label-test-column
-                    "Multi-line w/ content"
-                    #2=#.(format nil "Multi-line~%label")
-                    :child))
-              (1/4 (make-label-test-column
-                    "Multi-line w/o content" #2# :label))))))))
+              (1/2 (make-label-test-column
+                    "Labels without content" #1# :alignment))))))))
 
 (defclass foo-pane (basic-pane)
   ())
