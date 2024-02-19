@@ -116,13 +116,13 @@
 
 (defclass buffer-cursor (buffer-mark standard-text-cursor cluffer-clim:cursor) ())
 
-(defmethod mark-attached-p ((mark buffer-cursor))
+(defmethod mark-attached-p ((mark cluffer:cursor))
   (cluffer:cursor-attached-p mark))
 
-(defmethod attach-mark ((cursor buffer-cursor) position)
+(defmethod attach-mark ((cursor cluffer:cursor) position)
   (smooth-set-position cursor position))
 
-(defmethod detach-mark ((mark buffer-cursor))
+(defmethod detach-mark ((mark cluffer:cursor))
   (when (mark-attached-p mark)
     (cluffer:detach-cursor mark)))
 

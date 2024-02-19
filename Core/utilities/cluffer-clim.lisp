@@ -174,7 +174,6 @@
            (setf (gap-start line) position))
           (t
            nil))
-    (setf (aref contents (gap-end line)) 0)  ; for the GC
     (incf (gap-end line))
     (when (and (> (length contents) 32)
                (> (- (gap-end line) (gap-start line))
@@ -196,11 +195,11 @@
 ;;; No need to open the line.
 (defmethod cluffer:item-at-position ((line line) position)
   (if (open-line-p line)
-      (aref (contents line) position)
       (aref (contents line)
             (if (< position (gap-start line))
                 position
-                (+ position (- (gap-end line) (gap-start line)))))))
+                (+ position (- (gap-end line) (gap-start line)))))
+      (aref (contents line) position)))
 
 (defmethod cluffer-internal:line-split-line ((line line) position)
   (ensure-closed-line line)
