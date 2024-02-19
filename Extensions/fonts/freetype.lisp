@@ -495,9 +495,7 @@ or NIL if the current transformation is the identity transformation."
                       ;; line properties
                       (freetype2:face-ascender-pixels face)
                       (freetype2:face-descender-pixels face)
-                      (- (font-leading font)
-                         (+ (freetype2:face-ascender-pixels face)
-                            (freetype2:face-descender-pixels face)))
+                      0
                       ;; cursor motion
                       (+ width (/ (glyph-entry-x-advance e) 64)) 0)))))))
       (cond ((= start end)
@@ -558,10 +556,6 @@ or NIL if the current transformation is the identity transformation."
           (font-text-extents font text :start start :end end)
         (declare (ignore xmin ymin xmax ymax left top descent linegap))
         (values width height cursor-dx cursor-dy ascent)))))
-
-(defun font-leading (font)
-  (declare (ignore font))
-  1.2)
 
 (defun mcclim-truetype:font-ascent (font)
   (with-face-from-font (face font)

@@ -13,10 +13,6 @@ a font implementing the protocol defined below."))
   (let ((font (text-style-mapping (port medium) text-style)))
     (font-descent font)))
 
-(defmethod text-style-leading (text-style (medium ttf-medium-mixin))
-  (let ((font (text-style-mapping (port medium) text-style)))
-    (font-leading font)))
-
 (defmethod text-style-character-width (text-style (medium ttf-medium-mixin) char)
   (font-character-width (text-style-mapping (port medium) text-style) char))
 
@@ -56,7 +52,6 @@ a font implementing the protocol defined below."))
                   origin-x origin-y
                   ascent))))
     (let* ((text (subseq (string string) start end))
-           (leading (font-leading font))
            (current-dx 0)
            (maximum-dx 0)
            (current-y 0))
@@ -68,9 +63,9 @@ a font implementing the protocol defined below."))
           finally
              (maxf maximum-dx origin-x)
              (setf current-dx origin-x)
-             (incf current-y leading)))
-      (values maximum-dx (+ current-y line-height (- leading))
-              current-dx (- current-y leading)
+             (incf current-y line-height)))
+      (values maximum-dx current-y
+              current-dx current-y
               ascent))))
 
 ;;; A fallback drawing routine using the function MEDIUM-DRAW-POLYGON*.

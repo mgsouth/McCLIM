@@ -124,7 +124,6 @@
 (defgeneric text-style-height (text-style medium))
 (defgeneric text-style-fixed-width-p (text-style medium))
 (defgeneric text-size (medium string &key text-style start end))
-(defgeneric text-style-leading (text-style medium) (:method (text-style medium) 1.2))
 (defgeneric text-style-character-width (text-style medium char) (:method (text-style medium char) (text-size medium char :text-style text-style)))
 (defgeneric text-bounding-rectangle* (medium string &key text-style start end align-x align-y direction))
 

@@ -58,31 +58,26 @@
             (font-face-name object)
             (if (preloadedp object) "yes" "no"))))
 
-(defgeneric font-leading (font)
-  (:method (font) 1.2))
-
 (defclass truetype-font ()
   ((face          :initarg :face     :reader font-face)
    (size          :initarg :size     :reader font-size)
    ;; Kerning is a customized advance-width between different pairs of letters
    ;; specified in a separate kerning-table.
    (kerning-p     :initarg :kerning  :reader font-kerning-p)
-   ;; Font leading is a vertical space between baselines of a consecutive lines.
-   (leading       :initarg :leading  :reader font-leading)
    ;; Generalized boolean. If the font character width is fixed it is returned,
    ;; otherwise returns NIL.
    (fixed-width   :initarg :fixed    :reader font-fixed-width :type (or fixnum null))
    (ascent                           :reader font-ascent)
    (descent                          :reader font-descent)
    (units->pixels                    :reader zpb-ttf-font-units->pixels))
-  (:default-initargs :fixed nil :dpi 72 :kerning t :leading 1.2))
+  (:default-initargs :fixed nil :dpi 72 :kerning t))
 
 (defgeneric font-port (font)
   (:method ((font truetype-font))
     (font-family-port (font-face-family (font-face font)))))
 
 (defmethod initialize-instance :after
-    ((font truetype-font) &key dpi leading &allow-other-keys)
+    ((font truetype-font) &key dpi &allow-other-keys)
   (with-slots (face size ascent descent font-loader) font
     (let* ((loader (zpb-ttf-font-loader face))
            (em->units (zpb-ttf:units/em loader))
@@ -90,7 +85,6 @@
            (units->pixels (/ (* size dpi-factor) em->units)))
       (setf ascent  (+ (* units->pixels (zpb-ttf:ascender loader)))
             descent (- (* units->pixels (zpb-ttf:descender loader)))
-            (slot-value font 'leading)  (* units->pixels (* em->units leading))
             (slot-value font 'units->pixels) units->pixels))
     (pushnew font (all-fonts face))))
 
@@ -435,19 +429,15 @@ cursor-dx cursor-dy"
         (maxf xmax xmax*)
         (maxf dx dx*)
         (maxf dy (+ current-y dy*))
-        (incf current-y (font-leading font))
+        (incf current-y line-height)
         (setf current-dx dx*)))
     (return-from font-text-extents
       (values
        ;; text bounding box
        xmin ymin xmax ymax
        ;; text-bounding-rectangle
-       0 #|x0|# (font-ascent font) #|y0|# dx (+ dy line-height)
+       0 #|x0|# ascent #|y0|# dx (+ dy line-height)
        ;; line properties (ascent, descent, line gap)
-       (font-ascent font)
-       (font-descent font)
-       (- (font-leading font)
-          (+ (font-ascent font)
-             (font-descent font)))
+       ascent descent 0
        ;; cursor-dx cursor-dy
        current-dx dy))))
