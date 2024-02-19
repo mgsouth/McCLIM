@@ -1,4 +1,61 @@
 * Changes in mcclim-0.9.9 relative to 0.9.8 Yule:
+
+** [2024-02-13 Tue] Performance improvements for X11 text rendering
+
+The untransformed text renders around 1.5x faster and the transformed text
+renders around 400x faster.
+
+** [2024-02-08 Thu] DRAW-TEXT implements now :TOWARD-POINT parameter
+
+On top of the current device transformation, TOWARD-POINT specifies the text
+direction.
+
+A new demo interactive demo "Draw Text test" has been implemented that allows
+experimentation with the text alignment, direction and transformations.
+
+** [2024-02-19 Mon] UPDATING-OUTPUT does not overwrite CACHE-TEST when supplied
+
+Previously when CACHE-VALUE was not supplied, then CACHE-TEST was set to
+FORCE-UPDATE-CACHE-TEST, even when the programmer explicitly specified
+:CACHE-TEST (CONSTANTLY T) ; from now on the CACHE-TEST is supplanted only when
+neither CACHE-VALUE nor CACHE-TEST are supplied by the programmer.
+
+** [2024-01-24 Wed] Change the class hierarchy of extended output streams
+
+STANDARD-OUTPUT-RECORDING-STREAM is a superclass of
+STANDARD-EXTENDED-OUTPUT-STREAM (previously it was the other way around).
+
+** [2024-01-12 Fri] WITH-ROOM-FOR-GRAPHICS allows mixing text and graphics
+
+Previously this operator was used to estabilish the transformation and local
+coordinate system. These effects are achievable by using other operators.
+
+From now on it works only on streams that maintain the text line and is used
+strictly to incorporate graphics on the text line.
+
+A new demo has been added that illustrates this new functionality.
+
+** [2024-01-12 Fri] Rewrite STANDARD-TEXT-DISPLAYED-OUTPUT-RECORD to use DRAW-TEXT
+
+This includes improving the implementation of the STANDARD-TEXT-CURSOR and
+fixing bugs related to line breaks where the cursor did not change its size.
+
+** [2024-01-12 Fri] Generalize the concept of a baseline for vertical directions
+
+Additionally all output records may have a baseline, not only the text. That
+will support future improvements to formatting operators.
+
+** [2024-01-11 Thu] Implement the missing operator MAKE-DESIGN-FROM-OUTPUT-RECORD
+
+This operator allows for incorporating graphical output records in drawing
+functions.
+
+** [2024-01-11 Thu] DRAW-TEXT is a subject of the medium transformation
+
+Previously we've taken an interpretation that the argument :TRANSFORM-GLYPHS
+decides whether the string is transformed or not; that interpretation was wrong
+because this argument has a different purpose.
+
 ** [2024-01-06 Sat] Replaying the output does not change the stream's text cursor
 
 The function REPLAY will save and restore the text cursor after execution.
