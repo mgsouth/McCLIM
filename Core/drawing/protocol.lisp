@@ -12,6 +12,14 @@
 
 ;;; Sheet and Medium Output Facilities
 
+;;; 8.3.4.1 Grafting and Degrafting of Mediums
+
+(defgeneric allocate-medium (port sheet))
+(defgeneric deallocate-medium (port medium))
+(defgeneric make-medium (port sheet))
+(defgeneric engraft-medium (medium port sheet))
+(defgeneric degraft-medium (medium port sheet))
+
 ;;; 10 Drawing Options
 
 ;;; 10.1 Medium Components

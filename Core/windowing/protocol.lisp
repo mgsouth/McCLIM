@@ -268,13 +268,6 @@ and button states of the pointer."))
 (defgeneric invoke-with-sheet-medium-bound (cont medium sheet))
 (defgeneric sheet-medium (instance))
 
-;;; 8.3.4.1 Grafting and Degrafting of Mediums
-(defgeneric allocate-medium (port sheet))
-(defgeneric deallocate-medium (port medium))
-(defgeneric make-medium (port sheet))
-(defgeneric engraft-medium (medium port sheet))
-(defgeneric degraft-medium (medium port sheet))
-
 ;;; 8.4 Repaint Protocol
 
 ;;; 8.4.1 Repaint Protocol Functions
@@ -316,7 +309,6 @@ and button states of the pointer."))
 (declfun find-port (&key (server-path *default-server-path*)))
 (defgeneric find-port-type (symbol))
 (pledge :variable *default-server-path*)
-(defgeneric port (instance))
 (pledge :macro with-port ((port-var server &rest args &key &allow-other-keys) &body body))
 (declfun invoke-with-port (continuation server &rest args &key &allow-other-keys))
 (pledge :macro with-port-locked ((port) &body body))
@@ -392,7 +384,6 @@ size.  If size is nil, the resulting text style does not specify a size."))
 (defgeneric make-graft (port &key orientation units))
 (defgeneric sheet-grafted-p (sheet))
 (declfun find-graft (&key (port nil) (server-path *default-server-path*) (orientation :default) (units :device)))
-(defgeneric graft (instance))
 (defgeneric map-over-grafts (fun port))
 (pledge :macro with-graft-locked ((graft) &body body))
 (defgeneric graft-orientation (instance))

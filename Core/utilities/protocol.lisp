@@ -61,6 +61,13 @@
 (defgeneric encapsulating-stream-stream (encapsulating-stream)
   (:documentation "The stream encapsulated by an encapsulating stream"))
 
+;;; D.2 Basic Stream Functions
+
+;;; Gray Streamoid functions, but not part of any Gray proposal.
+(defgeneric stream-pathname (stream))
+(defgeneric stream-truename (stream))
+
+
 
 ;;; Extra operators
 (defgeneric equals (a b)
@@ -68,8 +75,20 @@
     (equalp a b)))
 
 
+;;; Input buffer extensions
+
+(defgeneric mark-attached-p (mark))
+(defgeneric mark-visibility (mark))
+(defgeneric attach-mark (mark target))
+(defgeneric detach-mark (mark))
+
+
 ;;; KLUDGE both PORT and SHEET are referenced through the codebase so we need to
 ;;; define protocol classes early.
 
 (define-protocol-class sheet nil)
 (define-protocol-class port nil)
+
+;;; Early readers.
+(defgeneric port (instance))
+(defgeneric graft (instance))

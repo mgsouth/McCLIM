@@ -454,11 +454,6 @@ caller ensures that each node has sufficient size to accomodate dimensions."))
 (defgeneric check-box-selections (gadget))
 
 
-;;; D.2 Basic Stream Functions
-
-;;; Gray Streamoid functions, but not part of any Gray proposal.
-(defgeneric stream-pathname (stream))
-(defgeneric stream-truename (stream))
 
 ;;; E.0 Drawing backend protocols (generalization of the postscript backend)
 (declmacro with-output-to-drawing-stream (stream-var backend destination &rest args))

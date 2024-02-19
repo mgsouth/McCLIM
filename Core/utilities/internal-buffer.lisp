@@ -95,6 +95,10 @@
                           ((format *debug-io* "  kill: ~a~%" (line-string p)))))
                   (cluffer:buffer cursor)))
 
+(defun mark-visible-p (mark)
+  (and (mark-attached-p mark)
+       (mark-visibility mark)))
+
 ;;; Mark is a visual object (external to the buffer) that points at one or more
 ;;; of its elements. Specifically: the superclass of cursors and slides.
 (defclass buffer-mark ()
@@ -102,15 +106,7 @@
    (properties :initarg :properties :accessor mark-properties))
   (:default-initargs :visibility t :properties '()))
 
-(defgeneric mark-attached-p (mark))
-(defgeneric mark-visibility (mark))
-(defgeneric attach-mark (mark target))
-(defgeneric detach-mark (mark))
 
-(defgeneric mark-visible-p (mark)
-  (:method ((mark buffer-mark))
-    (and (mark-attached-p mark)
-         (mark-visibility mark))))
 
 ;;; Cursors implement behavior of input cursor and a visual object.
 
