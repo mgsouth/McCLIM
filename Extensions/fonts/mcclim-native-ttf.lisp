@@ -67,9 +67,6 @@
    ;; Kerning is a customized advance-width between different pairs of letters
    ;; specified in a separate kerning-table.
    (kerning-p     :initarg :kerning  :reader font-kerning-p)
-   ;; Font tracking is an additional horizontal space between consecutive
-   ;; chracters also known as a letterspacing.
-   (tracking      :initarg :tracking :reader font-tracking)
    ;; Font leading is a vertical space between baselines of a consecutive lines.
    (leading       :initarg :leading  :reader font-leading)
    ;; Generalized boolean. If the font character width is fixed it is returned,
@@ -78,16 +75,14 @@
    (ascent                           :reader font-ascent)
    (descent                          :reader font-descent)
    (units->pixels                    :reader zpb-ttf-font-units->pixels))
-  ;; Parameters TRACKING and LEADING are specified in [em]. Internally we keep
-  ;; them in [units].
-  (:default-initargs :fixed nil :dpi 72 :kerning t :tracking 0.0 :leading 1.2))
+  (:default-initargs :fixed nil :dpi 72 :kerning t :leading 1.2))
 
 (defgeneric font-port (font)
   (:method ((font truetype-font))
     (font-family-port (font-face-family (font-face font)))))
 
 (defmethod initialize-instance :after
-    ((font truetype-font) &key dpi tracking leading &allow-other-keys)
+    ((font truetype-font) &key dpi leading &allow-other-keys)
   (with-slots (face size ascent descent font-loader) font
     (let* ((loader (zpb-ttf-font-loader face))
            (em->units (zpb-ttf:units/em loader))
@@ -95,7 +90,6 @@
            (units->pixels (/ (* size dpi-factor) em->units)))
       (setf ascent  (+ (* units->pixels (zpb-ttf:ascender loader)))
             descent (- (* units->pixels (zpb-ttf:descender loader)))
-            (slot-value font 'tracking) (* units->pixels (* em->units tracking))
             (slot-value font 'leading)  (* units->pixels (* em->units leading))
             (slot-value font 'units->pixels) units->pixels))
     (pushnew font (all-fonts face))))
@@ -157,8 +151,7 @@
              ;; (left-side-bearing  (* units->pixels (zpb-ttf:left-side-bearing  glyph)))
              ;; (right-side-bearing (* units->pixels (zpb-ttf:right-side-bearing glyph)))
              (udx (+ (* units->pixels (zpb-ttf:advance-width glyph))
-                     (* units->pixels (zpb-ttf:kerning-offset char next font))
-                     (font-tracking font)))
+                     (* units->pixels (zpb-ttf:kerning-offset char next font))))
              (udy 0)
              (bounding-box (map 'vector (lambda (x) (float (* x units->pixels)))
                                 (zpb-ttf:bounding-box glyph)))
