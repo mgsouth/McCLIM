@@ -43,29 +43,11 @@ a font implementing the protocol defined below."))
                                     (medium-merged-text-style medium))))
          (ascent (font-ascent font))
          (line-height (+ ascent (font-descent font))))
-    (when (null (position #\newline string))
-      (return-from text-size
-        (multiple-value-bind (xmin ymin xmax ymax origin-x origin-y)
-            (line-bbox font string start end :left)
-          (declare (ignore xmin ymin xmax ymax))
-          (values origin-x (+ origin-y line-height)
-                  origin-x origin-y
-                  ascent))))
-    (let* ((text (subseq (string string) start end))
-           (current-dx 0)
-           (maximum-dx 0)
-           (current-y 0))
-      (climi::dolines (text text)
-        (loop
-          with origin-x fixnum = 0
-          for code across (font-string-glyph-codes font text)
-          do (incf origin-x (font-glyph-dx font code))
-          finally
-             (maxf maximum-dx origin-x)
-             (setf current-dx origin-x)
-             (incf current-y line-height)))
-      (values maximum-dx current-y
-              current-dx current-y
+    (multiple-value-bind (xmin ymin xmax ymax origin-x origin-y)
+        (line-bbox font string start end :left :baseline)
+      (declare (ignore xmin ymin xmax ymax))
+      (values origin-x (+ origin-y line-height)
+              origin-x origin-y
               ascent))))
 
 ;;; A fallback drawing routine using the function MEDIUM-DRAW-POLYGON*.

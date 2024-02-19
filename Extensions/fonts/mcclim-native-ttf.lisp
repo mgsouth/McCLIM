@@ -345,7 +345,7 @@ but argument must constitute exactly one character."
     (values (font-text-extents font string :start start :end end))))
 
 
-(defun line-bbox (font string start end align-x)
+(defun line-bbox (font string start end align-x align-y)
   (let ((origin-x 0)
         (origin-y 0)
         (xmin most-positive-fixnum)
@@ -360,15 +360,30 @@ but argument must constitute exactly one character."
              (incf origin-x (font-glyph-dx font code))
              (incf origin-y (font-glyph-dy font code))))
       (map-over-string-glyph-codes #'process-code string start end)
-      (case align-x
+      (ecase align-x
+        (:left)
         (:center
-         (let ((width/2 (/ (- xmax xmin) 2)))
-           (setf xmin (- width/2))
-           (setf xmax (+ width/2))))
+         (let ((hcenter (/ (- xmax xmin) 2)))
+           (setf xmin (- hcenter))
+           (setf xmax (+ hcenter))))
         (:right
-         (let ((width (- xmax xmin)))
-           (setf xmin (- width))
+         (let ((hsize (- xmax xmin)))
+           (setf xmin (- hsize))
            (setf xmax 0))))
+      (ecase align-y
+        (:top
+         (let ((vsize (- ymax ymin)))
+           (setf ymin 0)
+           (setf ymax vsize)))
+        (:center
+         (let ((vcenter (/ (- ymax ymin) 2)))
+           (setf ymin (- vcenter))
+           (setf ymax (+ vcenter))))
+        (:baseline)
+        (:bottom
+         (let ((vsize (- ymax ymin)))
+           (setf ymin (- vsize))
+           (setf ymax 0))))
       (values xmin ymin xmax ymax origin-x origin-y))))
 
 (defun font-text-extents (font string &key start end align-x align-y direction)
@@ -393,51 +408,11 @@ cursor-dx cursor-dy"
     (values 0 0 0 0 0 0))
   (let* ((ascent (font-ascent font))
          (descent (font-descent font))
-         (line-height (+ ascent descent))
-         (xmin most-positive-fixnum)
-         (ymin most-positive-fixnum)
-         (xmax most-negative-fixnum)
-         (ymax most-negative-fixnum)
-         (dx 0)
-         (dy 0)
-         (current-y 0)
-         (current-dx 0))
-    (climi::dolines (line (subseq string start end))
-      (multiple-value-bind (xmin* ymin* xmax* ymax* dx* dy*)
-          (if (alexandria:emptyp line)
-              (values 0 0 0 0 0 0)
-              (line-bbox font line 0 (length line) align-x))
-        (ecase align-y
-          (:baseline
-           (minf ymin (+ current-y ymin*))
-           (maxf ymax (+ current-y ymax*)))
-          (:top
-           (let ((height (- ymax* ymin*))
-                 (ymin* (- ascent (abs ymin*))))
-             (minf ymin (+ current-y ymin*))
-             (maxf ymax (+ current-y (+ ymin* height)))))
-          (:center
-           (let ((height/2 (/ (+ current-y (- ymax* ymin*)) 2)))
-             (minf ymin (- height/2))
-             (maxf ymax (+ height/2))))
-          (:bottom
-           (let ((height (- ymax* ymin*))
-                 (ymax* (- ymax* descent)))
-             (minf ymin (- (- ymax* height) current-y))
-             (maxf ymax ymax*))))
-        (minf xmin xmin*)
-        (maxf xmax xmax*)
-        (maxf dx dx*)
-        (maxf dy (+ current-y dy*))
-        (incf current-y line-height)
-        (setf current-dx dx*)))
-    (return-from font-text-extents
-      (values
-       ;; text bounding box
-       xmin ymin xmax ymax
-       ;; text-bounding-rectangle
-       0 #|x0|# ascent #|y0|# dx (+ dy line-height)
-       ;; line properties (ascent, descent, line gap)
-       ascent descent 0
-       ;; cursor-dx cursor-dy
-       current-dx dy))))
+         (line-height (+ ascent descent)))
+    (multiple-value-bind (xmin ymin xmax ymax dx dy)
+        (line-bbox font string start end align-x align-y)
+      (values xmin ymin xmax ymax            ; text bbox
+              0 ascent dx (+ dy line-height) ; x0 y0 xn yn
+              ascent descent 0               ; ascent, descent, line gap
+              dx dy                          ; cursor advancement
+              ))))
