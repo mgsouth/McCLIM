@@ -17,43 +17,30 @@
       (compose-transformations (medium-device-transformation medium)
                                (draw-text-rotation* x y toward-x toward-y))))
 
-;; For multiline text alignment may change the bbox. For instance longest line
-;; may start with a character with left-bearing=0 and shorter line starts with a
-;; character which has left-bearing=-10. If text is left-aligned then bbox
-;; starts from coordinate x=-10, but if text is right-aligned it is x=0. This
-;; mixin provides decent adjustment for alignment for simpler algorithms. Method
-;; is not pixel-perfect hence it should be used sparingly for early prototypes.
-(defclass approx-bbox-medium-mixin () ()
-  (:documentation "Adjusts bounding rectangle to alignment with a decent heuristic."))
-
-(defmethod text-bounding-rectangle* :around
-    ((medium approx-bbox-medium-mixin) string &key text-style start end
-                                                (align-x :left)
-                                                (align-y :baseline)
-                                                (direction :ltr))
-  (declare (ignore start end direction))
-  (multiple-value-bind (left top right bottom) (call-next-method)
-    (let ((width (- right left)))
-      (ecase align-x
-        (:left)
-        (:right
-         (decf left width)
-         (decf right width))
-        (:center
-         (decf left (/ width 2.0s0))
-         (decf right (/ width 2.0s0)))))
-    (let ((ascent (text-style-ascent text-style medium))
-          (descent (text-style-descent text-style medium))
-          (height (- bottom top)))
-      (ecase align-y
-        (:baseline)
-        (:top
-         (setf top (- ascent (abs top))
-               bottom (+ top height)))
-        (:bottom
-         (decf top bottom)
-         (decf bottom bottom))
-        (:center
-         (setf top (- (/ height 2.0s0)))
-         (setf bottom (/ height 2.0s0)))))
-    (values left top right bottom)))
+;;; The baseline is assumed to be at y=0.
+(defun align-bounding-rectangle (xmin ymin xmax ymax align-x align-y)
+  (ecase align-x
+    (:left)
+    (:center
+     (let ((hcenter (/ (- xmax xmin) 2)))
+       (setf xmin (- hcenter))
+       (setf xmax (+ hcenter))))
+    (:right
+     (let ((hsize (- xmax xmin)))
+       (setf xmin (- hsize))
+       (setf xmax 0))))
+  (ecase align-y
+    (:top
+     (let ((vsize (- ymax ymin)))
+       (setf ymin 0)
+       (setf ymax vsize)))
+    (:center
+     (let ((vcenter (/ (- ymax ymin) 2)))
+       (setf ymin (- vcenter))
+       (setf ymax (+ vcenter))))
+    (:baseline)
+    (:bottom
+     (let ((vsize (- ymax ymin)))
+       (setf ymin (- vsize))
+       (setf ymax 0))))
+  (values xmin ymin xmax ymax))

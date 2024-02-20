@@ -2094,10 +2094,11 @@
    #:text-bounding-rectangle*
    #:normalize-font-size
    #:parse-text-style*
-   ;; Mixins available for backends
-   #:multiline-text-medium-mixin
-   #:approx-bbox-medium-mixin
+   ;; Mixins and helpers available for backends
    #:transform-coordinates-mixin
+   #:draw-text-rotation*
+   #:medium-text-transformation*
+   #:align-bounding-rectangle
    ;; From CLIM (mentioned in the spec)
    #:adopt-frame
    #:allocate-space

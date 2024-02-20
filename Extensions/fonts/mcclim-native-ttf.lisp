@@ -360,30 +360,8 @@ but argument must constitute exactly one character."
              (incf origin-x (font-glyph-dx font code))
              (incf origin-y (font-glyph-dy font code))))
       (map-over-string-glyph-codes #'process-code string start end)
-      (ecase align-x
-        (:left)
-        (:center
-         (let ((hcenter (/ (- xmax xmin) 2)))
-           (setf xmin (- hcenter))
-           (setf xmax (+ hcenter))))
-        (:right
-         (let ((hsize (- xmax xmin)))
-           (setf xmin (- hsize))
-           (setf xmax 0))))
-      (ecase align-y
-        (:top
-         (let ((vsize (- ymax ymin)))
-           (setf ymin 0)
-           (setf ymax vsize)))
-        (:center
-         (let ((vcenter (/ (- ymax ymin) 2)))
-           (setf ymin (- vcenter))
-           (setf ymax (+ vcenter))))
-        (:baseline)
-        (:bottom
-         (let ((vsize (- ymax ymin)))
-           (setf ymin (- vsize))
-           (setf ymax 0))))
+      (multiple-value-setq (xmin ymin xmax ymax)
+        (climb:align-bounding-rectangle xmin ymin xmax ymax align-x align-y))
       (values xmin ymin xmax ymax origin-x origin-y))))
 
 (defun font-text-extents (font string &key start end align-x align-y direction)
