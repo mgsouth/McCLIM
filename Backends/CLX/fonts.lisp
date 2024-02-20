@@ -82,8 +82,8 @@
   (let ((font (text-style-mapping (port medium) text-style)))
     (xlib:char-width font (char-code char))))
 
-(defun font-text-extents (font string &key start end align-x align-y direction)
-  (declare (ignore align-x align-y direction))
+(defun font-text-extents (font string &key start end direction)
+  (declare (ignore direction))
   (multiple-value-bind (width ascent descent
                         left-bearing right-bearing overall-ascent overall-descent
                         overall-direction next-start)
@@ -96,18 +96,19 @@
 
 (defmethod text-bounding-rectangle* ((medium clx-medium) string
                                      &key text-style (start 0) end
-                                          (align-x :left) (align-y :baseline) (direction :ltr))
+                                          (align-x :left)
+                                          (align-y :baseline)
+                                          (direction :ltr))
   (unless end
     (setf end (length string)))
-  (when (= start end)
+  (when (>= start end)
     (return-from text-bounding-rectangle* (values 0 0 0 0)))
   (let* ((text (string string))
          (text-style (merge-text-styles text-style (medium-merged-text-style medium)))
          (font (text-style-mapping (clim:port medium) text-style)))
     (multiple-value-bind (xmin ymin xmax ymax)
-        (font-text-extents font text :start start :end end
-                                     :align-x align-x :align-y align-y :direction direction)
-      (values xmin ymin xmax ymax))))
+        (font-text-extents font text :start start :end end :direction direction)
+      (climb:align-bounding-rectangle xmin ymin xmax ymax align-x align-y))))
 
 (defmethod text-size ((medium clx-medium) string &key text-style (start 0) end)
   (setf string (string string)

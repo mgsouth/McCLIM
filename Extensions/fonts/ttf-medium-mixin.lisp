@@ -25,11 +25,8 @@ a font implementing the protocol defined below."))
          (merged-text-style (merge-text-styles text-style medium-text-style))
          (font (text-style-mapping (port medium) merged-text-style)))
     (multiple-value-bind (xmin ymin xmax ymax)
-        (font-text-extents font text :start start :end end
-                                     :align-x align-x
-                                     :align-y align-y
-                                     :direction direction)
-      (values xmin ymin xmax ymax))))
+        (font-text-extents font text :start start :end end :direction direction)
+      (climb:align-bounding-rectangle xmin ymin xmax ymax align-x align-y))))
 
 (defmethod text-size ((medium ttf-medium-mixin) string &key text-style (start 0) end)
   (setf string (string string)
@@ -44,7 +41,7 @@ a font implementing the protocol defined below."))
          (ascent (font-ascent font))
          (line-height (+ ascent (font-descent font))))
     (multiple-value-bind (xmin ymin xmax ymax origin-x origin-y)
-        (line-bbox font string start end :left :baseline)
+        (line-bbox font string start end)
       (declare (ignore xmin ymin xmax ymax))
       (values origin-x (+ origin-y line-height)
               origin-x origin-y

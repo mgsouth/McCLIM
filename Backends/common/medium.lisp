@@ -1,5 +1,7 @@
 (in-package #:climi)
 
+(declaim (inline align-bounding-rectangle draw-text-rotation* medium-text-transformation))
+
 (defun draw-text-rotation* (x y toward-x toward-y)
   ;; Rounding here is important to ensure a numerical stability of rotation.
   (let* ((x (round-coordinate x))

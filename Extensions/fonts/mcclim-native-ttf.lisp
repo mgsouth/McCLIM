@@ -345,7 +345,7 @@ but argument must constitute exactly one character."
     (values (font-text-extents font string :start start :end end))))
 
 
-(defun line-bbox (font string start end align-x align-y)
+(defun line-bbox (font string start end)
   (let ((origin-x 0)
         (origin-y 0)
         (xmin most-positive-fixnum)
@@ -360,11 +360,9 @@ but argument must constitute exactly one character."
              (incf origin-x (font-glyph-dx font code))
              (incf origin-y (font-glyph-dy font code))))
       (map-over-string-glyph-codes #'process-code string start end)
-      (multiple-value-setq (xmin ymin xmax ymax)
-        (climb:align-bounding-rectangle xmin ymin xmax ymax align-x align-y))
       (values xmin ymin xmax ymax origin-x origin-y))))
 
-(defun font-text-extents (font string &key start end align-x align-y direction)
+(defun font-text-extents (font string &key start end direction)
   "Function computes text extents as if it were drawn with a specified font. It
 returns two distinct extents: first is an exact pixel-wise bounding box. The
 second is a text bounding box with all its bearings. Text may contain newlines,
@@ -388,7 +386,7 @@ cursor-dx cursor-dy"
          (descent (font-descent font))
          (line-height (+ ascent descent)))
     (multiple-value-bind (xmin ymin xmax ymax dx dy)
-        (line-bbox font string start end align-x align-y)
+        (line-bbox font string start end)
       (values xmin ymin xmax ymax            ; text bbox
               0 ascent dx (+ dy line-height) ; x0 y0 xn yn
               ascent descent 0               ; ascent, descent, line gap
