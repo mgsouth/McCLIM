@@ -181,7 +181,7 @@
      &key text-style (start 0) end align-x align-y direction
      &aux (string (string string)))
   (declare (ignore align-x align-y direction))
-  (unless end (setf end (length string)))
+  (climi::orf end (length string))
   (when (>= start end)
     (return-from climb:text-bounding-rectangle*
       (values 0 0 0 0)))
@@ -204,25 +204,13 @@
                                 first-not-done))
                (if (< descent ascent)
                    (values left descent right ascent)
-                   (values left ascent right descent)))))
-      (alexandria:if-let ((npos (position #\newline string :start start)))
-        (multiple-value-bind (minx miny maxx maxy)
-            (text-extents start npos)
-          (multiple-value-bind (minx* miny* maxx* maxy*)
-              (climb:text-bounding-rectangle*
-               medium string :text-style text-style
-               :start (1+ npos) :end end)
-            (declare (ignore miny*))
-            (values (* scale (min minx minx*))
-                    (* scale miny)
-                    (* scale (max maxx maxx*))
-                    (* scale (+ maxy maxy*)))))
-        (multiple-value-bind (minx miny maxx maxy)
-            (text-extents start end)
-          (values (* scale minx)
-                  (* scale miny)
-                  (* scale maxx)
-                  (* scale maxy)))))))
+                   (values left ascent  right descent)))))
+      (multiple-value-bind (minx miny maxx maxy)
+          (text-extents start end)
+        (values (* scale minx)
+                (* scale miny)
+                (* scale maxx)
+                (* scale maxy))))))
 
 (defun psfont-text-extents (metrics-key string &key (start 0) (end (length string)))
   (let* ((font-info (or (gethash metrics-key *font-metrics*)
@@ -259,14 +247,13 @@
 (defmethod text-size ((medium postscript-font-medium) string
                       &key text-style (start 0) end)
   (when (characterp string) (setq string (string string)))
-  (unless end (setq end (length string)))
+  (climi::orf end (length string))
   (let* ((font-name (text-style-mapping (port medium)
                                         (merge-text-styles text-style
                                                            (medium-merged-text-style medium))))
          (size (font-name-size font-name))
          (metrics-key (font-name-metrics-key font-name)))
-    (text-size-in-font metrics-key size
-                       string start (or end (length string)))))
+    (text-size-in-font metrics-key size string start end)))
 
 (defmethod invoke-with-text-style :around
     ((medium postscript-font-medium)
