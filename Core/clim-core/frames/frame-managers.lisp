@@ -23,7 +23,8 @@
                (frame-manager-p *default-frame-manager*)
                (or (null port) (eql port (port *default-frame-manager*))))
           *default-frame-manager*
-          (let ((port (or port (apply #'find-port options))))
+          (let ((port (or port (with-keywords-removed (options (:port))
+                                 (apply #'find-port options)))))
             (first (or (frame-managers port)
                        (push (make-instance 'standard-frame-manager :port port)
                              (frame-managers port))))))))
