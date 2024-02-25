@@ -5,9 +5,9 @@
 ;;;  (c) copyright 1998,1999,2000 Michael McDonald <mikemac@mikemac.com>
 ;;;  (c) copyright 2000,2001 Iban Hatchondo <hatchond@emi.u-bordeaux.fr>
 ;;;  (c) copyright 2000,2001 Julien Boninfante <boninfan@emi.u-bordeaux.fr>
-;;;  (c) copyright 2000, 2001, 2014, 2016 Robert Strandh <robert.strandh@gmail.com>
-;;;  (c) copyright 2016-2020 Daniel Kochmański <daniel@turtleware.eu>
+;;;  (c) copyright 2000,2001,2014,2016 Robert Strandh <robert.strandh@gmail.com>
 ;;;  (c) copyright 2019 Jan Moringen <jmoringe@techfak.uni-bielefeld.de>
+;;;  (c) copyright 2016-2024 Daniel Kochmański <daniel@turtleware.eu>
 ;;;
 ;;; ---------------------------------------------------------------------------
 ;;;
@@ -16,9 +16,6 @@
 (in-package #:clim-clx)
 
 ;;; CLX-PORT class
-
-(defclass clx-pointer (clx-basic-pointer)
-  ())
 
 (defclass clx-port (clim-xcommon:keysym-port-mixin
                     clx-selection-mixin
@@ -31,6 +28,7 @@
     :initform (trivial-garbage:make-weak-hash-table :weakness :key :test #'eq)
     :reader port-design-cache)))
 
+;;; CLX-RENDER-PORT is also subclassed by CLX-FREETYPE-PORT.
 (defclass clx-render-port (clx-port) ())
 
 (defclass clx-ttf-port (ttf-port-mixin clim-clx:clx-render-port)
@@ -105,7 +103,7 @@
     (push (apply #'make-instance 'clx-frame-manager :port port options)
           (slot-value port 'frame-managers))
     (setf (slot-value port 'pointer)
-          (make-instance 'clx-pointer :port port)))
+          (make-instance 'clx-basic-pointer :port port)))
   (initialize-clx port))
 
 (defmethod print-object ((object clx-port) stream)
