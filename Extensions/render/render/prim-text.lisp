@@ -10,8 +10,8 @@
                       (compose-transformation-with-translation
                        transformation (- x0) (- y0)))
     for code across glyph-codes
-    for origin-x fixnum = (round x) then (+ origin-x (glyph-info-advance-width info))
-    for origin-y fixnum = (round y) then (+ origin-y (glyph-info-advance-height info))
+    for origin-x fixnum = (round x) then (+ origin-x (glyph-info-advance-dx info))
+    for origin-y fixnum = (round y) then (+ origin-y (glyph-info-advance-dy info))
     for info = (if (translation-transformation-p transformation)
                    (font-glyph-info font code)
                    (font-generate-glyph port font code :transformation glyph-tr))

@@ -25,9 +25,7 @@
            #:truetype-face
            #:cached-truetype-font)
   ;; Atlas implementgation
-  (:export #:font-glyph-id
-           #:font-glyph-dx
-           #:font-glyph-info
+  (:export #:font-glyph-info
            #:font-ascent
            #:font-descent
            #:font-generate-glyph
@@ -37,12 +35,24 @@
   (:export #:glyph-info
            #:glyph-info-id
            #:glyph-info-pixarray
-           #:glyph-info-dx
-           #:glyph-info-dy
+           ;; bearings
            #:glyph-info-left
            #:glyph-info-top
-           #:glyph-info-advance-width
-           #:glyph-info-advance-height)
+           #:glyph-info-right
+           #:glyph-info-bottom
+           ;;
+           #:glyph-info-width
+           #:glyph-info-height
+           ;; horizontal/vertical advance width/height
+           #:glyph-info-advance-hx
+           #:glyph-info-advance-hy
+           #:glyph-info-advance-vx
+           #:glyph-info-advance-vy
+           ;; effective origin and advance width/height
+           #:glyph-info-origin-x
+           #:glyph-info-origin-y
+           #:glyph-info-advance-dx
+           #:glyph-info-advance-dy)
   ;; Consumer exports
   (:export #:ttf-port-mixin
            #:ttf-medium-mixin))
