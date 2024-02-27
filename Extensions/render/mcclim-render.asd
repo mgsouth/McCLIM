@@ -22,5 +22,4 @@
                 :components ((:file "mirror")
                              (:file "medium")
                              (:file "pixmap")
-                             (:file "fonts")
                              (:file "port")))))
