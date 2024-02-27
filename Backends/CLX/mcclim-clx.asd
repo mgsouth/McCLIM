@@ -29,6 +29,7 @@
              (:file "fonts" :depends-on ("bidi" "medium"))
              (:file "drawing")
              (:file "medium" :depends-on ("drawing"))
+             (:file "fonts-truetype" :depends-on ("bidi"))
              (:file "medium-xrender" :depends-on ("medium"))
              (:file "pixmap" :depends-on ("medium"))))
    (:file "input")))
