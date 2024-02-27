@@ -61,7 +61,7 @@
 (defclass truetype-font ()
   ((face          :initarg :face     :reader font-face)
    (size          :initarg :size     :reader font-size)
-   ;; Kerning is a customized advance-width between different pairs of letters
+   ;; Kerning is a customized advance-dx between different pairs of letters
    ;; specified in a separate kerning-table.
    (kerning-p     :initarg :kerning  :reader font-kerning-p)
    ;; Generalized boolean. If the font character width is fixed it is returned,
@@ -144,43 +144,34 @@
              (glyph (zpb-ttf:find-glyph char font-loader))
              ;; (left-side-bearing  (* units->pixels (zpb-ttf:left-side-bearing  glyph)))
              ;; (right-side-bearing (* units->pixels (zpb-ttf:right-side-bearing glyph)))
-             (udx (+ (* units->pixels (zpb-ttf:advance-width glyph))
-                     (* units->pixels (zpb-ttf:kerning-offset char next font))))
-             (udy 0)
+             (hx (+ (* units->pixels (zpb-ttf:advance-width glyph))
+                    (* units->pixels (zpb-ttf:kerning-offset char next font))))
+             (hy 0)
+             (vx 0)
+             ;; FIXME zpb-ttf should consult horizontal metric tables, and
+             ;; provide a sane fallback otherwise. -- jd 2024-02-23
+             (vy (+ ascent descent))
              (bounding-box (map 'vector (lambda (x) (float (* x units->pixels)))
                                 (zpb-ttf:bounding-box glyph)))
              (min-x (elt bounding-box 0))
              (min-y (elt bounding-box 1))
              (max-x (elt bounding-box 2))
              (max-y (elt bounding-box 3))
-             ;; top-side-bearing is mostly useful for vertical
-             ;; metrics. left-side-bearing is the same as xmin,
-             ;; right-side-bearing may be inferred as well. bottom-side-bearing
-             ;; is usually not mentioned in the literature due to its limited
-             ;; purpose (I'm not aware of any vertical alphabet which direction
-             ;; is bottom-to-top), but we could imagine it has a similar
-             ;; relation as the right-side-bearing.
-             ;;
-             ;;   left-side-bearing = min-x
-             ;;   right-side-bearing = advance-width - left-side-bearing - width
-             ;;   top-side-bearing = baseline + max-y
-             ;;   bottom-side-bearing = advance-height - top-side-bearing - height
-             ;;
-             ;; all these values may be inferred from other glyph properties so
-             ;; we do not return them. -- jd 2018-10-14
-             width height left top array)
+             width height left top right bottom array)
         (with-bounding-rectangle* (x1 y1 x2 y2)
             (transform-region transformation (make-rectangle* min-x min-y max-x max-y))
+          (setq left (floor x1))
+          (setq top (ceiling y2))
           (setq width  (- (ceiling x2) (floor x1)))
           (setq height (- (ceiling y2) (floor y1)))
-          (setq left (- (floor x1)))
-          (setq top (ceiling y2))
+          (setq right  (- hx width))
+          (setq bottom (- vy height))
           (setq array (make-array (list height width)
                                   :initial-element 0
                                   :element-type '(unsigned-byte 8))))
         (let* ((glyph-tr (compose-transformations
                           (compose-transformations
-                           (make-translation-transformation left top)
+                           (make-translation-transformation (- left) top)
                            (make-scaling-transformation units->pixels (- units->pixels)))
                           transformation))
                (paths (paths-from-glyph* glyph glyph-tr))
@@ -206,34 +197,50 @@
                                                   (logior #x40 (aref array 0 i))
                                                   (aref array (1- height) i)
                                                   (logior #x40 (aref array (1- height) i)))))
-        (multiple-value-bind (dx dy)
-            ;; Transformation is supplied in font coordinates for easy
-            ;; composition with offset and scaling. advance values should be
-            ;; returned in screen coordinates, so we transform it here.
-            (transform-distance (compose-transformations
-                                 #1=(make-scaling-transformation 1.0 -1.0)
-                                 (compose-transformations transformation #1#))
-                                udx udy)
-          (values array (- left) top width height
-                  (climi::round-coordinate dx)
-                  (climi::round-coordinate dy)))))))
+        ;; Transformation is supplied in font coordinates for easy composition
+        ;; with offset and scaling. advance values should be returned in screen
+        ;; coordinates, so we transform it here.
+        (let ((transformation (compose-transformations
+                               #1=(make-scaling-transformation 1.0 -1.0)
+                               (compose-transformations transformation #1#))))
+          (multiple-value-setq (hx hy) (transform-distance transformation hx hy))
+          (multiple-value-setq (vx vy) (transform-distance transformation vx vy)))
+        (values array left top right bottom width height
+                (climi::round-coordinate hx)
+                (climi::round-coordinate hy)
+                (climi::round-coordinate vx)
+                (climi::round-coordinate vy))))))
 
 
 (deftype glyph-pixarray () '(simple-array (unsigned-byte 8) (* *)))
 
-(defstruct (glyph-info (:constructor glyph-info (id pixarray width height
-                                                 left right top bottom
-                                                 advance-width advance-height)))
-  (id 0                             :type fixnum)
-  (pixarray nil        :read-only t :type (or null glyph-pixarray))
-  (width 0             :read-only t)
-  (height 0            :read-only t)
-  (left 0              :read-only t)
-  (right 0             :read-only t)
-  (top 0               :read-only t)
-  (bottom 0            :read-only t)
-  (advance-width 0     :read-only t)
-  (advance-height 0    :read-only t))
+(defstruct (glyph-info (:constructor make-glyph-info
+                           (id pixarray width height
+                            left right top bottom
+                            advance-hx advance-hy
+                            advance-vx advance-vy
+                            origin-x origin-y
+                            advance-dx advance-dy)))
+  (id 0                      :type fixnum)
+  (pixarray nil :read-only t :type (or null glyph-pixarray))
+  ;; duplicates the pixarray dimensions
+  (width 0      :read-only t)
+  (height 0     :read-only t)
+  ;; Bearings
+  (left 0       :read-only t)
+  (right 0      :read-only t)
+  (top 0        :read-only t)
+  (bottom 0     :read-only t)
+  ;; Horizontal and vertical advance width and height.
+  (advance-hx 0)
+  (advance-hy 0)
+  (advance-vx 0)
+  (advance-vy 0)
+  ;; Metrics configured for the particular font.
+  (origin-x 0 :type fixnum)
+  (origin-y 0 :type fixnum)
+  (advance-dx 0 :type fixnum)
+  (advance-dy 0 :type fixnum))
 
 (defclass cached-truetype-font (truetype-font)
   ((char->glyph-info  :initform (make-hash-table :size 512))))
@@ -245,7 +252,8 @@
 
 (defgeneric font-generate-glyph (port font code &key &allow-other-keys)
   (:documentation "Truetype TTF renderer internal interface.")
-  (:method (port (font cached-truetype-font) code &key (transformation +identity-transformation+))
+  (:method (port (font cached-truetype-font) code
+            &key (transformation +identity-transformation+))
     (declare (ignore port))
     (let ((character (code-char (ldb (byte #.(ceiling (log char-code-limit 2)) 0) code)))
           (next-character (code-char (ldb (byte #.(ceiling (log char-code-limit 2))
@@ -254,38 +262,11 @@
           (transformation (let ((scale (make-scaling-transformation 1.0 -1.0)))
                             (compose-transformations
                              scale (compose-transformations transformation scale)))))
-      (multiple-value-bind (arr left top width height dx dy)
+      (multiple-value-bind (arr left top right bottom width height hx hy vx vy)
           (glyph-pixarray font character next-character transformation)
-        (let ((right (+ left (1- (array-dimension arr 1))))
-              (bottom (- top (1- (array-dimension arr 0)))))
-          (glyph-info code arr width height left right top bottom dx dy))))))
-
-(defun font-glyph-id (font code)
-  (glyph-info-id (font-glyph-info font code)))
-
-(defun font-glyph-width (font code)
-  (glyph-info-width (font-glyph-info font code)))
-
-(defun font-glyph-height (font code)
-  (glyph-info-height (font-glyph-info font code)))
-
-(defun font-glyph-dx (font code)
-  (glyph-info-advance-width (font-glyph-info font code)))
-
-(defun font-glyph-dy (font code)
-  (glyph-info-advance-height (font-glyph-info font code)))
-
-(defun font-glyph-left (font code)
-  (glyph-info-left (font-glyph-info font code)))
-
-(defun font-glyph-right (font code)
-  (glyph-info-right (font-glyph-info font code)))
-
-(defun font-glyph-top (font code)
-  (glyph-info-top (font-glyph-info font code)))
-
-(defun font-glyph-bottom (font code)
-  (glyph-info-bottom (font-glyph-info font code)))
+        (make-glyph-info code arr width height left right top bottom hx hy vx vy
+                         ;; Horizontal metrics are default for origin + advance.
+                         (- left) top hx hy)))))
 
 (defun char-glyph-code (char next)
   (assert (and (char/= char #\newline)
@@ -329,23 +310,8 @@ of resulting sequence are equal."
                                 #.(ceiling (log char-code-limit 2)))
                           code))))
 
-(defun font-character-width (font character)
-  "Returns width of the character. Character may be composed of many codepoints,
-but argument must constitute exactly one character."
-  (let* ((codes (font-string-glyph-codes font (string character)))
-         (code (alexandria:first-elt codes)))
-    (assert (alexandria:length= 1 codes))
-    (font-glyph-dx font code)))
-
-(defun font-string-width (font string &key start end)
-  "Returns a width of the string."
-  (if-let ((character-width (font-fixed-width font))
-           (glyph-sequence (font-string-glyph-codes font string :start start :end end)))
-    (* character-width (length glyph-sequence))
-    (values (font-text-extents font string :start start :end end))))
-
 
-(defun line-bbox (font string start end align-x align-y)
+(defun line-bbox (font string start end)
   (let ((origin-x 0)
         (origin-y 0)
         (xmin most-positive-fixnum)
@@ -353,40 +319,17 @@ but argument must constitute exactly one character."
         (xmax most-negative-fixnum)
         (ymax most-negative-fixnum))
     (flet ((process-code (code)
-             (minf xmin (+ origin-x (font-glyph-left font code)))
-             (minf ymin (+ origin-y (- (font-glyph-top font code))))
-             (maxf xmax (+ origin-x (font-glyph-right font code)))
-             (maxf ymax (+ origin-y (- (font-glyph-bottom font code))))
-             (incf origin-x (font-glyph-dx font code))
-             (incf origin-y (font-glyph-dy font code))))
+             (let ((glyph (font-glyph-info font code)))
+               (minf xmin (+ origin-x (glyph-info-left glyph)))
+               (minf ymin (+ origin-y (- (glyph-info-top glyph))))
+               (maxf xmax (+ origin-x (glyph-info-right glyph)))
+               (maxf ymax (+ origin-y (- (glyph-info-bottom glyph))))
+               (incf origin-x (glyph-info-advance-dx glyph))
+               (incf origin-y (glyph-info-advance-dy glyph)))))
       (map-over-string-glyph-codes #'process-code string start end)
-      (ecase align-x
-        (:left)
-        (:center
-         (let ((hcenter (/ (- xmax xmin) 2)))
-           (setf xmin (- hcenter))
-           (setf xmax (+ hcenter))))
-        (:right
-         (let ((hsize (- xmax xmin)))
-           (setf xmin (- hsize))
-           (setf xmax 0))))
-      (ecase align-y
-        (:top
-         (let ((vsize (- ymax ymin)))
-           (setf ymin 0)
-           (setf ymax vsize)))
-        (:center
-         (let ((vcenter (/ (- ymax ymin) 2)))
-           (setf ymin (- vcenter))
-           (setf ymax (+ vcenter))))
-        (:baseline)
-        (:bottom
-         (let ((vsize (- ymax ymin)))
-           (setf ymin (- vsize))
-           (setf ymax 0))))
       (values xmin ymin xmax ymax origin-x origin-y))))
 
-(defun font-text-extents (font string &key start end align-x align-y direction)
+(defun font-text-extents (font string &key start end direction)
   "Function computes text extents as if it were drawn with a specified font. It
 returns two distinct extents: first is an exact pixel-wise bounding box. The
 second is a text bounding box with all its bearings. Text may contain newlines,
@@ -410,7 +353,7 @@ cursor-dx cursor-dy"
          (descent (font-descent font))
          (line-height (+ ascent descent)))
     (multiple-value-bind (xmin ymin xmax ymax dx dy)
-        (line-bbox font string start end align-x align-y)
+        (line-bbox font string start end)
       (values xmin ymin xmax ymax            ; text bbox
               0 ascent dx (+ dy line-height) ; x0 y0 xn yn
               ascent descent 0               ; ascent, descent, line gap

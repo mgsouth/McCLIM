@@ -16,13 +16,31 @@
 
 (defparameter *canvas* (make-rectangle* 50 220 1230 680))
 
+(defparameter *ltr-text* "A quick brown fox jumps over the lazy dog.")
+(defparameter *rtl-text* "א  בְּרֵאשִׁית, בָּרָא אֱלֹהִים, אֵת הַשָּׁמַיִם, וְאֵת הָאָרֶץ.") ; gensis
+
+(defparameter *ttb-text* "あなたは美しいです。あなたは素晴らしいです。") ;jp
+(defparameter *ttb-text* "国际化活动") ;ch
+
+;;; Bidirectional text with the initial direction left-to-right without and with
+;;; right-to-left mark (rlm):
+(defparameter *bidi-ltr* "I enjoyed staying -- באמת! -- at his house.")
+(defparameter *bidi-ltr+rlm* "I enjoyed staying -- באמת!‏ -- at his house.")
+
+;;; Bidirectional text with the initial direction right-to-left without and with
+;;; left-to-right mark (lrm):
+(defparameter *bidi-rtl* "لغة C++ هي لغة برمجة تستخدم...")
+(defparameter *bidi-rtl+lrm* "لغة C++‎ هي لغة برمجة تستخدم...")
+
+(defparameter *neutral* "0123456789")
+
 (define-application-frame draw-text-test ()
-  ((coords :accessor coords :initform '(100 400 200 400))
+  ((coords :accessor coords :initform '(400 400 600 400))
    (increase :accessor increase :initform 1)
    (transf-1 :accessor transf-1 :initform +identity-transformation+)
    (transf-2 :accessor transf-2 :initform +identity-transformation+)
    ;;
-   (text :accessor text :initform "A quick brown fox jumps over the lazy dog.")
+   (text :accessor text :initform *neutral*)
    (align-x :accessor align-x :initform :left)
    (align-y :accessor align-y :initform :baseline)
    (direction :accessor transform-glyphs :initform :left-to-right))
@@ -100,7 +118,10 @@
 (defun draw-string (frame stream string x0 y0 x1 y1)
   (draw-text* stream string x0 y0 :toward-x x1 :toward-y y1
                                   :align-x (align-x frame)
-                                  :align-y (align-y frame))
+                                  :align-y (align-y frame)
+                                  :text-size :large
+                                  :text-family :sans-serif
+                                  :transform-glyphs (transform-glyphs frame))
   (draw-arrow* stream x0 y0 x1 y1 :ink (compose-in +dark-red+ (make-opacity .5))
                                   :line-thickness 3
                                   :line-dashes nil

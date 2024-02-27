@@ -14,9 +14,8 @@
 
 (in-package #:clim-postscript-font)
 
-(defclass postscript-font-medium (basic-medium climb:approx-bbox-medium-mixin)
-  ((device-fonts :initform nil
-                 :accessor device-fonts)))
+(defclass postscript-font-medium (basic-medium)
+  ((device-fonts :initform nil :accessor device-fonts)))
 
 (defclass postscript-font-port (basic-port) ())
 
@@ -178,9 +177,9 @@
 
 (defmethod climb:text-bounding-rectangle*
     ((medium postscript-font-medium) string
-     &key text-style (start 0) end align-x align-y direction
+     &key text-style (start 0) end (align-x :left) (align-y :baseline) direction
      &aux (string (string string)))
-  (declare (ignore align-x align-y direction))
+  (declare (ignore direction))
   (climi::orf end (length string))
   (when (>= start end)
     (return-from climb:text-bounding-rectangle*
@@ -194,23 +193,16 @@
          (metrics-key (font-name-metrics-key font-name))
          (size (font-name-size font-name))
          (scale (float (/ size 1000))))
-    (flet ((text-extents (start end)
-             (multiple-value-bind (width ascent descent left right
-                                   font-ascent font-descent
-                                   direction first-not-done)
-                 (psfont-text-extents metrics-key string
-                                      :start start :end end)
-               (declare (ignore width font-ascent font-descent direction
-                                first-not-done))
-               (if (< descent ascent)
-                   (values left descent right ascent)
-                   (values left ascent  right descent)))))
-      (multiple-value-bind (minx miny maxx maxy)
-          (text-extents start end)
-        (values (* scale minx)
-                (* scale miny)
-                (* scale maxx)
-                (* scale maxy))))))
+    (multiple-value-bind (width ymin ymax xmin xmax
+                          font-ascent font-descent
+                          direction first-not-done)
+        (psfont-text-extents metrics-key string :start start :end end)
+      (declare (ignore width font-ascent font-descent direction first-not-done))
+      (climb:align-bounding-rectangle (* scale xmin)
+                                      (* scale ymin)
+                                      (* scale xmax)
+                                      (* scale ymax)
+                                      align-x align-y))))
 
 (defun psfont-text-extents (metrics-key string &key (start 0) (end (length string)))
   (let* ((font-info (or (gethash metrics-key *font-metrics*)

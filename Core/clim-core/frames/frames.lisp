@@ -72,7 +72,8 @@
                     represent the frame, for example when it is iconified.")
    (menu-bar
     :initarg :menu-bar
-    :initform nil)
+    :initform nil
+    :accessor frame-menu-bar)
    (pdoc-bar
     :initarg :pointer-documentation
     :initform t)
@@ -326,6 +327,9 @@
 (defmethod (setf frame-command-table) :after (new-table frame)
   (note-frame-command-table-changed (frame-manager frame) frame new-table))
 
+(defmethod (setf frame-menu-bar) :after (new-table frame)
+  (note-frame-command-table-changed (frame-manager frame) frame new-table))
+
 (defun update-frame-pane-lists (frame)
   (let ((all-panes     (frame-panes frame))
         (named-panes   (mapcar #'cdr (frame-panes-for-layout frame)))
@@ -464,7 +468,7 @@
   (letf (((frame-process frame) (current-process)))
     (funcall (frame-top-level-lambda frame) frame)))
 
-(defmethod run-frame-top-level :around ((frame application-frame) &key)
+(defmethod run-frame-top-level :around ((frame application-frame) &key port)
   (let ((*application-frame* frame)
         (*input-context* nil)
         (*input-wait-test* nil)
@@ -474,7 +478,7 @@
     (declare (special *input-context* *input-wait-test* *input-wait-handler*
                       *pointer-button-press-handler*))
     (when (eq (frame-state frame) :disowned) ; Adopt frame into frame manager
-      (adopt-frame (or (frame-manager frame) (find-frame-manager))
+      (adopt-frame (or (frame-manager frame) (find-frame-manager :port port))
                    frame))
     (unless (or (eq (frame-state frame) :enabled)
                 (eq (frame-state frame) :shrunk))
@@ -794,9 +798,9 @@ frames and will not have focus.
              (raise-frame frame))
             (own-process
              (clim-sys:make-process #'(lambda ()
-                                        (run-frame-top-level frame))
+                                        (run-frame-top-level frame :port port))
                                     :name (format nil "~A" frame-name)))
-            (t (run-frame-top-level frame))))
+            (t (run-frame-top-level frame :port port))))
     frame))
 
 ;;; Frames and presentations

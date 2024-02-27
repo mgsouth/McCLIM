@@ -342,7 +342,7 @@
 
 ;;; Restriction: no more than 65536 glyph pairs cached on a single display. I
 ;;; don't think that's unreasonable. Having keys as glyph pairs is essential for
-;;; kerning where the same glyph may have different advance-width values for
+;;; kerning where the same glyph may have different advance-dx values for
 ;;; different next elements. (byte 16 0) is the character code and (byte 16 16)
 ;;; is the next character code. For standalone glyphs (byte 16 16) is zero.
 
@@ -372,14 +372,14 @@
              (the (unsigned-byte 32) (glyph-info-id glyph)))
        (setf this-char next-char)
        (incf idx0)
-       (incf advance-x (glyph-info-advance-width glyph))
+       (incf advance-x (glyph-info-advance-dx glyph))
     finally
        (setf glyph (font-glyph-info font (char-code this-char)))
        (when (null origin-x)
          (setf origin-x (- (glyph-info-left glyph))))
        (setf (aref (the (simple-array (unsigned-byte 32)) glyph-ids) idx0)
              (the (unsigned-byte 32) (glyph-info-id glyph)))
-       (incf advance-x (glyph-info-advance-width glyph))
+       (incf advance-x (glyph-info-advance-dx glyph))
        (return (values origin-x origin-y advance-x advance-y))))
 
 (defun %draw-glyphs/align (x y origin-x origin-y advance-x advance-y align-x align-y)
@@ -516,8 +516,8 @@
          (pixarray (glyph-info-pixarray info))
          (x1 (glyph-info-left info))
          (y1 (glyph-info-top info))
-         (dx (glyph-info-advance-width info))
-         (dy (glyph-info-advance-height info)))
+         (dx (glyph-info-advance-dx info))
+         (dy (glyph-info-advance-dy info)))
     (when (= (array-dimension pixarray 0) 0)
       (setf pixarray (make-array (list 1 1)
                                  :element-type '(unsigned-byte 8)
