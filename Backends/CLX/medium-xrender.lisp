@@ -439,7 +439,8 @@
          (transformation (medium-text-transformation medium x y toward-x toward-y)))
     (multiple-value-bind (origin-x origin-y advance-x advance-y x y)
         (font-prepare-glyphs glyph-ids font string start end
-                             x y align-x align-y transform-glyphs)
+                             x y align-x align-y
+                             (climb:canonical-text-direction transform-glyphs))
       (if (translation-transformation-p transformation)
           (draw-glyphs/fast glyph-set glyph-ids (- end start)
                             origin-x origin-y advance-x advance-y

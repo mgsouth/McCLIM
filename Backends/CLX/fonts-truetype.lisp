@@ -28,8 +28,8 @@
   (incf (next-glyph-id port)))
 
 (defmethod font-generate-glyph :around
-    ((port clx-ttf-port) font code &key glyph-set)
-  (declare (ignore code font))
+    ((port clx-ttf-port) font code direction transformation)
+  (declare (ignore font code direction transformation))
   (let* ((info (call-next-method))
          (pixarray (glyph-info-pixarray info))
          (x1 (glyph-info-left info))
@@ -44,7 +44,7 @@
     ;; pen (pixarray contains only a glyph without its left-side bearing). TOP
     ;; is not negated because glyph coordiantes are in the first quardant (while
     ;; array's are in the fourth). -- jd 2018-09-29
-    (let ((glyph-set (or glyph-set (ensure-glyph-set port)))
+    (let ((glyph-set (ensure-glyph-set port))
           (glyph-id (draw-glyph-id port)))
       (xlib:render-add-glyph glyph-set glyph-id
                              :data pixarray
@@ -77,11 +77,8 @@
           with idx0 of-type index = 0
           for idx1 of-type index from (1+ start) below end
           as next-char = (char string idx1)
-          as code = (dpb (char-code next-char)
-                         (byte #.(ceiling (log char-code-limit 2))
-                               #.(ceiling (log char-code-limit 2)))
-                         (char-code this-char))
-          as glyph = (font-glyph-info font code)
+          as code = (char-glyph-code this-char next-char)
+          as glyph = (font-glyph-info font code :left-to-right)
           do
              (when (null origin-x)
                (setf origin-x (- (glyph-info-left glyph))))
@@ -91,7 +88,7 @@
              (incf idx0)
              (incf advance-x (glyph-info-advance-dx glyph))
           finally
-             (setf glyph (font-glyph-info font (char-code this-char)))
+             (setf glyph (font-glyph-info font (char-code this-char) :left-to-right))
              (when (null origin-x)
                (setf origin-x (- (glyph-info-left glyph))))
              (setf (aref (the (simple-array (unsigned-byte 32)) glyph-ids) idx0)

@@ -44,8 +44,11 @@
 (defparameter +transparent-black+
   (make-clx-render-color 0 0 0 0))
 
+(defparameter +translucent-black+
+  (make-clx-render-color 0 0 0 0.2))
+
 (defparameter +solid-black+
-  (make-clx-render-color 0 0 1 1))
+  (make-clx-render-color 0 0 0 1))
 
 (defun transform-picture (transformation picture)
   ;; 1. XRender expects a transformation to the target's plane

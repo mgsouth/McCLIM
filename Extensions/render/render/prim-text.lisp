@@ -2,7 +2,8 @@
 
 ;;; Converting string into paths
 
-(defun string-primitive-paths (medium x y glyph-codes transformation port font)
+(defun string-primitive-paths (medium x y glyph-codes
+                               direction transformation font)
   (multiple-value-setq (x y) (transform-position transformation x y))
   (loop
     with glyph-tr = (multiple-value-bind (x0 y0)
@@ -13,8 +14,8 @@
     for origin-x fixnum = (round x) then (+ origin-x (glyph-info-advance-dx info))
     for origin-y fixnum = (round y) then (+ origin-y (glyph-info-advance-dy info))
     for info = (if (translation-transformation-p transformation)
-                   (font-glyph-info font code)
-                   (font-generate-glyph port font code :transformation glyph-tr))
+                   (font-glyph-info  font code direction)
+                   (font-glyph-info* font code direction glyph-tr))
     for dx fixnum = (glyph-info-left info)
     for dy fixnum = (glyph-info-top info)
     for opacity-image = (glyph-info-pixarray info)

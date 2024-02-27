@@ -1,8 +1,11 @@
 (in-package #:climi)
 
-(declaim (inline align-bounding-rectangle draw-text-rotation* medium-text-transformation))
+(declaim (inline align-bounding-rectangle
+                 draw-text-rotation*
+                 medium-text-transformation
+                 canonical-text-direction))
 
-(defun draw-text-rotation* (x y toward-x toward-y)
+(defun draw-text-rotation* (x y toward-x toward-y &optional direction)
   ;; Rounding here is important to ensure a numerical stability of rotation.
   (let* ((x (round-coordinate x))
          (y (round-coordinate y))
@@ -10,14 +13,18 @@
          (toward-y (round-coordinate toward-y))
          (dx (- toward-x x))
          (dy (- toward-y y))
-         (angle (find-angle 1 0 dx dy)))
+         (angle (ecase (canonical-text-direction direction)
+                  ((:left-to-right :right-to-left) (find-angle 1 0 dx dy))
+                  ((:top-to-bottom :bottom-to-top) (find-angle 0 1 dx dy)))))
     (make-rotation-transformation* angle x y)))
 
-(defun medium-text-transformation (medium x y toward-x toward-y)
-  (if (and (= y toward-y) (< x toward-x))
+(defun medium-text-transformation (medium x y toward-x toward-y &optional direction)
+  (if (ecase (canonical-text-direction direction)
+        ((:left-to-right :right-to-left) (and (= y toward-y) (< x toward-x)))
+        ((:top-to-bottom :bottom-to-top) (and (< y toward-y) (= x toward-x))))
       (medium-device-transformation medium)
       (compose-transformations (medium-device-transformation medium)
-                               (draw-text-rotation* x y toward-x toward-y))))
+                               (draw-text-rotation* x y toward-x toward-y direction))))
 
 ;;; The baseline is assumed to be at y=0.
 (defun align-bounding-rectangle (xmin ymin xmax ymax align-x align-y)
@@ -46,3 +53,10 @@
        (setf ymin (- vsize))
        (setf ymax 0))))
   (values xmin ymin xmax ymax))
+
+(defun canonical-text-direction (direction)
+  (ecase direction
+    ((nil) :left-to-right)
+    ((t)   :right-to-left)
+    ((:left-to-right :right-to-left :top-to-bottom :bottom-to-top)
+     direction)))

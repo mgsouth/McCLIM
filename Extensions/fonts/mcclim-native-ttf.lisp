@@ -36,7 +36,6 @@
 
 (defvar *zpb-font-lock* (clim-sys:make-lock "zpb-font"))
 
-
 (defclass truetype-font-family (font-family)
   ((all-faces :initform nil
               :accessor all-faces
@@ -67,6 +66,7 @@
    ;; Generalized boolean. If the font character width is fixed it is returned,
    ;; otherwise returns NIL.
    (fixed-width   :initarg :fixed    :reader font-fixed-width :type (or fixnum null))
+   ;; Horizontal line metrics
    (ascent                           :reader font-ascent)
    (descent                          :reader font-descent)
    (units->pixels                    :reader zpb-ttf-font-units->pixels))
@@ -83,8 +83,8 @@
            (em->units (zpb-ttf:units/em loader))
            (dpi-factor (/ dpi 72))
            (units->pixels (/ (* size dpi-factor) em->units)))
-      (setf ascent  (+ (* units->pixels (zpb-ttf:ascender loader)))
-            descent (- (* units->pixels (zpb-ttf:descender loader)))
+      (setf ascent       (+ (* units->pixels (zpb-ttf:ascender loader)))
+            descent      (- (* units->pixels (zpb-ttf:descender loader)))
             (slot-value font 'units->pixels) units->pixels))
     (pushnew font (all-fonts face))))
 
@@ -132,7 +132,7 @@
       (setq result (nreverse result))
       result)))
 
-(defun glyph-pixarray (font char next transformation)
+(defun make-glyph-pixarray (font char next transformation)
   "Render a character of 'face', returning a 2D (unsigned-byte 8) array suitable
    as an alpha mask, and dimensions. This function returns seven values: alpha
    mask byte array, x-origin, y-origin (subtracted from position before
@@ -146,8 +146,6 @@
              ;; (right-side-bearing (* units->pixels (zpb-ttf:right-side-bearing glyph)))
              (hx (+ (* units->pixels (zpb-ttf:advance-width glyph))
                     (* units->pixels (zpb-ttf:kerning-offset char next font))))
-             (hy 0)
-             (vx 0)
              ;; FIXME zpb-ttf should consult horizontal metric tables, and
              ;; provide a sane fallback otherwise. -- jd 2024-02-23
              (vy (+ ascent descent))
@@ -157,15 +155,13 @@
              (min-y (elt bounding-box 1))
              (max-x (elt bounding-box 2))
              (max-y (elt bounding-box 3))
-             width height left top right bottom array)
+             width height left top array)
         (with-bounding-rectangle* (x1 y1 x2 y2)
             (transform-region transformation (make-rectangle* min-x min-y max-x max-y))
           (setq left (floor x1))
           (setq top (ceiling y2))
           (setq width  (- (ceiling x2) (floor x1)))
           (setq height (- (ceiling y2) (floor y1)))
-          (setq right  (- hx width))
-          (setq bottom (- vy height))
           (setq array (make-array (list height width)
                                   :initial-element 0
                                   :element-type '(unsigned-byte 8))))
@@ -203,72 +199,14 @@
         (let ((transformation (compose-transformations
                                #1=(make-scaling-transformation 1.0 -1.0)
                                (compose-transformations transformation #1#))))
-          (multiple-value-setq (hx hy) (transform-distance transformation hx hy))
-          (multiple-value-setq (vx vy) (transform-distance transformation vx vy)))
-        (values array left top right bottom width height
+          (multiple-value-setq (hx vy) (transform-distance transformation hx vy)))
+        (values array left top width height
                 (climi::round-coordinate hx)
-                (climi::round-coordinate hy)
-                (climi::round-coordinate vx)
                 (climi::round-coordinate vy))))))
-
 
-(deftype glyph-pixarray () '(simple-array (unsigned-byte 8) (* *)))
-
-(defstruct (glyph-info (:constructor make-glyph-info
-                           (id pixarray width height
-                            left right top bottom
-                            advance-hx advance-hy
-                            advance-vx advance-vy
-                            origin-x origin-y
-                            advance-dx advance-dy)))
-  (id 0                      :type fixnum)
-  (pixarray nil :read-only t :type (or null glyph-pixarray))
-  ;; duplicates the pixarray dimensions
-  (width 0      :read-only t)
-  (height 0     :read-only t)
-  ;; Bearings
-  (left 0       :read-only t)
-  (right 0      :read-only t)
-  (top 0        :read-only t)
-  (bottom 0     :read-only t)
-  ;; Horizontal and vertical advance width and height.
-  (advance-hx 0)
-  (advance-hy 0)
-  (advance-vx 0)
-  (advance-vy 0)
-  ;; Metrics configured for the particular font.
-  (origin-x 0 :type fixnum)
-  (origin-y 0 :type fixnum)
-  (advance-dx 0 :type fixnum)
-  (advance-dy 0 :type fixnum))
-
-(defclass cached-truetype-font (truetype-font)
-  ((char->glyph-info  :initform (make-hash-table :size 512))))
-
-(defun font-glyph-info (font code)
-  (with-slots (char->glyph-info) font
-    (ensure-gethash code char->glyph-info
-      (font-generate-glyph (font-port font) font code))))
-
-(defgeneric font-generate-glyph (port font code &key &allow-other-keys)
-  (:documentation "Truetype TTF renderer internal interface.")
-  (:method (port (font cached-truetype-font) code
-            &key (transformation +identity-transformation+))
-    (declare (ignore port))
-    (let ((character (code-char (ldb (byte #.(ceiling (log char-code-limit 2)) 0) code)))
-          (next-character (code-char (ldb (byte #.(ceiling (log char-code-limit 2))
-                                                #.(ceiling (log char-code-limit 2)))
-                                          code)))
-          (transformation (let ((scale (make-scaling-transformation 1.0 -1.0)))
-                            (compose-transformations
-                             scale (compose-transformations transformation scale)))))
-      (multiple-value-bind (arr left top right bottom width height hx hy vx vy)
-          (glyph-pixarray font character next-character transformation)
-        (make-glyph-info code arr width height left right top bottom hx hy vx vy
-                         ;; Horizontal metrics are default for origin + advance.
-                         (- left) top hx hy)))))
-
+(declaim (inline char-glyph-code glyph-code-char))
 (defun char-glyph-code (char next)
+  (declare (optimize (speed 3) (safety 0)))
   (assert (and (char/= char #\newline)
                (not (eql next #\newline))))
   (if next
@@ -277,6 +215,12 @@
                  #.(ceiling (log char-code-limit 2)))
            (char-code char))
       (char-code char)))
+
+(defun glyph-code-char (code)
+  (values (code-char (ldb (byte #.(ceiling (log char-code-limit 2)) 0) code))
+          (code-char (ldb (byte #.(ceiling (log char-code-limit 2))
+                                #.(ceiling (log char-code-limit 2)))
+                          code))))
 
 (defun map-over-string-glyph-codes (fun string start end)
   (loop with len = (length string)
@@ -289,26 +233,108 @@
                        (char-glyph-code char next))
         do (funcall fun code)))
 
-(defun font-string-glyph-codes (font string &key (start 0) (end (length string)))
+(defun string-glyph-codes (string &key (start 0) (end (length string)))
   "Converts string to a sequence of glyph codes. Some characters are composed of
 many codepoints – it is not guaranteed that length of the string and the length
 of resulting sequence are equal."
-  (declare (ignore font))
   (alexandria:minf end (length string))
   (when (>= start end)
-    (return-from font-string-glyph-codes #()))
+    (return-from string-glyph-codes #()))
   (let ((array (make-array (- end start) :fill-pointer 0)))
     (flet ((doit (code) (vector-push code array)))
       (declare (dynamic-extent #'doit))
       (map-over-string-glyph-codes #'doit string start end))
     array))
+
 
-(defun font-glyph-code-char (font code)
-  (declare (ignore font))
-  (values (code-char (ldb (byte #.(ceiling (log char-code-limit 2)) 0) code))
-          (code-char (ldb (byte #.(ceiling (log char-code-limit 2))
-                                #.(ceiling (log char-code-limit 2)))
-                          code))))
+(deftype glyph-pixarray () '(simple-array (unsigned-byte 8) (* *)))
+
+(defstruct (glyph-info (:constructor make-glyph-info
+                           (id pixarray left top width height
+                            advance-hx advance-vy)))
+  (id 0                      :type fixnum)
+  (pixarray nil :read-only t :type (or null glyph-pixarray))
+  ;; duplicates the pixarray dimensions
+  (width 0      :read-only t)
+  (height 0     :read-only t)
+  ;; Bearings
+  (left 0       :read-only t)
+  (top 0        :read-only t)
+  ;; Horizontal and vertical advance width and height.
+  (advance-hx 0)
+  (advance-vy 0)
+  ;; Metrics configured for the particular direction.
+  (origin-x 0 :type fixnum)
+  (origin-y 0 :type fixnum)
+  (advance-dx 0 :type fixnum)
+  (advance-dy 0 :type fixnum))
+
+(defclass cached-truetype-font (truetype-font)
+  ;; FIXME cache pixarrays.
+  (;(all-glyph-data :initform (make-hash-table :size ))
+   (ltr-glyph-info :initform (make-hash-table :size 512))
+   (rtl-glyph-info :initform (make-hash-table :size 512))
+   (ttb-glyph-info :initform (make-hash-table :size 512))
+   (btt-glyph-info :initform (make-hash-table :size 512))))
+
+(defun glyph-info-advance (font info direction)
+  (ecase direction
+    (:left-to-right
+     (let ((origin-x  (- (glyph-info-left info)))
+           (origin-y  (glyph-info-top info))
+           (cursor-dx (glyph-info-advance-hx info))
+           (cursor-dy 0))
+       (values info origin-x origin-y cursor-dx cursor-dy)))
+    (:right-to-left
+     (let ((origin-x  (- (glyph-info-advance-hx info)
+                         (glyph-info-left info)))
+           (origin-y  (glyph-info-top info))
+           (cursor-dx (- (glyph-info-advance-hx info)))
+           (cursor-dy 0))
+       (values info origin-x origin-y cursor-dx cursor-dy)))
+    (:top-to-bottom
+     (let ((origin-x  (climi::round-coordinate (/ (glyph-info-width info) 2.0)))
+           (origin-y  (- (glyph-info-top info)
+                         (climi::round-coordinate (font-ascent font))))
+           (cursor-dx 0)
+           (cursor-dy (glyph-info-advance-vy info)))
+       (values info origin-x origin-y cursor-dx cursor-dy)))
+    (:bottom-to-top
+     (let ((origin-x  (climi::round-coordinate (/ (glyph-info-width info) 2.0)))
+           (origin-y  (+ (glyph-info-top info)
+                         (climi::round-coordinate (font-descent font))))
+           (cursor-dx 0)
+           (cursor-dy (- (glyph-info-advance-vy info))))
+       (values info origin-x origin-y cursor-dx cursor-dy)))))
+
+(defun font-glyph-info (font code direction)
+  (ensure-gethash code (ecase direction
+                         (:left-to-right (slot-value font 'ltr-glyph-info))
+                         (:right-to-left (slot-value font 'rtl-glyph-info))
+                         (:top-to-bottom (slot-value font 'ttb-glyph-info))
+                         (:bottom-to-top (slot-value font 'btt-glyph-info)))
+    (font-generate-glyph (font-port font) font code direction +identity-transformation+)))
+
+(defun font-glyph-info* (font code direction transformation)
+  (font-generate-glyph (font-port font) font code direction transformation))
+
+(defgeneric font-generate-glyph (port font code direction transformation)
+  (:documentation "Truetype TTF renderer internal interface.")
+  (:method (port (font cached-truetype-font) code direction transformation)
+    (declare (ignore port))
+    (multiple-value-bind (char next) (glyph-code-char code)
+      (let ((transformation (let ((scale (make-scaling-transformation 1.0 -1.0)))
+                              (compose-transformations
+                               scale (compose-transformations transformation scale)))))
+        (multiple-value-bind (arr left top width height hx vy)
+            (make-glyph-pixarray font char next transformation)
+          (let ((info (make-glyph-info code arr left top width height hx vy)))
+            (multiple-value-bind (info x0 y0 dx dy) (glyph-info-advance font info direction)
+              (setf (glyph-info-origin-x info) x0)
+              (setf (glyph-info-origin-y info) y0)
+              (setf (glyph-info-advance-dx info) dx)
+              (setf (glyph-info-advance-dy info) dy))
+            info))))))
 
 
 (defun line-bbox (font string start end)
@@ -319,13 +345,13 @@ of resulting sequence are equal."
         (xmax most-negative-fixnum)
         (ymax most-negative-fixnum))
     (flet ((process-code (code)
-             (let ((glyph (font-glyph-info font code)))
+             (let ((glyph (font-glyph-info font code :left-to-right)))
                (minf xmin (+ origin-x (glyph-info-left glyph)))
                (minf ymin (+ origin-y (- (glyph-info-top glyph))))
-               (maxf xmax (+ origin-x (glyph-info-right glyph)))
-               (maxf ymax (+ origin-y (- (glyph-info-bottom glyph))))
                (incf origin-x (glyph-info-advance-dx glyph))
-               (incf origin-y (glyph-info-advance-dy glyph)))))
+               (incf origin-y (glyph-info-advance-dy glyph))
+               (maxf xmax origin-x)
+               (maxf ymax origin-y))))
       (map-over-string-glyph-codes #'process-code string start end)
       (values xmin ymin xmax ymax origin-x origin-y))))
 
