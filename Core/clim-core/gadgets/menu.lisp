@@ -39,7 +39,8 @@
     (setf (slot-value menu-bar 'command-table) command-table)
     (setf (%pane-contents menu-bar)
           (and command-table (make-menu-buttons command-table client)))
-    (change-space-requirements menu-bar)))
+    (change-space-requirements menu-bar))
+  (dispatch-repaint (frame-menu-bar-pane frame) +everywhere+))
 
 (defun menu-children (client)
   (when-let ((rack (typecase client

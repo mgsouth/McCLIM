@@ -72,7 +72,8 @@
                     represent the frame, for example when it is iconified.")
    (menu-bar
     :initarg :menu-bar
-    :initform nil)
+    :initform nil
+    :accessor frame-menu-bar)
    (pdoc-bar
     :initarg :pointer-documentation
     :initform t)
@@ -324,6 +325,9 @@
       (signal 'frame-layout-changed :frame frame))))
 
 (defmethod (setf frame-command-table) :after (new-table frame)
+  (note-frame-command-table-changed (frame-manager frame) frame new-table))
+
+(defmethod (setf frame-menu-bar) :after (new-table frame)
   (note-frame-command-table-changed (frame-manager frame) frame new-table))
 
 (defun update-frame-pane-lists (frame)
