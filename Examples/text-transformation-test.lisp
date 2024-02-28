@@ -32,7 +32,7 @@
 (defparameter *bidi-rtl* "لغة C++ هي لغة برمجة تستخدم...")
 (defparameter *bidi-rtl+lrm* "لغة C++‎ هي لغة برمجة تستخدم...")
 
-(defparameter *neutral* "0123456789")
+(defparameter *neutral* "█0123456789")
 
 (define-application-frame draw-text-test ()
   ((coords :accessor coords :initform '(400 400 600 400))
