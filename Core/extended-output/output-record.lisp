@@ -1498,15 +1498,17 @@ the associated sheet can be determined."
 
 (def-grecording draw-text (gs-text-style-mixin gs-transformation-mixin)
     ((string (create-string string start end))
-     x y ;; collapses onto OUTPUT-RECORD-ORIGIN (important)
+     origin-x origin-y
      (start 0) (end nil)
      align-x align-y
-     toward-x toward-y transform-glyphs)
+     toward-x toward-y
+     transform-glyphs)
   ;; FIXME Text direction.
   (let ((text-style (graphics-state-text-style graphic))
         (transformation (compose-transformations
                          (medium-transformation medium)
-                         (draw-text-rotation* x y toward-x toward-y))))
+                         (draw-text-rotation* origin-x origin-y
+                                              toward-x toward-y))))
     (multiple-value-bind (sw sh dx dy)
         (text-metrics medium string :text-style text-style)
       (case align-x
@@ -1518,10 +1520,10 @@ the associated sheet can be determined."
         (:bottom (setf dy 0))
         (:center (setf dy (/ sh 2))))
       (%enclosing-transform-polygon transformation
-                                    (- (+ x dx) sw)
-                                    (- (+ y dy) sh)
-                                    (+ x dx)
-                                    (+ y dy)))))
+                                    (- (+ origin-x dx) sw)
+                                    (- (+ origin-y dy) sh)
+                                    (+ origin-x dx)
+                                    (+ origin-y dy)))))
 
 #+ (or) ;; debugging
 (defmethod replay-output-record :after
@@ -1730,10 +1732,10 @@ the associated sheet can be determined."
                  (record (make-instance 'draw-text-output-record
                                         :stream stream
                                         :string string
-                                        :x 0 :y 0
                                         :start 0 :end nil
-                                        :align-x :left :align-y :baseline
+                                        :origin-x 0 :origin-y 0
                                         :toward-x 1 :toward-y 0
+                                        :align-x :left :align-y :baseline
                                         :transform-glyphs nil
                                         :ink ink :text-style text-style)))
             (vector-push-extend record objects)
