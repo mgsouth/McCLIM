@@ -437,7 +437,9 @@
             (erase-pane))
           (funcall cont))
         (seos-finish-output pane)
-        (dispatch-repaint pane +everywhere+)))))
+        (if-let ((scroller (pane-scroller pane)))
+          (dispatch-repaint scroller +everywhere+)
+          (dispatch-repaint pane +everywhere+))))))
 
 (defmethod redisplay-frame-pane :around
     ((frame application-frame) pane &key force-p)
