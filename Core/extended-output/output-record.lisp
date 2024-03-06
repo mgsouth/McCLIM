@@ -868,9 +868,7 @@ the associated sheet can be determined."
 (defmethod* (setf output-record-position) :around
   (nx ny (self gs-transformation-mixin))
   (with-output-record-offset (dx dy ox oy nx ny self)
-    ;; We don't call the next method, because that'd apply the transformation
-    ;; twice. -- jd 2024-01-024
-    (progn ;; multiple-value-prog1 (call-next-method)
+    (multiple-value-prog1 (call-next-method)
       (setf #1=(graphics-state-transformation self)
             (compose-transformation-with-translation #1# dx dy)))))
 
