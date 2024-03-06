@@ -48,7 +48,7 @@
   (maybe-print-readably (region stream)
     (print-unreadable-object (region stream :type t :identity nil)
       (multiple-value-bind (x1 y1 x2 y2) (rectangle-edges* region)
-        (format stream "X ~S:~S Y ~S:~S" x1 x2 y1 y2)))))
+        (format stream "X ~,2f:~,2f Y ~,2f:~,2f" x1 x2 y1 y2)))))
 
 (defmethod initialize-instance :after ((obj standard-rectangle)
                                        &key (x1 0.0d0) (y1 0.0d0)
