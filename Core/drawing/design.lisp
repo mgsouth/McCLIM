@@ -950,7 +950,7 @@
         (255 (color))
         (t (make-uniform-compositum (color) (/ alpha 255.0)))))))
 
-(declaim (ftype (function (t) (values (unsigned-byte 32) &optional nil)) %argb32-from-ink))
+(declaim (ftype (function (t) (values (unsigned-byte 32) &optional)) %argb32-from-ink))
 (defun argb32-from-ink (uniform)
   (flet ((transform (parameter)
            (logand (truncate (* parameter 255)) 255)))

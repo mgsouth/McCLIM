@@ -324,7 +324,7 @@ Returns a pattern representing this file."
 
 ;;; Utilities
 
-(declaim (ftype (function (t) (values (unsigned-byte 32) &optional nil)) %rgba-value))
+(declaim (ftype (function (t) (values (unsigned-byte 32) &optional)) %rgba-value))
 (defun %rgba-value (element)
   "Helper function collapsing uniform design into 4-byte RGBA value."
   (etypecase element
