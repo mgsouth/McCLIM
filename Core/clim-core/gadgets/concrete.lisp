@@ -375,11 +375,8 @@
                                      :style :outset
                                      :border-width 2))))))))
 
-;;; FIXME this should queue the repaint of scroll-bars (but not the content).
-;;; -- jd 2024-02-16
 (defun scroll-bar/update-display (scroll-bar)
-  #- (or) (%scroll-bar/update-display scroll-bar)
-  #+ (or) (dispatch-repaint scroll-bar +everywhere+))
+  (dispatch-repaint scroll-bar +everywhere+))
 
 ;;;; SETF :after methods
 
