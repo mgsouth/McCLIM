@@ -855,7 +855,7 @@
         (index  0))
     (do-sequence (element object)
       (present element element-type :stream stream :view view
-                                    :acceptably acceptably :sensitive nil)
+                                    :acceptably acceptably)
       (when (< (incf index) length)
         (write-char separator stream)))))
 
