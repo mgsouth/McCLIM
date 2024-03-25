@@ -132,23 +132,42 @@
       (setq result (nreverse result))
       result)))
 
-(defun make-glyph-pixarray (font char next transformation)
+(defun advance-width (font glyph)
+  (* (zpb-ttf-font-units->pixels font)
+     (zpb-ttf:advance-width glyph)))
+
+;;; Use after merging https://github.com/xach/zpb-ttf/pull/23 -- jd 2024-03-25
+#+ (or)
+(defun advance-height (font glyph)
+  (* (zpb-ttf-font-units->pixels font)
+     (zpb-ttf:advance-height glyph)))
+
+#- (or)
+(defun advance-height (font glyph)
+  (declare (ignore glyph))
+  (* (zpb-ttf-font-units->pixels font)
+     (+ (font-ascent font) (font-descent font))))
+
+(defun kerning-offset (font char next direction)
+  (* (zpb-ttf-font-units->pixels font)
+     (ecase direction
+       (:left-to-right (zpb-ttf:kerning-offset char next font))
+       (:right-to-left (zpb-ttf:kerning-offset next char font))
+       (:top-to-bottom 0)
+       (:bottom-to-top 0))))
+
+(defun make-glyph-pixarray (font char next direction transformation)
   "Render a character of 'face', returning a 2D (unsigned-byte 8) array suitable
    as an alpha mask, and dimensions. This function returns seven values: alpha
    mask byte array, x-origin, y-origin (subtracted from position before
    rendering), glyph width and height, horizontal and vertical advances."
-  (declare (optimize (debug 3)))
   (clim-sys:with-lock-held (*zpb-font-lock*)
     (with-slots (units->pixels size ascent descent) font
       (let* ((font-loader (zpb-ttf-font-loader (font-face font)))
              (glyph (zpb-ttf:find-glyph char font-loader))
-             ;; (left-side-bearing  (* units->pixels (zpb-ttf:left-side-bearing  glyph)))
-             ;; (right-side-bearing (* units->pixels (zpb-ttf:right-side-bearing glyph)))
-             (hx (+ (* units->pixels (zpb-ttf:advance-width glyph))
-                    (* units->pixels (zpb-ttf:kerning-offset char next font))))
-             ;; FIXME zpb-ttf should consult horizontal metric tables, and
-             ;; provide a sane fallback otherwise. -- jd 2024-02-23
-             (vy (+ ascent descent))
+             (hx (advance-width font glyph))
+             (vy (advance-height font glyph))
+             (kerning (kerning-offset font char next direction))
              (bounding-box (map 'vector (lambda (x) (float (* x units->pixels)))
                                 (zpb-ttf:bounding-box glyph)))
              (min-x (elt bounding-box 0))
@@ -202,7 +221,8 @@
           (multiple-value-setq (hx vy) (transform-distance transformation hx vy)))
         (values array left top width height
                 (climi::round-coordinate hx)
-                (climi::round-coordinate vy))))))
+                (climi::round-coordinate vy)
+                (climi::round-coordinate kerning))))))
 
 (declaim (inline char-glyph-code glyph-code-char))
 (defun char-glyph-code (char next)
@@ -277,19 +297,19 @@ of resulting sequence are equal."
    (ttb-glyph-info :initform (make-hash-table :size 512))
    (btt-glyph-info :initform (make-hash-table :size 512))))
 
-(defun glyph-info-advance (font info direction)
+(defun glyph-info-advance (font info kerning direction)
   (ecase direction
     (:left-to-right
      (let ((origin-x  (- (glyph-info-left info)))
            (origin-y  (glyph-info-top info))
-           (cursor-dx (glyph-info-advance-hx info))
+           (cursor-dx (+ (glyph-info-advance-hx info) kerning))
            (cursor-dy 0))
        (values info origin-x origin-y cursor-dx cursor-dy)))
     (:right-to-left
      (let ((origin-x  (- (glyph-info-advance-hx info)
                          (glyph-info-left info)))
            (origin-y  (glyph-info-top info))
-           (cursor-dx (- (glyph-info-advance-hx info)))
+           (cursor-dx (- (+ (glyph-info-advance-hx info) kerning)))
            (cursor-dy 0))
        (values info origin-x origin-y cursor-dx cursor-dy)))
     (:top-to-bottom
@@ -297,14 +317,14 @@ of resulting sequence are equal."
            (origin-y  (- (glyph-info-top info)
                          (climi::round-coordinate (font-ascent font))))
            (cursor-dx 0)
-           (cursor-dy (glyph-info-advance-vy info)))
+           (cursor-dy (+ (glyph-info-advance-vy info) kerning)))
        (values info origin-x origin-y cursor-dx cursor-dy)))
     (:bottom-to-top
      (let ((origin-x  (climi::round-coordinate (/ (glyph-info-width info) 2.0)))
            (origin-y  (+ (glyph-info-top info)
                          (climi::round-coordinate (font-descent font))))
            (cursor-dx 0)
-           (cursor-dy (- (glyph-info-advance-vy info))))
+           (cursor-dy (- (+ (glyph-info-advance-vy info) kerning))))
        (values info origin-x origin-y cursor-dx cursor-dy)))))
 
 (defun font-glyph-info (font code direction)
@@ -326,10 +346,10 @@ of resulting sequence are equal."
       (let ((transformation (let ((scale (make-scaling-transformation 1.0 -1.0)))
                               (compose-transformations
                                scale (compose-transformations transformation scale)))))
-        (multiple-value-bind (arr left top width height hx vy)
-            (make-glyph-pixarray font char next transformation)
+        (multiple-value-bind (arr left top width height hx vy kerning)
+            (make-glyph-pixarray font char next direction transformation)
           (let ((info (make-glyph-info code arr left top width height hx vy)))
-            (multiple-value-bind (info x0 y0 dx dy) (glyph-info-advance font info direction)
+            (multiple-value-bind (info x0 y0 dx dy) (glyph-info-advance font info kerning direction)
               (setf (glyph-info-origin-x info) x0)
               (setf (glyph-info-origin-y info) y0)
               (setf (glyph-info-advance-dx info) dx)
