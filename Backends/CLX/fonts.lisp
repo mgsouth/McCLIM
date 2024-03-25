@@ -94,22 +94,6 @@
               left-bearing overall-ascent width height overall-ascent overall-descent 0
               width 0))))
 
-(defmethod text-bounding-rectangle* ((medium clx-medium) string
-                                     &key text-style (start 0) end
-                                          (align-x :left)
-                                          (align-y :baseline)
-                                          (direction :ltr))
-  (unless end
-    (setf end (length string)))
-  (when (>= start end)
-    (return-from text-bounding-rectangle* (values 0 0 0 0)))
-  (let* ((text (string string))
-         (text-style (merge-text-styles text-style (medium-merged-text-style medium)))
-         (font (text-style-mapping (clim:port medium) text-style)))
-    (multiple-value-bind (xmin ymin xmax ymax)
-        (font-text-extents font text :start start :end end :direction direction)
-      (climb:align-bounding-rectangle xmin ymin xmax ymax align-x align-y))))
-
 (defmethod text-size ((medium clx-medium) string &key text-style (start 0) end)
   (setf string (string string)
         end (or end (length string))

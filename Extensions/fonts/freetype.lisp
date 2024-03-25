@@ -520,26 +520,6 @@ or NIL if the current transformation is the identity transformation."
             (t
              (text-extents font string start end))))))
 
-(defmethod climb:text-bounding-rectangle*
-    ((medium clx-freetype-medium) string
-     &key
-       text-style
-       (start 0) end
-       (align-x :left) (align-y :baseline) (direction :ltr)
-     &aux (end (or end (length string))))
-  (when (= start end)
-    (return-from climb:text-bounding-rectangle* (values 0 0 0 0)))
-  (let ((text (string string))
-        (font (clim:text-style-mapping
-               (clim:port medium)
-               (clim:merge-text-styles text-style
-                                       (clim:medium-merged-text-style medium)))))
-    (multiple-value-bind (xmin ymin xmax ymax)
-        (font-text-extents font text :start start :end end
-                                     :align-x align-x :align-y align-y
-                                     :direction direction)
-      (values xmin ymin xmax ymax))))
-
 (defmethod climb:text-size ((medium clx-freetype-medium) string &key text-style (start 0) end)
   (let* ((string (ensure-string-value string))
          (end (or end (length string)))

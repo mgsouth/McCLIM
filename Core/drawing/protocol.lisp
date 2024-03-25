@@ -124,8 +124,8 @@
 (defgeneric text-style-height (text-style medium))
 (defgeneric text-style-fixed-width-p (text-style medium))
 (defgeneric text-size (medium string &key text-style start end))
-(defgeneric text-style-character-width (text-style medium char) (:method (text-style medium char) (text-size medium char :text-style text-style)))
-(defgeneric text-bounding-rectangle* (medium string &key text-style start end align-x align-y direction))
+(defgeneric text-style-character-width (text-style medium char)
+  (:method (text-style medium char) (text-size medium char :text-style text-style)))
 
 ;;; 11.2 Text Style Binding Forms
 (pledge :macro with-text-style ((medium text-style) &body body))

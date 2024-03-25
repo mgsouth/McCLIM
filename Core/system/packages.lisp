@@ -2091,7 +2091,6 @@
    #:invoke-with-output-buffered
    ;; Text-style
    #:text-style-character-width
-   #:text-bounding-rectangle*
    #:normalize-font-size
    #:parse-text-style*
    ;; Mixins and helpers available for backends

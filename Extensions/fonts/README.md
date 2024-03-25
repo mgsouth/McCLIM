@@ -26,10 +26,6 @@ it is dependent on the backend which uses `mcclim-native-ttf`).
 ### TODO
 
 * Implement fixed-font-width-p for zpb-ttf.
-* Make certain left/right bearings and text-bounding-rectangle are
-  correct. text-bounding-rectangle and text-size are quite incorrect especially
-  when we take multiline into account and align-x/align-y to center/bottom (not
-  to mention toward-x/toward-y which are not implemented at all).
 * Rethink interface and make it play well with text-style protocol.
 
 ### Wish-list
