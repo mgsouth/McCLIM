@@ -402,7 +402,7 @@
               (:center "central")
               (:baseline "alphabetic")
               (:bottom "text-after-edge"))))
-      (let ((transformation (climi::draw-text-rotation* x y toward-x toward-y)))
+      (let ((transformation (climb:draw-text-rotation* x y toward-x toward-y)))
         (cl-who:with-html-output (stream drawable)
           (:text :x (fmt x)
                  :y (fmt y)

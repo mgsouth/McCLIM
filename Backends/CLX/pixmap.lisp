@@ -61,15 +61,19 @@
                    :depth depth)))
 
 (defun resize-pixmap (pixmap width height)
-  (when (or (< (pixmap-width pixmap) width)
-            (< (pixmap-height pixmap) height))
-    (let* ((depth (pixmap-depth pixmap))
-           (old-pixmap (clx-drawable pixmap))
-           (new-pixmap (%allocate-pixmap old-pixmap width height depth)))
-      (deallocate-pixmap pixmap)
-      (setf (mirror pixmap) new-pixmap
-            (pixmap-width pixmap) width
-            (pixmap-height pixmap) height)))
+  (let ((old-width  (pixmap-width pixmap))
+        (old-height (pixmap-height pixmap)))
+    (when (or (< old-width width)
+              (< old-height height))
+      (let* ((depth (pixmap-depth pixmap))
+             (old-pixmap (clx-drawable pixmap))
+             (new-width (max width old-width))
+             (new-height (max height old-height))
+             (new-pixmap (%allocate-pixmap old-pixmap new-width new-height depth)))
+        (deallocate-pixmap pixmap)
+        (setf (mirror pixmap) new-pixmap
+              (pixmap-width pixmap) new-width
+              (pixmap-height pixmap) new-height))))
   pixmap)
 
 (defun ensure-pixmap (mirror pixmap width height)

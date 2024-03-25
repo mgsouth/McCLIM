@@ -27,8 +27,7 @@
            :initform (make-instance 'state
                                     :text-family :serif
                                     :text-face   nil
-                                    :text-size   60
-                                    :rectangle   :text-size)))
+                                    :text-size   60)))
   (:menu-bar nil)
   (:panes
    (canvas (make-pane 'canvas :state      (state *application-frame*)
@@ -57,17 +56,6 @@
                                                   (2 '(:bold :italic))))))
       (toggle-button :label "Bold"   :id :bold)
       (toggle-button :label "Italic" :id :italic)))
-   (rectangle
-    (with-radio-box (:value-changed-callback (make-callback
-                                              #'(setf rectangle)
-                                              #'gadget-id))
-      (radio-box-current-selection
-       (toggle-button :label "Text-Size"
-                      :id    :text-size))
-      (toggle-button  :label "Text-Bounding-Rectangle"
-                      :id    :text-bounding-rectangle)
-      (toggle-button  :label "None"
-                      :id    nil)))
    (size
     (let ((callback (make-callback #'(setf text-size*))))
       (make-pane 'slider :orientation            :horizontal
@@ -83,7 +71,6 @@
       (labelling (:label "Text") text)
       (horizontally ()
         (labelling (:label "Family") family)
-        (labelling (:label "Face") face)
-        (labelling (:label "Rectangle") rectangle))
+        (labelling (:label "Face") face))
       (labelling (:label "Size") size)
       (:fill canvas)))))

@@ -25,12 +25,14 @@
            #:truetype-face
            #:cached-truetype-font)
   ;; Atlas implementgation
-  (:export #:font-glyph-info
-           #:font-ascent
+  (:export #:font-ascent
            #:font-descent
+           #:font-glyph-info
+           #:font-glyph-info*
            #:font-generate-glyph
-           #:glyph-pixarray
-           #:font-string-glyph-codes)
+           #:string-glyph-codes
+           #:char-glyph-code
+           #:glyph-code-char)
   ;; Glyph metrics
   (:export #:glyph-info
            #:glyph-info-id
@@ -38,15 +40,11 @@
            ;; bearings
            #:glyph-info-left
            #:glyph-info-top
-           #:glyph-info-right
-           #:glyph-info-bottom
-           ;;
+           ;; glyph dimensions
            #:glyph-info-width
            #:glyph-info-height
-           ;; horizontal/vertical advance width/height
+           ;; original advances (vy is hacked to line heigh)
            #:glyph-info-advance-hx
-           #:glyph-info-advance-hy
-           #:glyph-info-advance-vx
            #:glyph-info-advance-vy
            ;; effective origin and advance width/height
            #:glyph-info-origin-x

@@ -122,7 +122,6 @@
                               start end
                               align-x align-y
                               toward-x toward-y transform-glyphs)
-  (declare (ignore transform-glyphs))
   (if (null end)
       (setf end (length string))
       (minf end (length string)))
@@ -131,8 +130,9 @@
   (let* ((port (port medium))
          (text-style (medium-text-style medium))
          (font (text-style-mapping port text-style)))
-    (let ((codes (font-string-glyph-codes font string :start start :end end))
-          (dev-tr (climi::medium-text-transformation medium x y toward-x toward-y)))
+    (let ((codes (string-glyph-codes string :start start :end end))
+          (dev-tr (climi::medium-text-transformation medium x y toward-x toward-y))
+          (dir (climb:canonical-text-direction transform-glyphs)))
       (ecase align-x
         (:left)
         (:center
@@ -154,4 +154,4 @@
            (incf y middle)))
         (:bottom
          (decf y (font-descent font))))
-      (string-primitive-paths medium x y codes dev-tr port font))))
+      (string-primitive-paths medium x y codes dir dev-tr font))))

@@ -31,14 +31,6 @@
 ;;; CLX-RENDER-PORT is also subclassed by CLX-FREETYPE-PORT.
 (defclass clx-render-port (clx-port) ())
 
-(defclass clx-ttf-port (ttf-port-mixin clim-clx:clx-render-port)
-  ((glyph-set
-    :initform nil
-    :accessor glyph-set)
-   (next-glyph-id
-    :initform 0
-    :accessor next-glyph-id)))
-
 (defun server-options-from-environment ()
   (let ((name (get-environment-variable "DISPLAY")))
     (assert name (name)
@@ -94,9 +86,6 @@
 
 (defmethod find-port-type ((type (eql :clx)))
   (values 'clx-port 'parse-clx-server-path))
-
-(defmethod find-port-type ((port (eql :clx-ttf)))
-  (values 'clx-ttf-port (nth-value 1 (find-port-type :clx))))
 
 (defmethod initialize-instance :after ((port clx-port) &key)
   (let ((options (cdr (port-server-path port))))
@@ -206,8 +195,6 @@
                                  :save-under :on
                                  :map nil))
 
-
-
 (defmethod make-medium ((port clx-port) sheet)
   (make-instance 'clx-medium :port port :sheet sheet))
 
@@ -216,19 +203,3 @@
 
 (defmethod port-force-output ((port clx-port))
   (xlib:display-force-output (clx-port-display port)))
-
-(defun make-glyph-set (display)
-  (xlib:render-create-glyph-set
-   (xlib:find-standard-picture-format display :a8)))
-
-(defun ensure-glyph-set (port)
-  (or (glyph-set port)
-      (setf (glyph-set port) (make-glyph-set (clx-port-display port)))))
-
-(defun free-glyph-set (port)
-  (alexandria:when-let ((glyph-set (glyph-set port)))
-    (xlib:render-free-glyph-set glyph-set)
-    (setf (glyph-set port) nil)))
-
-(defun draw-glyph-id (port)
-  (incf (next-glyph-id port)))

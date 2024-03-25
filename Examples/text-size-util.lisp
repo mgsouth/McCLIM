@@ -23,9 +23,6 @@
                  :accessor text-face)
    (%text-size   :initarg  :text-size
                  :accessor text-size*)
-   (%rectangle   :initarg  :rectangle
-                 :type     (member nil :text-size :text-bounding-rectangle)
-                 :accessor rectangle)
    (%hook        :initarg  :hook
                  :accessor hook
                  :initform nil))
@@ -45,9 +42,6 @@
   (maybe-run-hook state))
 
 (defmethod (setf text-size*) :after (new-value (state state))
-  (maybe-run-hook state))
-
-(defmethod (setf rectangle) :after (new-value (state state))
   (maybe-run-hook state))
 
 (defmethod text-style ((state state))
@@ -82,8 +76,7 @@
          (pane-height (rectangle-height region))
 
          (text      (text state))
-         (style     (text-style state))
-         (rectangle (rectangle state)))
+         (style     (text-style state)))
     (draw-design stream region :ink (clime:background stream))
     (multiple-value-bind (width height final-x final-y baseline)
         (text-size stream text :text-style style)
@@ -115,51 +108,38 @@
                                 (error (c)
                                   c)))
                       2 pane-height :text-style legend-text-style)
-          (case rectangle
-            ((:text-size :text-bounding-rectangle)
-             (component "Ascent"
-                        (lambda (stream)
-                          (let ((ascent (text-style-ascent style medium)))
-                            (draw-vdist stream (- x1 20) ybase (- ybase ascent)))))
-             (component "Descend"
-                        (lambda (stream)
-                          (let ((descent (text-style-descent style medium)))
-                            (draw-vdist stream (- x1 20) ybase (+ ybase descent)))))
-             (component "Height"
-                        (lambda (stream)
-                          (let ((height (text-style-height style medium)))
-                            (draw-vdist stream (- x1 40) y1 (+ y1 height))))
-                        :line-style (make-line-style :thickness 2))
-             (component "Average character width"
-                        (lambda (stream)
-                          (let ((width (text-style-width style medium)))
-                            (draw-hdist stream (- y1 20) x1 (+ x1 width)))))
-             (component "Baseline"
-                        (lambda (stream)
-                          (draw-line* stream 0 ybase pane-width ybase)))))
+          (component "Ascent"
+                     (lambda (stream)
+                       (let ((ascent (text-style-ascent style medium)))
+                         (draw-vdist stream (- x1 20) ybase (- ybase ascent)))))
+          (component "Descend"
+                     (lambda (stream)
+                       (let ((descent (text-style-descent style medium)))
+                         (draw-vdist stream (- x1 20) ybase (+ ybase descent)))))
+          (component "Height"
+                     (lambda (stream)
+                       (let ((height (text-style-height style medium)))
+                         (draw-vdist stream (- x1 40) y1 (+ y1 height))))
+                     :line-style (make-line-style :thickness 2))
+          (component "Average character width"
+                     (lambda (stream)
+                       (let ((width (text-style-width style medium)))
+                         (draw-hdist stream (- y1 20) x1 (+ x1 width)))))
+          (component "Baseline"
+                     (lambda (stream)
+                       (draw-line* stream 0 ybase pane-width ybase)))
           (draw-text* stream text x1 ybase :text-style style)
-          (case rectangle
-            ((:text-size)
-             (component "Text size (width/height)"
-                        (lambda (stream)
-                          (draw-rectangle*
-                           stream x1 y1 (+ x1 width) (+ y1 height)
-                           :filled nil)))
-             (component "Text size (final x/y)"
-                        (lambda (stream)
-                          (draw-line*
-                           stream 0 (+ y1 final-y) pane-width (+ y1 final-y))
-                          (draw-line*
-                           stream (+ x1 final-x) 0 (+ x1 final-x) pane-height))))
-            ((:text-bounding-rectangle)
-             (multiple-value-bind (left top right bottom)
-                 (climi::text-bounding-rectangle* medium text :text-style style)
-               (component "Bounding rectangle"
-                          (lambda (stream)
-                            (draw-rectangle* stream
-                                             (+ x1 left) (+ y1 baseline top)
-                                             (+ x1 right) (+ y1 baseline bottom)
-                                             :filled nil)))))))
+          (component "Text size (width/height)"
+                     (lambda (stream)
+                       (draw-rectangle*
+                        stream x1 y1 (+ x1 width) (+ y1 height)
+                        :filled nil)))
+          (component "Text size (final x/y)"
+                     (lambda (stream)
+                       (draw-line*
+                        stream 0 (+ y1 final-y) pane-width (+ y1 final-y))
+                       (draw-line*
+                        stream (+ x1 final-x) 0 (+ x1 final-x) pane-height))))
 
         ;; Draw a legend for all drawn components
         (loop with line-height = (nth-value 1 (text-size

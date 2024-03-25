@@ -2091,14 +2091,14 @@
    #:invoke-with-output-buffered
    ;; Text-style
    #:text-style-character-width
-   #:text-bounding-rectangle*
    #:normalize-font-size
    #:parse-text-style*
    ;; Mixins and helpers available for backends
    #:transform-coordinates-mixin
    #:draw-text-rotation*
-   #:medium-text-transformation*
+   #:medium-text-transformation
    #:align-bounding-rectangle
+   #:canonical-text-direction
    ;; From CLIM (mentioned in the spec)
    #:adopt-frame
    #:allocate-space
