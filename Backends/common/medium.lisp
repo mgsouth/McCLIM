@@ -56,7 +56,7 @@
 
 (defun canonical-text-direction (direction)
   (ecase direction
-    ((nil) :left-to-right)
-    ((t)   :right-to-left)
+    ((nil t)
+     :left-to-right)
     ((:left-to-right :right-to-left :top-to-bottom :bottom-to-top)
      direction)))
