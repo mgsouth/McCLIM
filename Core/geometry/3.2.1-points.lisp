@@ -35,9 +35,9 @@
 
 (defmethod print-object ((region standard-point) sink)
   (maybe-print-readably (region sink)
-    (print-unreadable-object (region sink :identity nil :type t)
+    (print-unreadable-object (region sink :identity nil :type nil)
       (with-slots (x y) region
-        (format sink "~S ~S" x y)))))
+        (format sink "P ~,2f ~,2f" x y)))))
 
 (defmethod point-position ((region standard-point))
   (with-slots (x y) region
