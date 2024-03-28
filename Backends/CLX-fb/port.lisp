@@ -43,7 +43,6 @@
 
 (defmethod clim-clx::%realize-mirror ((port clx-fb-port) (sheet top-level-sheet-mixin))
   (let ((window (clim-clx::realize-mirror-aux port sheet
-                                              :map nil
                                               :width (bounding-rectangle-width sheet)
                                               :height (bounding-rectangle-height sheet)))
         (pname (clime:sheet-pretty-name sheet))
@@ -62,7 +61,7 @@
     window))
 
 (defmethod clim-clx::%realize-mirror ((port clx-fb-port) (sheet unmanaged-sheet-mixin))
-  (clim-clx::realize-mirror-aux port sheet :override-redirect :on :map nil))
+  (clim-clx::realize-mirror-aux port sheet :override-redirect :on))
 
 (defmethod make-medium ((port clx-fb-port) sheet)
   (make-instance 'clx-fb-medium :sheet sheet :port port))

@@ -123,7 +123,6 @@
 (defun realize-mirror-aux (port sheet
                            &key (width nil) (height nil) (x nil) (y nil)
                                 (override-redirect :off)
-                                (map t)
                                 (backing-store :not-useful)
                                 (save-under :off)
                                 (event-mask *window-event-mask*))
@@ -134,42 +133,43 @@
           y (round-coordinate (or y my))
           width  (round-coordinate (or width mw))
           height (round-coordinate (or height mh))))
-  (let ((window (xlib:create-window
-                 :parent (window (sheet-mirror (sheet-parent sheet)))
-                 :width (round-coordinate width)
-                 :height (round-coordinate height)
-                 :x (round-coordinate x)
-                 :y (round-coordinate y)
-                 :override-redirect override-redirect
-                 :backing-store backing-store
-                 :save-under save-under
-                 :gravity :north-west
-                 :bit-gravity :forget   ; don't be evil! -- jd
-                 :event-mask (apply #'xlib:make-event-mask event-mask))))
-    (when map
-      (xlib:map-window window)
-      (xlib:display-finish-output (clx-port-display port)))
-    window))
+  (xlib:create-window
+   :parent (window (sheet-mirror (sheet-parent sheet)))
+   :width (round-coordinate width)
+   :height (round-coordinate height)
+   :x (round-coordinate x)
+   :y (round-coordinate y)
+   :override-redirect override-redirect
+   :backing-store backing-store
+   :save-under save-under
+   :gravity :north-west
+   :bit-gravity :forget   ; don't be evil! -- jd
+   :event-mask (apply #'xlib:make-event-mask event-mask)))
 
 (defmethod realize-mirror ((port clx-port) (sheet mirrored-sheet-mixin))
-  ;;mirrored-sheet-mixin is always in the top of the Class Precedence List
+  ;; MIRRORED-SHEET-MIXIN is always in the top of the Class Precedence List.
   (let ((window (%realize-mirror port sheet)))
     (setf (getf (xlib:window-plist window) 'sheet) sheet)
-    (make-instance 'clx-window  :mirror window :sheet sheet)))
+    (make-instance 'clx-window :mirror window :sheet sheet)))
+
+(defmethod %realize-mirror :around ((port clx-basic-port) sheet)
+  (let ((window (call-next-method)))
+    (when (sheet-enabled-p sheet)
+      (xlib:map-window window)
+      (xlib:display-force-output (clx-port-display port)))
+    window))
 
 (defmethod %realize-mirror ((port clx-port) (sheet basic-sheet))
   (with-bounding-rectangle* (:width w :height h) sheet
     (let ((width (if (> w 0) w nil))
           (height (if (> h 0) h nil)))
-      (realize-mirror-aux port sheet :map (sheet-enabled-p sheet)
-                                     :event-mask *sheet-event-mask*
+      (realize-mirror-aux port sheet :event-mask *sheet-event-mask*
                                      :width width
                                      :height height))))
 
 (defmethod %realize-mirror ((port clx-port) (sheet top-level-sheet-mixin))
   (let* ((window (realize-mirror-aux
                   port sheet
-                  :map nil
                   :width (bounding-rectangle-width sheet)
                   :height (bounding-rectangle-height sheet)
                   :event-mask *window-event-mask*))
@@ -192,8 +192,7 @@
 
 (defmethod %realize-mirror ((port clx-port) (sheet unmanaged-sheet-mixin))
   (realize-mirror-aux port sheet :override-redirect :on
-                                 :save-under :on
-                                 :map nil))
+                                 :save-under :on))
 
 (defmethod make-medium ((port clx-port) sheet)
   (make-instance 'clx-medium :port port :sheet sheet))

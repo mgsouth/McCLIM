@@ -32,11 +32,14 @@
 ;;; We can't initialize FONT-DPI in INITIALIZE-INSTANCE :AFTER method, because
 ;;; some ports can create grafts only after their own initialization.
 (defmethod slot-unbound (class (port ttf-port-mixin) (slot (eql 'font-dpi)))
-  (setf (slot-value port 'font-dpi)
-        (or *dpi*
-            (ignore-errors
-             (clim:graft-pixels-per-inch (clim:find-graft :port port)))
-            72)))
+  (let ((dpi (or *dpi*
+                 (ignore-errors
+                  (clim:graft-pixels-per-inch (clim:find-graft :port port)))
+                 72)))
+    ;; Issue a warning when DPI is suspiciously small. The value is arbitrary.
+    (when (< dpi 10)
+      (warn "~s: DPI ~s is suspiciously small." (class-name class) dpi))
+    (setf (slot-value port 'font-dpi) dpi)))
 
 (defun invalidate-port-font-cache (port)
   (with-slots (font-loader-cache font-family-cache font-direct-cache text-style-cache) port

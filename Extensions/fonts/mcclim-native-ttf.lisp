@@ -104,7 +104,7 @@
 (defmethod print-object ((object truetype-font) stream)
   (print-unreadable-object (object stream :type t :identity nil)
     (with-slots (size ascent descent units->pixels) object
-      (format stream " size=~A ascent=~A descent=~A units->pixels=~A"
+      (format stream ":size ~a :ascent ~,2f :descent ~,2f :units->pixels ~,2f"
               size ascent descent units->pixels))))
 
 ;;; Derived from CL-VECTORS library function PATHS-TTF:PATHS-FROM-GLYPH.
