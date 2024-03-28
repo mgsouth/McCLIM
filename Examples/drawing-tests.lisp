@@ -1428,8 +1428,7 @@ outside the clipping area should be grey.")
   (let ((state (make-instance 'clim-demo::state :text        "Ciao"
                                                 :text-family :sans-serif
                                                 :text-face   :roman
-                                                :text-size   100
-                                                :rectangle   :text-size)))
+                                                :text-size   100)))
     (clim-demo::draw-text-size-info stream state)))
 
 (define-drawing-test "Text" "Transformation + Alignment" (frame stream)
