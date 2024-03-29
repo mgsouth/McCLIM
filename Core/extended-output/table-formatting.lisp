@@ -569,13 +569,12 @@
                (* (1- (length widths)) x-spacing)
                multiple-columns-x-spacing))
            (n-columns
-            (max 1
-                 (if (eq multiple-columns t)
-                     (floor (+ (- (stream-text-margin stream)
-                                  (stream-cursor-position stream))
-                               multiple-columns-x-spacing)
-                            (+ mcolumn-width multiple-columns-x-spacing))
-                     multiple-columns)))
+             (max 1
+                  (if (eq multiple-columns t)
+                      (floor (- (stream-text-margin stream)
+                                (stream-cursor-position stream))
+                             mcolumn-width)
+                      multiple-columns)))
            (column-size (ceiling (length rows) n-columns)) )
       (loop with y = 0
             with dy = 0
