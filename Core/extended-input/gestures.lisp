@@ -112,11 +112,26 @@
 (defun make-pointer-button (button)
   (normalize-union "pointer button" button +gesture-button-to-event-button+))
 
+;;; KLUDGE stream input procesing may coerce the gesture object from an event to
+;;; a character (see EVENT-CHAR). In the case of ESA we match the gesture after
+;;; it is processed, and in that case we lose the information about a key name.
+;;; After adding TEXT-INPUT-EVENT remove this. -- jd 2024-03-29
+(defun gesture-key-name-designator (key-or-name)
+  (case key-or-name
+    (:newline   #\newline)
+    (:linefeed  #\linefeed)
+    (:return    #\return)
+    (:tab       #\tab)
+    (:backspace #\backspace)
+    (:page      #\page)
+    (:rubout    #\rubout)
+    (otherwise  key-or-name)))
+
 (defun normalize-keyboard-physical-gesture (gesture-spec)
   (destructuring-bind (key-or-name &rest modifiers)
       (ensure-list gesture-spec)        ; extension
     (check-type key-or-name (or character symbol))
-    (values key-or-name
+    (values (gesture-key-name-designator key-or-name)
             (normalize-state-with-wildcards
              :bmask #'make-modifier-state modifiers))))
 
