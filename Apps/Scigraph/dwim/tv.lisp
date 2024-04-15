@@ -177,7 +177,7 @@ advised of the possiblity of such damages.
   (setf (clim:window-viewport-position stream) (values left top)))
 
 (defun suggest-frame-size (frame-manager width height)
-  (let ((graft (clim:graft (port frame-manager))))
+  (let ((graft (clim:find-graft :port (port frame-manager))))
     (when graft
       (setq width (min width (clim:graft-width graft :units :device))
             height (min height (clim:graft-height graft :units :device)))))
