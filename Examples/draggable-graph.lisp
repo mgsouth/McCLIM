@@ -13,11 +13,11 @@
 
 (define-application-frame draggable-graph-demo () ()
   (:menu-bar nil)
-  (:pane (make-pane 'application-pane
-                    :width :compute
-                    :height :compute
-                    :display-function 'generate-graph
-                    :display-time t)))
+  (:panes (app (make-pane 'application-pane
+                          :width :compute
+                          :height :compute
+                          :display-function 'generate-graph
+                          :display-time t))))
 
 (defun generate-graph (frame pane)
   (declare (ignore frame))
@@ -68,45 +68,46 @@
     ((record t)
      (offset-x 'real :default 0)
      (offset-y 'real :default 0))
-  (let* ((stream *standard-output*)
-         (node-record (find-graph-node record))
-         (edge-records (node-edges node-record))
-         (graph-record (output-record-parent node-record))
-         (erase-region))
-    (assert (typep graph-record 'graph-output-record))
-    (drag-output-record
-     stream node-record
-     :feedback (lambda (record stream old-x old-y x y mode)
-                 (declare (ignore old-x old-y))
-                 (ecase mode
-                   (:erase
-                    ;; Capture current regions before modifying the
-                    ;; output records.
-                    (setf erase-region
-                          (node-and-edges-region record edge-records))
-                    ;; Remove contents (i.e. lines) of edge output
-                    ;; records. This does not repaint anything. To
-                    ;; account for that, we include ERASE-REGION in
-                    ;; the :DRAW clause.
-                    (map nil #'clear-output-record edge-records))
-                   (:draw
-                    ;; Reposition the node record (this does not
-                    ;; automatically replay the record).
-                    (setf (output-record-position record)
-                          (values (- x offset-x) (- y offset-y)))
-                    ;; Regenerate child records of the edge records
-                    ;; for the changed node position (without drawing
-                    ;; since we will draw everything at once as a
-                    ;; final step).
-                    (with-output-recording-options (stream :record t :draw nil)
-                      (redisplay-edges graph-record edge-records))
-                    ;; Repaint all affected areas. This also replays
-                    ;; the modified node and edge output records.
-                    (repaint-sheet
-                     stream (region-union (or erase-region +nowhere+)
-                                          (node-and-edges-region
-                                           record edge-records))))))
-     :finish-on-release t :multiple-window nil)))
+  (with-application-frame (frame)
+    (let* ((stream (find-pane-named frame 'app))
+           (node-record (find-graph-node record))
+           (edge-records (node-edges node-record))
+           (graph-record (output-record-parent node-record))
+           (erase-region))
+      (assert (typep graph-record 'graph-output-record))
+      (drag-output-record
+       stream node-record
+       :feedback (lambda (record stream old-x old-y x y mode)
+                   (declare (ignore old-x old-y))
+                   (ecase mode
+                     (:erase
+                      ;; Capture current regions before modifying the
+                      ;; output records.
+                      (setf erase-region
+                            (node-and-edges-region record edge-records))
+                      ;; Remove contents (i.e. lines) of edge output
+                      ;; records. This does not repaint anything. To
+                      ;; account for that, we include ERASE-REGION in
+                      ;; the :DRAW clause.
+                      (map nil #'clear-output-record edge-records))
+                     (:draw
+                      ;; Reposition the node record (this does not
+                      ;; automatically replay the record).
+                      (setf (output-record-position record)
+                            (values (- x offset-x) (- y offset-y)))
+                      ;; Regenerate child records of the edge records
+                      ;; for the changed node position (without drawing
+                      ;; since we will draw everything at once as a
+                      ;; final step).
+                      (with-output-recording-options (stream :record t :draw nil)
+                        (redisplay-edges graph-record edge-records))
+                      ;; Repaint all affected areas. This also replays
+                      ;; the modified node and edge output records.
+                      (repaint-sheet
+                       stream (region-union (or erase-region +nowhere+)
+                                            (node-and-edges-region
+                                             record edge-records))))))
+       :finish-on-release t :multiple-window nil))))
 
 (define-presentation-to-command-translator record-dragging-translator
     (t com-drag-node draggable-graph-demo
