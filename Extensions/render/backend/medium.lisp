@@ -129,29 +129,22 @@
     (return-from medium-draw-text*))
   (let* ((port (port medium))
          (text-style (medium-text-style medium))
-         (font (text-style-mapping port text-style)))
+         (font (text-style-mapping port text-style))
+         (baseline (font-ascent font))
+         (total-height (+ baseline (font-descent font)))
+         (total-width (text-size medium string :text-style text-style
+                                               :start start :end end)))
     (let ((codes (string-glyph-codes string :start start :end end))
-          (dev-tr (climi::medium-text-transformation medium x y toward-x toward-y))
+          (dev-tr (climb:medium-text-transformation
+                   medium x y toward-x toward-y))
           (dir (climb:canonical-text-direction transform-glyphs)))
-      (ecase align-x
-        (:left)
-        (:center
-         (let ((origin-x (text-size medium string :text-style text-style
-                                                  :start start :end end)))
-           (decf x (/ origin-x 2.0))))
-        (:right
-         (let ((origin-x (text-size medium string :text-style text-style)))
-           (decf x origin-x))))
-      (ecase align-y
-        (:top
-         (incf y (font-ascent font)))
-        (:baseline)
-        (:center
-         (let* ((ascent (font-ascent font))
-                (descent (font-descent font))
-                (height (+ ascent descent))
-                (middle (- ascent (/ height 2.0s0))))
-           (incf y middle)))
-        (:bottom
-         (decf y (font-descent font))))
-      (string-primitive-paths medium x y codes dir dev-tr font))))
+      (let ((x (ecase align-x
+                 (:left 0)
+                 (:center (- (/ total-width 2)))
+                 (:right (- total-width))))
+            (y (ecase align-y
+                 (:baseline 0)
+                 (:top baseline)
+                 (:center (- (- (/ total-height 2) baseline)))
+                 (:bottom (- (- total-height baseline))))))
+        (string-primitive-paths medium x y codes dir dev-tr font)))))

@@ -20,11 +20,18 @@
 
 (defun medium-text-transformation (medium x y toward-x toward-y &optional direction)
   (if (ecase (canonical-text-direction direction)
-        ((:left-to-right :right-to-left) (and (= y toward-y) (< x toward-x)))
-        ((:top-to-bottom :bottom-to-top) (and (< y toward-y) (= x toward-x))))
-      (medium-device-transformation medium)
-      (compose-transformations (medium-device-transformation medium)
-                               (draw-text-rotation* x y toward-x toward-y direction))))
+        ((:left-to-right :right-to-left)
+         (and (= y toward-y) (< x toward-x)))
+        ((:top-to-bottom :bottom-to-top)
+         (and (< y toward-y) (= x toward-x))))
+      (compose-transformations
+       (medium-device-transformation medium)
+       (make-translation-transformation x y))
+      (compose-transformations
+       (compose-transformations
+        (medium-device-transformation medium)
+        (draw-text-rotation* x y toward-x toward-y direction))
+       (make-translation-transformation x y))))
 
 ;;; The baseline is assumed to be at y=0.
 (defun align-bounding-rectangle (xmin ymin xmax ymax align-x align-y)

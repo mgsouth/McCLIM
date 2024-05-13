@@ -422,7 +422,7 @@
                           medium x y toward-x toward-y direction)))
     (multiple-value-bind (x y xmin ymin xmax ymax)
         (font-prepare-glyphs glyph-ids font string start end
-                             x y align-x align-y direction)
+                             0 0 align-x align-y direction)
       ;; When the source is not uniform then render-compsite-glyphs is much
       ;; slower than first drawing on a stencil and then filling the
       ;; composite. Both paths are correct for any case. -- jd 2023-04-13
