@@ -105,7 +105,7 @@
 (define-protocol-class text-style nil nil)
 (pledge :class standard-text-style (text-style))
 (defgeneric text-style-equalp (style1 style2))
-(declfun make-text-style (family face size))
+(declfun make-text-style (family face size &optional unit))
 (pledge :constant *default-text-style*)
 (pledge :constant *undefined-text-style*)
 
@@ -114,6 +114,7 @@
 (defgeneric text-style-family (instance))
 (defgeneric text-style-face (instance))
 (defgeneric text-style-size (instance))
+(defgeneric text-style-unit (instance))
 (declfun parse-text-style (style-spec))
 (declfun parse-text-style* (style))
 (declfun normalize-font-size (size))
