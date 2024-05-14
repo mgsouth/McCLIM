@@ -247,18 +247,17 @@ is T."
         (declare (ignore final-x final-y))
         (multiple-value-bind (mxx mxy myx myy tx ty)
             (climi::get-transformation
-             (climi::medium-text-transformation medium x y toward-x toward-y))
+             (medium-text-transformation medium x y toward-x toward-y))
           (pdf:set-transform-matrix mxx mxy myx myy tx ty))
-        (let  ((x (ecase align-x
-                    (:left x)
-                    (:center (- x (/ total-width 2)))
-                    (:right (- x total-width))))
-               (y (ecase align-y
-                    (:baseline y)
-                    (:top (+ y baseline))
-                    (:center (- y (- (/ total-height 2)
-                                     baseline)))
-                    (:bottom (- y (- total-height baseline))))))
+        (let ((x (ecase align-x
+                   (:left 0)
+                   (:center (- (/ total-width 2)))
+                   (:right (- total-width))))
+              (y (ecase align-y
+                   (:baseline 0)
+                   (:top baseline)
+                   (:center (- (- (/ total-height 2) baseline)))
+                   (:bottom (- (- total-height baseline))))))
           (pdf:set-text-matrix 1 0 0 -1 x y)
           (pdf:draw-text string))))))
 

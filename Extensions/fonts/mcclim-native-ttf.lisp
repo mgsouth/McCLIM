@@ -136,17 +136,9 @@
   (* (zpb-ttf-font-units->pixels font)
      (zpb-ttf:advance-width glyph)))
 
-;;; Use after merging https://github.com/xach/zpb-ttf/pull/23 -- jd 2024-03-25
-#+ (or)
 (defun advance-height (font glyph)
   (* (zpb-ttf-font-units->pixels font)
      (zpb-ttf:advance-height glyph)))
-
-#- (or)
-(defun advance-height (font glyph)
-  (declare (ignore glyph))
-  (* (zpb-ttf-font-units->pixels font)
-     (+ (font-ascent font) (font-descent font))))
 
 (defun kerning-offset (font char next direction)
   (* (zpb-ttf-font-units->pixels font)

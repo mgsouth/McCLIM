@@ -63,16 +63,23 @@
     (eq style1 style2))
 
   (defclass standard-text-style (text-style)
-    ((family   :initarg :text-family
-               :initform :fix
-               :reader text-style-family)
-     (face     :initarg :text-face
-               :initform :roman
-               :reader text-style-face)
-     (size     :initarg :text-size
-               :initform :normal
-               :reader text-style-size))
-     (:default-initargs :text-family nil :text-face nil :text-size nil))
+    ((family
+      :initarg :text-family
+      :reader text-style-family)
+     (face
+      :initarg :text-face
+      :reader text-style-face)
+     (size
+      :initarg :text-size
+      :reader text-style-size)
+     (unit
+      :initarg :text-unit
+      :reader text-style-unit))
+     (:default-initargs
+      :text-family nil
+      :text-face nil
+      :text-size nil
+      :text-unit nil))
 
   (defmethod make-load-form ((obj standard-text-style) &optional env)
     (declare (ignore env))
@@ -110,20 +117,27 @@
           ((:smaller)    8)
           ((:larger)     9))))
 
-  (defun text-style-key (family face size)
-    (when-let ((size-key (size-key size))
+  (defun unit-key (unit)
+    (ecase unit
+      ((:normal :point) 0)
+      (:coordinate 1)))
+
+  (defun text-style-key (family face size unit)
+    (when-let ((unit-key (unit-key unit))
+               (size-key (size-key size))
                (face-key (face-key face))
                (family-key (family-key family)))
       (logior (ash size-key   8)
-              (ash face-key   4)
+              (ash unit-key   6)
+              (ash face-key   2)
               (ash family-key 0))))
 
   (eval-when (:compile-toplevel :load-toplevel :execute)
     (defvar *text-style-hash-table* (make-hash-table :test #'eql))
     (defvar *extended-text-style-hash-table* (make-hash-table :test #'equal)))
 
-  (defun make-text-style (family face size)
-    (if-let ((key (text-style-key family face size)))
+  (defun make-text-style (family face size &optional (unit :normal))
+    (if-let ((key (text-style-key family face size unit)))
       ;; Portable text styles have always been cached in McCLIM like
       ;; this: (as permitted by the CLIM spec for immutable objects,
       ;; section 2.4)
@@ -131,18 +145,20 @@
       ;; around font size 100000.
       (locally (declare (type (unsigned-byte 32) key))
         (ensure-gethash key *text-style-hash-table*
-                        (make-text-style-1 family face size)))
+          (make-text-style-1 family face size unit)))
       ;; Extended text styles using custom components is cached using
       ;; an appropriate hash table to ensure `EQL' of the same
       ;; extended text styles
-      (ensure-gethash (list family face size) *extended-text-style-hash-table*
-                      (make-text-style-1 family face size))))
+      (ensure-gethash (list family face size unit)
+          *extended-text-style-hash-table*
+        (make-text-style-1 family face size unit))))
 
-  (defun make-text-style-1 (family face size)
+  (defun make-text-style-1 (family face size unit)
     (make-instance 'standard-text-style
                    :text-family family
                    :text-face face
-                   :text-size size)))
+                   :text-size size
+                   :text-unit unit)))
 
 (defmethod print-object ((self standard-text-style) stream)
   (print-unreadable-object (self stream :type t :identity nil)
@@ -152,10 +168,13 @@
                               (style2 standard-text-style))
   (and (equal (text-style-family style1) (text-style-family style2))
        (equal (text-style-face style1) (text-style-face style2))
-       (eql (text-style-size style1) (text-style-size style2))))
+       (eql (text-style-size style1) (text-style-size style2))
+       (eql (text-style-unit style1) (text-style-unit style2))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defvar *default-text-style* (make-text-style :sans-serif :roman :normal))
+  (defvar *default-text-style*
+    (make-text-style :sans-serif :roman :normal :normal))
+
   (defvar *undefined-text-style* *default-text-style*)
 
   (defconstant +smaller-sizes+ '(:huge :very-large :large :normal
@@ -240,7 +259,8 @@
 (defmethod text-style-components ((text-style standard-text-style))
   (values (text-style-family   text-style)
           (text-style-face     text-style)
-          (text-style-size     text-style)))
+          (text-style-size     text-style)
+          (text-style-unit     text-style)))
 
 ;;; Device-Font-Text-Style class
 
@@ -256,7 +276,7 @@
   (typep s 'device-font-text-style))
 
 (defmethod text-style-components ((text-style device-font-text-style))
-  (values :device :device :device))
+  (values :device :device :device :device))
 
 (defmethod text-style-mapping
     ((port port) (text-style text-style) &optional character-set)
@@ -321,8 +341,11 @@
                      ((nil) size2)
                      (:smaller (find-smaller-size size2))
                      (:larger (find-larger-size size2))
-                     (t size1))))
-        (make-text-style family face size))
+                     (t size1)))
+             (unit1 (text-style-unit s1))
+             (unit2 (text-style-unit s2))
+             (unit (or unit1 unit2)))
+        (make-text-style family face size unit))
       s1))
 
 (defun parse-text-style (style)

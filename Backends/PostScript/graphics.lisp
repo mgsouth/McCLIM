@@ -581,21 +581,22 @@ setmatrix")
             (clim-postscript-font:text-size-in-font font size string 0 nil))
         (declare (ignore final-x final-y))
         (multiple-value-bind (mxx mxy myx myy tx ty)
-            (climi::get-transformation (climi::medium-text-transformation
-                                        medium x y toward-x toward-y))
+            (climi::get-transformation
+             (medium-text-transformation medium x y toward-x toward-y))
           (format file-stream "[~,3F ~,3F ~,3F ~,3F ~,3F ~,3F] concat~%"
                   mxx mxy myx myy tx ty))
         ;; Only one line?
         (let ((x (ecase align-x
-                   (:left x)
-                   (:center (- x (/ total-width 2)))
-                   (:right (- x total-width))))
+                   (:left 0)
+                   (:center (- (/ total-width 2)))
+                   (:right (- total-width))))
               (y (ecase align-y
-                   (:top (+ y baseline))
-                   (:center (+ y baseline (- (/ total-height 2))))
-                   (:baseline y)
-                   (:bottom (+ y (- total-height baseline))))))
+                   (:baseline 0)
+                   (:top baseline)
+                   (:center (- (- (/ total-height 2) baseline)))
+                   (:bottom (- (- total-height baseline))))))
           (moveto* file-stream x y)
           (format file-stream "[~,3F ~,3F ~,3F ~,3F ~,3F ~,3F] concat~%"
                   1 0 0 -1 0 0)
-          (format file-stream "(~A) show~%" (postscript-escape-string string)))))))
+          (format file-stream "(~A) show~%"
+                  (postscript-escape-string string)))))))

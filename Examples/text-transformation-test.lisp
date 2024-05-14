@@ -18,7 +18,7 @@
 
 (in-package "CLIM-DEMO.DRAW-TEXT-TEST")
 
-(defparameter *canvas* (make-rectangle* 50 220 1230 680))
+(defparameter *canvas* (make-rectangle* 50 300 1230 700))
 
 (defparameter *ltr-text* "A quick brown fox jumps over the lazy dog.")
 (defparameter *rtl-text* "א  בְּרֵאשִׁית, בָּרָא אֱלֹהִים, אֵת הַשָּׁמַיִם, וְאֵת הָאָרֶץ.") ; gensis
@@ -39,9 +39,6 @@
 (defparameter *hellojp* "こんにちは123")
 (defparameter *neutral* "0123456789")
 
-(defparameter *my-text-style*
-  (make-text-style :serif :roman :large))
-
 #+ (or)
 (progn
   (defparameter *font-path*
@@ -50,10 +47,15 @@
     (clim:make-device-font-text-style (clim:find-port) (list *font-path* 36))))
 
 (define-application-frame draw-text-test ()
-  ((coords :accessor coords :initform '(400 400 600 400))
+  ((coords :accessor coords :initform '(400 450 500 450))
    (increase :accessor increase :initform 1)
    (transf-1 :accessor transf-1 :initform +identity-transformation+)
    (transf-2 :accessor transf-2 :initform +identity-transformation+)
+   ;;
+   (font :accessor font :initform :default)
+   (size :accessor size :initform :large)
+   (unit :accessor unit :initform :coordinate)
+   (text-style :accessor frame-text-style)
    ;;
    (text :accessor text :initform *neutral*)
    (align-x :accessor align-x :initform :left)
@@ -67,8 +69,23 @@
          :text-margins '(:left 50 :top 25)
          :scroll-bars nil :borders nil))
 
+(defmethod initialize-instance :after ((self draw-text-test) &key)
+  (update-text-style self))
+
 (defun transf (frame)
   (compose-transformations (transf-1 frame) (transf-2 frame)))
+
+(defun update-text-style (frame)
+  (if (eq (font frame) :default)
+      (setf (frame-text-style frame)
+            (make-text-style :serif :roman (size frame) (unit frame)))
+      (error "fixme unit for device fonts")
+      #+ (or)
+      (setf (frame-text-style frame)
+            (clim:make-device-font-text-style
+             (port frame) (list (font frame)
+                                (size frame)
+                                (unit frame))))))
 
 (define-draw-text-test-command com-set-baseline
     ((coords 'sequence))
@@ -122,6 +139,11 @@
   (with-application-frame (frame)
     (setf (transform-glyphs frame) direction)))
 
+(define-draw-text-test-command com-set-text-style-unit
+    ((unit '(member :coordinate :normal)))
+  (with-application-frame (frame)
+    (setf (unit frame) unit)
+    (update-text-style frame)))
 
 (defun untransform-coordinates (transformation coords)
   (let ((transf (invert-transformation transformation)))
@@ -134,7 +156,7 @@
   (draw-text* stream string x0 y0 :toward-x x1 :toward-y y1
                                   :align-x (align-x frame)
                                   :align-y (align-y frame)
-                                  :text-style *my-text-style*
+                                  :text-style (frame-text-style frame)
                                   :transform-glyphs (transform-glyphs frame))
   (with-drawing-options (stream :line-thickness 3 :line-dashes nil
                                 :ink (compose-in +dark-red+ (make-opacity .5)))
@@ -253,7 +275,17 @@
                                   :value-changed-callback
                                   (lambda (g v)
                                     (declare (ignore g))
-                                    (execute-frame-command frame `(com-set-transform-glyphs ,v))))))))
+                                    (execute-frame-command frame `(com-set-transform-glyphs ,v)))))))
+    (formatting-cell (stream)
+      (with-output-as-gadget (stream)
+        (declare (ignorable stream))
+        (labelling (:label "TEXT-STYLE-UNIT" :background +white+)
+          (make-pane 'option-pane :items '(:coordinate :normal)
+                                  :value (unit frame)
+                                  :value-changed-callback
+                                  (lambda (g v)
+                                    (declare (ignore g))
+                                    (execute-frame-command frame `(com-set-text-style-unit ,v))))))))
   (multiple-value-bind (x0 y0) (stream-cursor-initial-position stream)
     (declare (ignore x0))
     (setf (stream-cursor-position stream) (values 660 y0))

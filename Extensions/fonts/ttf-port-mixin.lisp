@@ -133,14 +133,32 @@
             (ensure-truetype-font port source source size))))
       (error "~s can't map the text style ~s." port text-style)))
 
+(defclass ttf-device-text-style (climi::device-font-text-style)
+  ((path :initarg :path :reader device-font-path)
+   (size :initarg :size :reader device-font-size :reader text-style-size)
+   (unit :initarg :unit :reader device-font-unit :reader text-style-unit)
+   (preload :initarg :preload :reader device-font-preload)))
+
+(defmethod text-style-components ((style ttf-device-text-style))
+  (with-slots (size unit) style
+    (values :device :device size unit)))
+
+(defmethod make-device-font-text-style ((port ttf-port-mixin) font)
+  (destructuring-bind (path &key (size :normal) (unit :normal)
+                                 (preload nil) &allow-other-keys)
+      (if (listp font) font (list font))
+    (make-instance 'ttf-device-text-style
+                   :path path :size size :unit unit :preload preload
+                   :display-device port :device-font-name font)))
+
 (defmethod text-style-mapping ((port ttf-port-mixin)
-                               (text-style climi::device-font-text-style)
+                               (text-style ttf-device-text-style)
                                &optional charset)
   (declare (ignore charset))
-  (let* ((font (climi::device-font-name text-style))
-         (spec (if (listp font) font (list font))))
-    (destructuring-bind (path &optional (size :normal) preload) spec
-      (if-let ((file (and path (probe-file path))))
-        (clim-sys:with-lock-held (*zpb-font-lock*)
-          (ensure-truetype-font port file file size preload))
-        (error "~s can't map the text style ~s." port text-style)))))
+  (let* ((path (device-font-path text-style))
+         (size (device-font-size text-style))
+         (preload (device-font-preload text-style)))
+    (if-let ((file (and path (probe-file path))))
+      (clim-sys:with-lock-held (*zpb-font-lock*)
+        (ensure-truetype-font port file file size preload))
+      (error "~s can't map the text style ~s." port text-style))))

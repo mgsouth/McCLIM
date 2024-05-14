@@ -1996,6 +1996,8 @@
    #:indirect-ink-ink
    #:color-rgba
    #:design-ink
+   ;; Text style extensions:
+   #:text-style-unit
    ;; Font listing extension:
    #:font-family
    #:font-face
@@ -2133,6 +2135,7 @@
    #:pointer-button-state
    #:pointer-position
    #:text-size
+   #:text-style-unit
    #:text-style-ascent
    #:text-style-descent
    #:text-style-height
