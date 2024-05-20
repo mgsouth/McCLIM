@@ -33,6 +33,21 @@
 
 ;;; 23.4 Typed output
 
+(pledge :macro with-output-as-presentation
+        ((stream object type &rest key-args
+          &key modifier single-box parent
+               allow-sensitive-inferiors record-type
+          &allow-other-keys)
+         &body body))
+
+(defgeneric invoke-with-output-as-presentation
+    (cont stream object type &rest key-args &key &allow-other-keys))
+
+(declfun present (object &optional type
+                  &key stream view modifier acceptably for-context-type
+                       single-box sensitive allow-sensitive-inferiors
+                       record-type))
+
 (defgeneric stream-present
     (stream object type
      &key view modifier acceptably for-context-type single-box

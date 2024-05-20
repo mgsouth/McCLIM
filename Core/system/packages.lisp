@@ -2036,7 +2036,9 @@
    #:pointer-input-rectangle
    ;; drawing
    #:with-output-to-drawing-stream
-   #:invoke-with-output-to-drawing-stream))
+   #:invoke-with-output-to-drawing-stream
+   ;; presentations
+   #:invoke-with-output-as-presentation))
 
 ;;; Symbols that must be defined by a backend.
 ;;;

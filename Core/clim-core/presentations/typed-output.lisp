@@ -4,7 +4,7 @@
 ;;;
 ;;;  (c) copyright 1998-2000 by Michael McDonald <mikemac@mikemac.com>
 ;;;  (c) copyright 2001-2002 by Tim Moore <moore@bricoworks.com>
-;;;  (c) copyright 2020 by Daniel Kochmański <daniel@turtleware.eu>
+;;;  (c) copyright 2020-2024 by Daniel Kochmański <daniel@turtleware.eu>
 ;;;
 ;;; ---------------------------------------------------------------------------
 ;;;
@@ -13,38 +13,40 @@
 
 (in-package #:clim-internals)
 
-;;; FIXME impelment invoke-with-output-as-presentation and expand to it.
-(defmacro with-output-as-presentation ((stream object type
-                                        &rest key-args
-                                        &key modifier single-box parent
-                                             (allow-sensitive-inferiors t)
-                                             (record-type ''standard-presentation)
-                                        &allow-other-keys)
-                                       &body body)
-  (declare (ignore parent single-box modifier))
+(defmacro with-output-as-presentation
+    ((stream object type &rest key-args) &body body)
   (with-stream-designator (stream '*standard-output*)
     (multiple-value-bind (decls with-body)
         (get-body-declarations body)
-      (with-gensyms (record-arg continuation)
-        (with-keywords-removed (key-args (:record-type :allow-sensitive-inferiors))
-          `(flet ((,continuation () ,@decls ,@with-body))
-             (declare (dynamic-extent #',continuation))
-             (if (and (output-recording-stream-p ,stream)
-                      *allow-sensitive-inferiors*)
-                 (with-new-output-record
-                     (,stream ,record-type ,record-arg
-                              :object ,object
-                              :type (expand-presentation-type-abbreviation ,type)
-                              ,@key-args)
-                   (let ((*allow-sensitive-inferiors* ,allow-sensitive-inferiors))
-                     (,continuation)))
-                 (,continuation))))))))
+      (with-gensyms (continuation)
+        `(flet ((,continuation () ,@decls ,@with-body))
+           (declare (dynamic-extent (function ,continuation)))
+           (invoke-with-output-as-presentation
+            (function ,continuation) ,stream ,object ,type ,@key-args))))))
 
-;;; XXX The spec calls out that the presentation generic function has
-;;; keyword arguments acceptably and for-context-type, but the
-;;; examples I've seen don't mention them at all in the methods
-;;; defined for present.  So, leave them out of the generic function
-;;; lambda list...
+(defmethod invoke-with-output-as-presentation
+    (continuation stream object type &rest key-args)
+  (declare (ignore stream object type key-args))
+  (funcall continuation))
+
+(defmethod invoke-with-output-as-presentation
+    (continuation (stream output-recording-stream) object type &rest key-args
+     &key (allow-sensitive-inferiors t) (record-type 'standard-presentation)
+     &allow-other-keys)
+  (if *allow-sensitive-inferiors*
+      (with-keywords-removed (key-args (:record-type :allow-sensitive-inferiors))
+        (flet ((continuation (stream record)
+                 (declare (ignore stream record))
+                 (let ((*allow-sensitive-inferiors* allow-sensitive-inferiors))
+                   (funcall continuation))))
+          (apply #'invoke-with-new-output-record stream #'continuation
+                 record-type :object object :type type key-args)))
+      (funcall continuation)))
+
+;;; XXX The spec calls out that the presentation generic function has keyword
+;;; arguments acceptably and for-context-type, but the examples I've seen don't
+;;; mention them at all in the methods defined for present.  So, leave them out
+;;; of the generic function lambda list...
 (define-presentation-generic-function %present present
   (type-key parameters options object type stream view
    &key &allow-other-keys))
@@ -149,8 +151,7 @@
                              (sensitive t)
                              (allow-sensitive-inferiors sensitive)
                              (record-type 'standard-presentation))
-  (declare (ignore modifier single-box allow-sensitive-inferiors sensitive
-                   record-type))
+  (declare (ignore modifier single-box allow-sensitive-inferiors record-type))
   (funcall-presentation-generic-function
    present object type stream view
    :acceptably acceptably :for-context-type for-context-type)
