@@ -1504,12 +1504,9 @@ the associated sheet can be determined."
   ;; FIXME Text direction.
   (let ((text-style (graphics-state-text-style graphic))
         (transformation (compose-transformations
-                         (medium-text-transformation medium
-                                                     origin-x origin-y
-                                                     toward-x toward-y
-                                                     :left-to-right)
-                         (invert-transformation
-                          (medium-native-transformation medium)))))
+                         (medium-transformation medium)
+                         (draw-text-rotation* origin-x origin-y
+                                              toward-x toward-y))))
     (multiple-value-bind (sw sh dx dy)
         (text-metrics medium string :text-style text-style)
       (case align-x
