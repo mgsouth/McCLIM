@@ -258,7 +258,7 @@ is T."
                    (:top baseline)
                    (:center (- (- (/ total-height 2) baseline)))
                    (:bottom (- (- total-height baseline))))))
-          (pdf:set-text-matrix 1 0 0 -1 x y)
+          (pdf:set-text-matrix 1 0 0 1 x y)
           (pdf:draw-text string))))))
 
 ;;; Postscript path functions
