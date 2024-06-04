@@ -145,6 +145,28 @@
     (setf (unit frame) unit)
     (update-text-style frame)))
 
+(define-draw-text-test-command (com-draw-to-stream :keystroke (#\p :control)) ()
+  (let (port dest args)
+    (with-simple-restart (abort "Abort COM-DRAW-TO-STREAM")
+      (accepting-values (stream :own-window t :align-prompts t)
+        (setf port (accept 'symbol :stream stream :prompt "Backend" :default nil))
+        (setf dest (accept 'expression  :stream stream :prompt "Destination" :default nil))
+        (setf args (accept '(sequence t) :stream stream :prompt "Arguments" :default '())))
+      (com-%draw-to-stream port dest args))))
+
+(define-draw-text-test-command com-%draw-to-stream
+    ((port 'symbol)
+     (dest 't)
+     (args 't))
+  (with-application-frame (frame)
+    (apply #'clime:invoke-with-output-to-drawing-stream
+           (lambda (stream)
+             (sleep .1)
+             (with-bounding-rectangle* (x1 y1) *canvas*
+               (with-translation (stream (- x1) (- y1))
+                 (repaint-canvas frame stream (text frame) (transf frame) (coords frame)))))
+           port dest args)))
+
 (defun untransform-coordinates (transformation coords)
   (let ((transf (invert-transformation transformation)))
    (coerce (climi::transform-positions transf coords) 'list)))
