@@ -51,6 +51,8 @@
            #:glyph-info-origin-y
            #:glyph-info-advance-dx
            #:glyph-info-advance-dy)
+  ;; Helpers
+  (:export #:font-prepare-glyphs)
   ;; Consumer exports
   (:export #:ttf-port-mixin
            #:ttf-medium-mixin))
