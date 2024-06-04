@@ -75,34 +75,43 @@
                               :xmin xmin
                               :xmax xmax)))))
 
-;;;
+;;; FIXME this function assumes LTR direction.
 (defun text-size-in-font (font-name size string start end)
   (declare (string string))
   (unless end (setq end (length string)))
-  (let* ((font-info (or (gethash font-name *font-metrics*)
+  (let* ((scale (/ size 1000))
+         (font-info (or (gethash font-name *font-metrics*)
                         (error "Unknown font ~S." font-name)))
          (char-metrics (font-info-char-infos font-info))
-         (scale (/ size 1000))
-         (width 0) (upper-width 0)
+         ;; Vertical metrics.
+         (ascent (font-info-ascent font-info))
+         (descent (font-info-descent font-info))
+         (line-height (+ ascent descent))
          (upper-height 0)
-         (descent 0) (ascent 0) (upper-baseline 0))
+         ;; Horizontal metrics.
+         (width 0)
+         (upper-width 0))
     (loop for i from start below end
-       for char = (aref string i)
-       do (cond ((char= char #\Newline)
-                 (maxf upper-width width) (setf width 0)
-                 (incf upper-baseline (+ ascent descent))
-                 (maxf upper-height (+ ascent descent))
-                 (setf descent 0) (setf ascent 0))
-                (t (let ((metrics (gethash (aref *iso-latin-1-symbolic-names* (char-code char))
-                                           char-metrics)))
-                     (incf width (char-width metrics))
-                     (maxf ascent (char-ascent metrics))
-                     (maxf descent (char-descent metrics))))))
-    (values (* scale (max width upper-width))
-            (* scale (+ ascent descent upper-height))
-            (* scale width)
-            (* scale upper-height)
-            (* scale (+ upper-height ascent))))) ;?
+          for char = (aref string i)
+          do (cond ((char= char #\Newline)
+                    (maxf upper-width width)
+                    (incf upper-height line-height)
+                    (setf width 0))
+                   (t (let ((metrics (gethash (aref *iso-latin-1-symbolic-names* (char-code char))
+                                              char-metrics)))
+                        (incf width (char-width metrics))))))
+    (let* ((total-w (max upper-width width))
+           (total-h (+ upper-height line-height))
+           (final-x width)
+           (final-y (if (char= (aref string (1- end)) #\newline)
+                        total-h
+                        upper-height))
+           (baseline (+ upper-height ascent)))
+      (values (* scale total-w)
+              (* scale total-h)
+              (* scale final-x)
+              (* scale final-y)
+              (* scale baseline)))))
 
 ;;;
 (defconstant +postscript-fonts+
