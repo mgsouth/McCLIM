@@ -1880,7 +1880,9 @@
    #:condition-notify
    ;;
    #:defgeneric*
-   #:defmethod*))
+   #:defmethod*
+   ;; os integration
+   #:run-program))
 
 (defpackage :clim-extensions
   (:use)

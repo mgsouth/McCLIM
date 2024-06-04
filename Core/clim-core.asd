@@ -16,7 +16,8 @@
                  (:file "fix-clisp" :if-feature :clisp)
                  (:file "packages")
                  (:file "multiprocessing")
-                 (:file "setf-star")))
+                 (:file "setf-star")
+                 (:file "os")))
                (:module "utilities"
                 :components
                 ((:file "utilities")
