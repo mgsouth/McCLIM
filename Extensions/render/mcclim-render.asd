@@ -15,8 +15,7 @@
                (:file "vectors")
                (:module "render"
                 :serial t
-                :components ((:file "prim-arc")
-                             (:file "prim-text")))
+                :components ((:file "prim-arc")))
                (:module "backend"
                 :serial t
                 :components ((:file "mirror")
