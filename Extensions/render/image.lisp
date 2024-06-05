@@ -122,6 +122,13 @@
     (do-regions* ((dst-j dst-i x1 y1 x2 y2))
       (set-value dst-i dst-j))))
 
+(defun clear-image (image-array design x1 y1 x2 y2 clipping-region)
+  (declare #-ccl (type argb-pixel-array image-array)
+           (type design design))
+  (with-brushes (nil)
+    (do-regions* ((dst-j dst-i x1 y1 x2 y2))
+      (src-value dst-i dst-j))))
+
 (defun fill-image-mask (image-array design x1 y1 x2 y2 clipping-region
                         stencil-array stencil-dx stencil-dy)
   (declare (type argb-pixel-array image-array)

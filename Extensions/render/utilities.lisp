@@ -165,7 +165,11 @@ top-left. Useful when we iterate over the same array and mutate its state."
 ;;; Expected variable: IMAGE.
 (defun expand-value (type form)
   (let ((fill-form/flip
-          `(macrolet ((set-value (x y)
+          `(macrolet ((src-value (x y)
+                        `(with-clip (,x ,y)
+                           (with-rgba (,x ,y)
+                             (setf (aref image-array ,y ,x) rgba))))
+                      (set-value (x y)
                         `(if-alpha (,x ,y)
                            (setf (aref image-array ,y ,x)
                                  (logxor rgba (aref image-array ,y ,x)))
@@ -178,7 +182,11 @@ top-left. Useful when we iterate over the same array and mutate its state."
                                                               r.bg g.bg b.bg a.bg))))))))
              ,form))
         (fill-form/fill
-          `(macrolet ((set-value (x y)
+          `(macrolet ((src-value (x y)
+                        `(with-clip (,x ,y)
+                           (with-rgba (,x ,y)
+                             (setf (aref image-array ,y ,x) rgba))))
+                      (set-value (x y)
                         `(if-alpha (,x ,y)
                            (setf (aref image-array ,y ,x) rgba)
                            (setf (aref image-array ,y ,x)

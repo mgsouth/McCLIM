@@ -45,6 +45,14 @@
 
 ;;; standard medium protocol
 
+(defmethod medium-clear-area ((medium render-medium-mixin) x1 y1 x2 y2)
+  (when-let* ((mirror (medium-drawable medium))
+              (image (image-mirror-image mirror)))
+    (clear-image (pattern-array image)
+                 (medium-background medium)
+                 x1 y1 x2 y2
+                 (medium-device-region medium))))
+
 (defmethod medium-draw-rectangle* ((medium render-medium-mixin) x1 y1 x2 y2 filled)
   (let ((transformation (medium-device-transformation medium)))
     (if (and filled (rectilinear-transformation-p transformation))
