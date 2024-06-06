@@ -27,95 +27,61 @@
 ;;; graphics-state without consing new objects and assign its state
 ;;; from another graphics-state object. -- jd
 
-
 (defclass graphics-state ()
   ()
   (:documentation "Stores those parts of the medium/stream graphics state
   that need to be restored when drawing an output record"))
 
-(defclass gs-transformation-mixin (graphics-state)
-  ((transformation :initarg :transformation :accessor graphics-state-transformation
-                   :documentation "Medium transformation.")))
+(defmacro define-graphics-state-mixin (class-name slot-names)
+  `(progn
+     (defclass ,class-name (graphics-state)
+       ,(loop for slot-name in slot-names
+              for initarg = (make-keyword slot-name)
+              for acc-name = (intern (format nil "GRAPHICS-STATE-~A" slot-name))
+              collect `(,slot-name :initarg ,initarg :accessor ,acc-name)))
+     (defmethod initialize-instance :after
+         ((object ,class-name) &key (stream nil)
+                                    (medium (when stream (sheet-medium stream))))
+       (when medium
+         ,@(loop for slot-name in slot-names
+                 collect `(unless (slot-boundp object ',slot-name)
+                            (setf (slot-value object ',slot-name)
+                                  (slot-value medium ',slot-name))))))
+     (defmethod (setf graphics-state) :after
+         ((new-gs ,class-name) (old-gs ,class-name))
+       ,@(loop for slot-name in slot-names
+               collect `(setf (slot-value new-gs ',slot-name)
+                              (slot-value old-gs ',slot-name))))))
 
-(defmethod initialize-instance :after ((obj gs-transformation-mixin)
-                                       &key
-                                         (stream nil)
-                                         (medium (when stream
-                                                   (sheet-medium stream))))
-  (when (and medium (not (slot-boundp obj 'transformation)))
-    (setf (slot-value obj 'transformation) (graphics-state-transformation medium))))
+(define-graphics-state-mixin gs-transformation-mixin
+    (transformation))
 
-(defclass gs-ink-mixin (graphics-state)
-  ((ink :initarg :ink :accessor graphics-state-ink)))
+(define-graphics-state-mixin gs-clip-mixin
+    (clipping-region))
 
-(defmethod initialize-instance :after ((obj gs-ink-mixin)
-                                       &key
-                                         (stream nil)
-                                         (medium (when stream
-                                                   (sheet-medium stream))))
-  (when (and medium (not (slot-boundp obj 'ink)))
-    (setf (slot-value obj 'ink) (graphics-state-ink medium))))
+(define-graphics-state-mixin gs-ink-mixin
+    (ink))
 
-(defclass gs-clip-mixin (graphics-state)
-  ((clipping-region :initarg :clipping-region :accessor graphics-state-clip
-                    :documentation "Clipping region in stream coordinates.")))
+(define-graphics-state-mixin gs-line-style-mixin
+    (line-style))
 
-(defmethod initialize-instance :after ((obj gs-clip-mixin)
-                                       &key
-                                         (stream nil)
-                                         (medium (when stream
-                                                   (sheet-medium stream))))
-  (when (and medium (not (slot-boundp obj 'clipping-region)))
-    (setf (slot-value obj 'clipping-region) (graphics-state-clip medium))))
-
-(defclass gs-line-style-mixin (graphics-state)
-  ((line-style :initarg :line-style :accessor graphics-state-line-style)))
-
-(defmethod initialize-instance :after ((obj gs-line-style-mixin)
-                                       &key
-                                         (stream nil)
-                                         (medium (when stream
-                                                   (sheet-medium stream))))
-  (when (and medium (not (slot-boundp obj 'line-style)))
-    (setf (slot-value obj 'line-style) (graphics-state-line-style medium))))
-
-(defmethod graphics-state-line-style-border ((record gs-line-style-mixin) (medium medium))
-  (/ (line-style-effective-thickness (graphics-state-line-style record)
-                                     medium)
-     2))
-
-(defclass gs-text-style-mixin (graphics-state)
-  ((text-style :initarg :text-style :accessor graphics-state-text-style)))
-
-(defmethod initialize-instance :after ((obj gs-text-style-mixin)
-                                       &key
-                                         (stream nil)
-                                         (medium (when stream
-                                                   (sheet-medium stream))))
-  (when (and medium (not (slot-boundp obj 'text-style)))
-    (setf (slot-value obj 'text-style) (graphics-state-text-style medium))))
+(define-graphics-state-mixin gs-text-style-mixin
+    (text-style))
 
 (defclass complete-medium-state
-    (gs-ink-mixin gs-clip-mixin gs-line-style-mixin gs-text-style-mixin gs-transformation-mixin)
+    (gs-transformation-mixin gs-clip-mixin
+     gs-ink-mixin
+     gs-line-style-mixin
+     gs-text-style-mixin)
   ())
 
 (defmethod (setf graphics-state) ((new-gs graphics-state) (gs graphics-state))
   #+(or) "This is a no-op, but :after methods don't work without a primary method.")
 
-(defmethod (setf graphics-state) :after ((new-gs gs-ink-mixin) (gs gs-ink-mixin))
-  (setf (graphics-state-ink gs) (graphics-state-ink new-gs)))
-
-(defmethod (setf graphics-state) :after ((new-gs gs-clip-mixin) (gs gs-clip-mixin))
-  (setf (graphics-state-clip gs) (graphics-state-clip new-gs)))
-
-(defmethod (setf graphics-state) :after ((new-gs gs-line-style-mixin) (gs gs-line-style-mixin))
-  (setf (graphics-state-line-style gs) (graphics-state-line-style new-gs)))
-
-(defmethod (setf graphics-state) :after ((new-gs gs-text-style-mixin) (gs gs-text-style-mixin))
-  (setf (graphics-state-text-style gs) (graphics-state-text-style new-gs)))
-
-(defmethod (setf graphics-state) :after ((new-gs gs-transformation-mixin) (gs gs-transformation-mixin))
-  (setf (graphics-state-transformation gs) (graphics-state-transformation new-gs)))
+(defmethod graphics-state-line-style-border
+    ((record gs-line-style-mixin) (medium medium))
+  (let ((style (graphics-state-line-style record)))
+    (/ (line-style-effective-thickness style medium)) 2))
 
 
 ;;; MEDIUM class
