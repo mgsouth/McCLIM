@@ -386,6 +386,9 @@
           (draw-sliced-ellipse medium cx cy rx ry trans filled eta1 eta2)
           (draw-simple-ellipse medium cx cy rx ry trans filled)))))
 
+(defmethod climi::medium-line-direction (medium) :left-to-right)
+(defmethod climi::medium-page-direction (medium) :top-to-bottom)
+
 (defmethod medium-draw-text* ((medium svg-medium) string x y start end
                               align-x align-y toward-x toward-y
                               transform-glyphs)
@@ -402,7 +405,9 @@
               (:center "central")
               (:baseline "alphabetic")
               (:bottom "text-after-edge"))))
-      (let ((transformation (climb:draw-text-rotation* x y toward-x toward-y)))
+      (let* ((line-direction (climi::medium-line-direction medium))
+             (transformation (climb:draw-text-rotation*
+                              x y toward-x toward-y line-direction)))
         (cl-who:with-html-output (stream drawable)
           (:text :x (fmt x)
                  :y (fmt y)

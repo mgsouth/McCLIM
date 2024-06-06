@@ -227,6 +227,9 @@ is T."
 (defun medium-font (medium)
   (text-style-mapping (port medium) (medium-merged-text-style medium)))
 
+(defmethod climi::medium-line-direction (medium) :left-to-right)
+(defmethod climi::medium-page-direction (medium) :top-to-bottom)
+
 (defmethod medium-draw-text* ((medium pdf-medium) string x y
                               start end
                               align-x align-y

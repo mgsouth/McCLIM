@@ -183,6 +183,14 @@
 (def-stream-method (setf medium-text-style)
     (text-style (stream standard-encapsulating-stream)))
 
+(def-stream-method medium-line-direction ((stream standard-encapsulating-stream)))
+(def-stream-method (setf medium-line-direction)
+    (line-direction (stream standard-encapsulating-stream)))
+
+(def-stream-method medium-page-direction ((stream standard-encapsulating-stream)))
+(def-stream-method (setf medium-page-direction)
+    (page-direction (stream standard-encapsulating-stream)))
+
 (def-stream-method medium-default-text-style
     ((stream standard-encapsulating-stream)))
 

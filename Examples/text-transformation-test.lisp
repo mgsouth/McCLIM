@@ -60,7 +60,8 @@
    (text :accessor text :initform *neutral*)
    (align-x :accessor align-x :initform :left)
    (align-y :accessor align-y :initform :baseline)
-   (direction :accessor transform-glyphs :initform :left-to-right))
+   (line-direction :accessor line-direction :initform :left-to-right)
+   (page-direction :accessor page-direction :initform :top-to-bottom))
   (:menu-bar nil)
   (:reinitialize-frames t)
   (:pane :application :display-function #'display
@@ -134,10 +135,17 @@
   (with-application-frame (frame)
     (setf (align-y frame) align-y)))
 
-(define-draw-text-test-command com-set-transform-glyphs
-    ((direction '(member :left-to-right :right-to-left :top-to-bottom :bottom-to-top)))
+(define-draw-text-test-command com-set-line-direction
+    ((direction '(member :left-to-right :right-to-left
+                         :top-to-bottom :bottom-to-top)))
   (with-application-frame (frame)
-    (setf (transform-glyphs frame) direction)))
+    (setf (line-direction frame) direction)))
+
+(define-draw-text-test-command com-set-page-direction
+    ((direction '(member :left-to-right :right-to-left
+                         :top-to-bottom :bottom-to-top)))
+  (with-application-frame (frame)
+    (setf (page-direction frame) direction)))
 
 (define-draw-text-test-command com-set-text-style-unit
     ((unit '(member :coordinate :normal)))
@@ -153,6 +161,12 @@
         (setf dest (accept 'expression  :stream stream :prompt "Destination" :default nil))
         (setf args (accept '(sequence t) :stream stream :prompt "Arguments" :default '())))
       (com-%draw-to-stream port dest args))))
+
+(define-draw-text-test-command (com-draw-to-stream* :keystroke (#\o :control)) ()
+  (let ((port :pdf)
+        (dest "/tmp/foo.pdf")
+        (args '()))
+    (com-%draw-to-stream port dest args)))
 
 (define-draw-text-test-command com-%draw-to-stream
     ((port 'symbol)
@@ -175,11 +189,12 @@
   (coerce (climi::transform-positions transformation coords) 'list))
 
 (defun draw-string (frame stream string x0 y0 x1 y1)
-  (draw-text* stream string x0 y0 :toward-x x1 :toward-y y1
-                                  :align-x (align-x frame)
-                                  :align-y (align-y frame)
-                                  :text-style (frame-text-style frame)
-                                  :transform-glyphs (transform-glyphs frame))
+  (with-drawing-options (stream :line-direction (line-direction frame)
+                                :page-direction (page-direction frame))
+   (draw-text* stream string x0 y0 :toward-x x1 :toward-y y1
+                                   :align-x (align-x frame)
+                                   :align-y (align-y frame)
+                                   :text-style (frame-text-style frame)))
   (with-drawing-options (stream :line-thickness 3 :line-dashes nil
                                 :ink (compose-in +dark-red+ (make-opacity .5)))
     (let ((dx (- x1 x0))
@@ -277,7 +292,8 @@
                                   :value-changed-callback
                                   (lambda (g v)
                                     (declare (ignore g))
-                                    (execute-frame-command frame `(com-set-align-x ,v)))))))
+                                    (execute-frame-command
+                                     frame `(com-set-align-x ,v)))))))
     (formatting-cell (stream)
       (with-output-as-gadget (stream)
         (declare (ignorable stream))
@@ -287,17 +303,8 @@
                                   :value-changed-callback
                                   (lambda (g v)
                                     (declare (ignore g))
-                                    (execute-frame-command frame `(com-set-align-y ,v)))))))
-    (formatting-cell (stream)
-      (with-output-as-gadget (stream)
-        (declare (ignorable stream))
-        (labelling (:label "TRANSFORM-GLYPHS" :background +white+)
-          (make-pane 'option-pane :items '(:left-to-right :right-to-left :top-to-bottom :bottom-to-top)
-                                  :value (transform-glyphs frame)
-                                  :value-changed-callback
-                                  (lambda (g v)
-                                    (declare (ignore g))
-                                    (execute-frame-command frame `(com-set-transform-glyphs ,v)))))))
+                                    (execute-frame-command
+                                     frame `(com-set-align-y ,v)))))))
     (formatting-cell (stream)
       (with-output-as-gadget (stream)
         (declare (ignorable stream))
@@ -307,7 +314,32 @@
                                   :value-changed-callback
                                   (lambda (g v)
                                     (declare (ignore g))
-                                    (execute-frame-command frame `(com-set-text-style-unit ,v))))))))
+                                    (execute-frame-command
+                                     frame `(com-set-text-style-unit ,v)))))))
+    (formatting-cell (stream)
+      (with-output-as-gadget (stream)
+        (declare (ignorable stream))
+        (labelling (:label "LINE-DIRECTION" :background +white+)
+          (make-pane 'option-pane :items '(:left-to-right :right-to-left
+                                           :top-to-bottom :bottom-to-top)
+                                  :value (line-direction frame)
+                                  :value-changed-callback
+                                  (lambda (g v)
+                                    (declare (ignore g))
+                                    (execute-frame-command
+                                     frame `(com-set-line-direction ,v)))))))
+    (formatting-cell (stream)
+      (with-output-as-gadget (stream)
+        (declare (ignorable stream))
+        (labelling (:label "PAGE-DIRECTION" :background +white+)
+          (make-pane 'option-pane :items '(:left-to-right :right-to-left
+                                           :top-to-bottom :bottom-to-top)
+                                  :value (page-direction frame)
+                                  :value-changed-callback
+                                  (lambda (g v)
+                                    (declare (ignore g))
+                                    (execute-frame-command
+                                     frame `(com-set-page-direction ,v))))))))
   (multiple-value-bind (x0 y0) (stream-cursor-initial-position stream)
     (declare (ignore x0))
     (setf (stream-cursor-position stream) (values 660 y0))

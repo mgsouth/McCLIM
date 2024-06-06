@@ -563,6 +563,9 @@ setmatrix")
   (apply #'concatenate 'string
          (map 'list #'postscript-escape-char string)))
 
+(defmethod climi::medium-line-direction (medium) :left-to-right)
+(defmethod climi::medium-page-direction (medium) :top-to-bottom)
+
 (defmethod medium-draw-text* ((medium postscript-medium) string x y
                               start end
                               align-x align-y

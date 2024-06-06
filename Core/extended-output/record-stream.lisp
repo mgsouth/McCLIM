@@ -255,6 +255,7 @@ add output recording facilities. It is not instantiable."))
                                     width height baseline))
 
 (defun stream-add-record-output (stream record width height base-x base-y)
+  (declare (ignore width height base-x base-y))
   (add-object-to-text-record (stream-text-output-record stream nil) record))
 
 

@@ -68,11 +68,16 @@
 (define-graphics-state-mixin gs-text-style-mixin
     (text-style))
 
-(defclass complete-medium-state
-    (gs-transformation-mixin gs-clip-mixin
-     gs-ink-mixin
-     gs-line-style-mixin
-     gs-text-style-mixin)
+(define-graphics-state-mixin gs-layout-mixin
+    (line-direction
+     page-direction))
+
+(defclass complete-medium-state (gs-transformation-mixin
+                                 gs-clip-mixin
+                                 gs-ink-mixin
+                                 gs-line-style-mixin
+                                 gs-text-style-mixin
+                                 gs-layout-mixin)
   ())
 
 (defmethod (setf graphics-state) ((new-gs graphics-state) (gs graphics-state))
@@ -94,17 +99,7 @@
   ())
 
 (defclass basic-medium (transform-coordinates-mixin complete-medium-state medium)
-  ((foreground :initarg :foreground
-               :initform +black+
-               :accessor medium-foreground
-               :reader foreground)
-   (background :initarg :background
-               :initform +white+
-               :accessor medium-background
-               :reader background)
-   (ink :initarg :ink
-        :initform +foreground-ink+
-        :accessor medium-ink)
+  (;; Graphics state slots - names must coincide with complete-medium-state.
    (transformation :type transformation
                    :initarg :transformation
                    :initform +identity-transformation+
@@ -113,17 +108,31 @@
                     :initarg :clipping-region
                     :initform +everywhere+
                     :documentation "Clipping region in the SHEET coordinates.")
-   ;; always use this slot through its accessor, since there may
-   ;; be secondary methods on it -RS 2001-08-23
+   (ink :initarg :ink
+        :initform +foreground-ink+
+        :accessor medium-ink)
    (line-style :initarg :line-style
                :initform (make-line-style)
                :accessor medium-line-style)
-   ;; always use this slot through its accessor, since there may
-   ;; be secondary methods on it -RS 2001-08-23
    (text-style :initarg :text-style
                :initform *default-text-style*
                :accessor medium-text-style
                :type text-style)
+   (line-direction :initarg :line-direction
+                   :initform :left-to-right
+                   :accessor medium-line-direction)
+   (page-direction :initarg :page-direction
+                   :initform :top-to-bottom
+                   :accessor medium-page-direction)
+   ;; Default values
+   (foreground :initarg :foreground
+               :initform +black+
+               :accessor medium-foreground
+               :reader foreground)
+   (background :initarg :background
+               :initform +white+
+               :accessor medium-background
+               :reader background)
    (default-text-style :initarg :default-text-style
                        :initform *default-text-style*
                        :accessor medium-default-text-style
