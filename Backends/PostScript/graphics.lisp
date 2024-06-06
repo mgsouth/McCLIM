@@ -597,6 +597,6 @@ setmatrix")
                    (:bottom (- (- total-height baseline))))))
           (moveto* file-stream x y)
           (format file-stream "[~,3F ~,3F ~,3F ~,3F ~,3F ~,3F] concat~%"
-                  1 0 0 1 0 0)
+                  1 0 0 -1 0 0)
           (format file-stream "(~A) show~%"
                   (postscript-escape-string string)))))))

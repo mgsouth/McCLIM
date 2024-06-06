@@ -13,33 +13,21 @@
                   ((:top-to-bottom :bottom-to-top) (find-angle 0 1 dx dy)))))
     (make-rotation-transformation* angle x y)))
 
-(defun medium-text-transformation (medium x y toward-x toward-y
-                                   &optional direction)
-  (if (eq (text-style-unit (medium-text-style medium)) :coordinate)
-      (if (ecase (canonical-text-direction direction)
-            ((:left-to-right :right-to-left)
-             (and (= y toward-y) (< x toward-x)))
-            ((:top-to-bottom :bottom-to-top)
-             (and (< y toward-y) (= x toward-x))))
-          (compose-transformations
-           (medium-device-transformation medium)
-           (make-translation-transformation x y))
-          (compose-transformations
-           (compose-transformations
-            (medium-device-transformation medium)
-            (draw-text-rotation* x y toward-x toward-y direction))
-           (make-translation-transformation x y)))
-      (with-transformed-positions* ((medium-device-transformation medium)
-                                    x y toward-x toward-y)
-        (if (ecase (canonical-text-direction direction)
-              ((:left-to-right :right-to-left)
-               (and (= y toward-y) (< x toward-x)))
-              ((:top-to-bottom :bottom-to-top)
-               (and (< y toward-y) (= x toward-x))))
-            (make-translation-transformation x y)
-            (compose-transformations
-             (draw-text-rotation* x y toward-x toward-y direction)
-             (make-translation-transformation x y))))))
+(defun medium-text-transformation (medium x0 y0 x1 y1 &optional dir)
+  (flet ((text-transformation (fx fy tx ty)
+           (if (ecase (canonical-text-direction dir)
+                 ((:left-to-right :right-to-left) (and (= fy ty) (< fx tx)))
+                 ((:top-to-bottom :bottom-to-top) (and (< fy ty) (= fx tx))))
+               (make-translation-transformation fx fy)
+               (compose-transformations
+                (draw-text-rotation* fx fy tx ty dir)
+                (make-translation-transformation fx fy)))))
+    (if (eq (text-style-unit (medium-text-style medium)) :coordinate)
+        (compose-transformations (medium-device-transformation medium)
+                                 (text-transformation x0 y0 x1 y1))
+        (with-transformed-positions* ((medium-transformation medium) x0 y0 x1 y1)
+          (compose-transformations (medium-native-transformation medium)
+                                   (text-transformation x0 y0 x1 y1))))))
 
 ;;; The baseline is assumed to be at y=0.
 (defun align-bounding-rectangle (xmin ymin xmax ymax align-x align-y)
