@@ -406,6 +406,8 @@ cursor-dx cursor-dy"
   (declare (optimize (speed 3))
            (type index start end)
            (type string string))
+  (when (>= start end)
+    (return-from font-prepare-glyphs (values 0 0 0 0 0 0)))
   (ecase direction
     (:left-to-right
      (font-prepare-glyphs/ltr

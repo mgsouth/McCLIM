@@ -37,68 +37,107 @@ a font implementing the protocol defined below."))
               origin-x origin-y
               ascent))))
 
-;;; A fallback drawing routine using the function MEDIUM-DRAW-POLYGON*.
+;;; Alternative version could take pixmaps from font-glyph-info, convert them to
+;;; patterns and call draw-design on that. This would be faster than consing new
+;;; polygons each time, but our goal is to go straight from paths.
+;;;
+;;; ORIGIN-X and ORIGIN-Y are relative to glyph pixmap, while polygons are
+;;; specified relative to the drawing origin, that's why we compute offset.
+;;; Compare with the function GLYPH-INFO-ADVANCE.
+(defun naive-render-composite-glyphs (font glyph-codes
+                                      medium x y transformation direction)
+  (flet ((compute-offset-x (info)
+           (ecase direction
+             (:left-to-right 0)
+             (:right-to-left (- 0
+                                (glyph-info-width info)
+                                (glyph-info-left info)))
+             (:top-to-bottom (- 0
+                                (/ (glyph-info-width info) 2.0)
+                                (glyph-info-left info)))
+             (:bottom-to-top (- 0
+                                (/ (glyph-info-width info) 2.0)
+                                (glyph-info-left info)))))
+         (compute-offset-y (info)
+           (declare (ignore info))
+           (ecase direction
+             (:left-to-right 0)
+             (:right-to-left 0)
+             (:top-to-bottom (font-ascent font))
+             (:bottom-to-top (- 0 (font-descent font))))))
+   (with-drawing-options (medium :transformation transformation)
+     (loop with loader = (zpb-ttf-font-loader (clime:font-face font))
+           with units->pixels = (slot-value font 'units->pixels)
+           for x0 = x then (+ x0 (glyph-info-advance-dx info))
+           for y0 = y then (+ y0 (glyph-info-advance-dy info))
+           for code across glyph-codes
+           for info = (font-glyph-info font code direction)
+           for char = (glyph-code-char code)
+           for glyf = (zpb-ttf:find-glyph char loader)
+           ;; The glyph origin may be different than (0 0). Moreover glyphs are
+           ;; specified in graphics coordinate system.
+           for x1 = (+ x0 (compute-offset-x info))
+           for y1 = (+ y0 (compute-offset-y info))
+           for updown = (make-scaling-transformation* 1 -1 x1 y1)
+           do (climi::collect (polygons)
+                (zpb-ttf:do-contours (contour glyf)
+                  (climi::collect (result)
+                    (labels ((collect-coords (&rest coords)
+                               (climi::do-sequence ((px py) coords)
+                                 (result (+ x1 (* units->pixels px))
+                                         (+ y1 (* units->pixels py)))))
+                             (process-segment (p0 p1 p2)
+                               (multiple-value-bind (x0 y0 x1 y1 x2 y2 x3 y3)
+                                   (climi::bezier-segment/quadric-to-cubic
+                                    (zpb-ttf:x p0) (zpb-ttf:y p0)
+                                    (zpb-ttf:x p1) (zpb-ttf:y p1)
+                                    (zpb-ttf:x p2) (zpb-ttf:y p2))
+                                 (apply #'collect-coords
+                                        (climi::polygonalize-bezigon
+                                         (list x0 y0 x1 y1 x2 y2 x3 y3)))))
+                             (process-contour (contour)
+                               (zpb-ttf:do-contour-segments (p0 p1 p2) contour
+                                 (if (null p1)
+                                     (collect-coords
+                                      (zpb-ttf:x p0) (zpb-ttf:y p0)
+                                      (zpb-ttf:x p2) (zpb-ttf:y p2))
+                                     (process-segment p0 p1 p2)))))
+                      (process-contour contour)
+                      (polygons (result)))))
+                (with-drawing-options (medium :transformation updown)
+                  (map-over-region-set-regions
+                   (lambda (polygon)
+                     (draw-design medium polygon))
+                   (let ((splits (climi::polygon-op-inner*
+                                  (loop for coords in (polygons)
+                                        for polygon = (make-polygon* coords)
+                                        appending (climi::polygon->pg-edges
+                                                   polygon nil))
+                                  :non-zero)))
+                     (climi::pg-splitters->polygons splits)))))))))
+
 (defmethod medium-draw-text* ((medium ttf-medium-mixin) string x y start end
                               align-x align-y
                               toward-x toward-y transform-glyphs)
-  (let* ((line-dir (climi::medium-line-direction))
-         (rotation (climi::draw-text-rotation* x y toward-x toward-y line-dir))
-         (scaling (make-scaling-transformation* 1 -1 x y))
-         (combined (compose-transformations rotation scaling)))
-    (multiple-value-bind (width height cursor-dx cursor-dy ascent)
-        (text-size medium string :start start :end end)
-      (declare (ignore cursor-dx cursor-dy))
-      (let ((dx (ecase align-x
-                  (:left   0)
-                  (:center (- (/ width 2)))
-                  (:right  (- width))))
-            (dy (- (ecase align-y
-                     (:baseline  0)
-                     (:top       ascent)
-                     (:center    (- ascent (/ height 2)))
-                     (:bottom    (- ascent height))))))
-        (incf x dx)
-        (incf y dy)
-        (setf end (if (null end)
-                      (length string)
-                      (min end (length string))))))
-    (with-drawing-options (medium :transformation combined)
-      (loop with font = (text-style-mapping (port medium) (medium-text-style medium))
-            with loader = (zpb-ttf-font-loader (clime:font-face font))
-            with units->pixels = (slot-value font 'units->pixels)
-            for glyph     = nil then (font-glyph-info font code line-dir)
-            for current-x = x then (+ current-x (glyph-info-advance-dx glyph))
-            for current-y = y then (+ current-y (glyph-info-advance-dy glyph))
-            for code across (string-glyph-codes string :start start :end end)
-            for char = (glyph-code-char code)
-            for glyf = (zpb-ttf:find-glyph char loader)
-            do (climi::collect (polygons)
-                 (zpb-ttf:do-contours (contour glyf)
-                   (climi::collect (result)
-                     (labels ((collect-coords (&rest coords)
-                                (climi::do-sequence ((x y) coords)
-                                  (result (+ current-x (* units->pixels x))
-                                          (+ current-y (* units->pixels y)))))
-                              (process-segment (p0 p1 p2)
-                                (multiple-value-bind (x0 y0 x1 y1 x2 y2 x3 y3)
-                                    (climi::bezier-segment/quadric-to-cubic (zpb-ttf:x p0) (zpb-ttf:y p0)
-                                                                            (zpb-ttf:x p1) (zpb-ttf:y p1)
-                                                                            (zpb-ttf:x p2) (zpb-ttf:y p2))
-                                  (apply #'collect-coords
-                                         (climi::polygonalize-bezigon (list x0 y0 x1 y1 x2 y2 x3 y3)))))
-                              (process-contour (contour)
-                                (zpb-ttf:do-contour-segments (p0 p1 p2) contour
-                                  (if (null p1)
-                                      (collect-coords (zpb-ttf:x p0) (zpb-ttf:y p0)
-                                                      (zpb-ttf:x p2) (zpb-ttf:y p2))
-                                      (process-segment p0 p1 p2)))))
-                       (process-contour contour)
-                       (polygons (result)))))
-                 (map-over-region-set-regions
-                  (lambda (polygon) (draw-design medium polygon))
-                  (let ((splits (climi::polygon-op-inner*
-                                 (loop for coords in (polygons)
-                                       for polygon = (make-polygon* coords)
-                                       appending (climi::polygon->pg-edges polygon nil))
-                                 :non-zero)))
-                    (climi::pg-splitters->polygons splits))))))))
+  (climi::orf end (length string))
+  (let* ((direction (climi::medium-line-direction medium))
+         ;; DRAW-DESIGN doesn't operate in native coordinates. This is why we
+         ;; need to "cancel" the device transformation.
+         (base (compose-transformations
+                (invert-transformation (medium-device-transformation medium))
+                (medium-text-transformation
+                 medium x y toward-x toward-y direction)))
+         ;; Glyph things.
+         (font (text-style-mapping (port medium)
+                                   (medium-text-style medium)))
+         (glyph-codes (string-glyph-codes string :start start :end end))
+         ;; GLYPH-IDS are not used, but font-prepare-glyphs expects it.
+         (glyph-ids (make-array (- end start)
+                                :element-type '(unsigned-byte 32)
+                                :adjustable nil :fill-pointer nil)))
+    (multiple-value-bind (x y xmin ymin xmax ymax)
+        (font-prepare-glyphs
+         glyph-ids font string start end 0 0 align-x align-y direction)
+      (declare (ignore xmin ymin xmax ymax))
+      (naive-render-composite-glyphs
+       font glyph-codes medium x y base direction))))
