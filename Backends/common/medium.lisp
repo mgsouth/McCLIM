@@ -13,22 +13,21 @@
                   ((:top-to-bottom :bottom-to-top) (find-angle 0 1 dx dy)))))
     (make-rotation-transformation* angle x y)))
 
-(defun medium-text-transformation (medium x0 y0 x1 y1)
-  (let ((line-direction (medium-line-direction medium)))
-    (flet ((text-transformation (fx fy tx ty)
-             (if (ecase line-direction
-                   ((:left-to-right :right-to-left) (and (= fy ty) (< fx tx)))
-                   ((:top-to-bottom :bottom-to-top) (and (< fy ty) (= fx tx))))
-                 (make-translation-transformation fx fy)
-                 (compose-transformations
-                  (draw-text-rotation* fx fy tx ty line-direction)
-                  (make-translation-transformation fx fy)))))
-      (if (eq (text-style-unit (medium-text-style medium)) :coordinate)
-          (compose-transformations (medium-device-transformation medium)
-                                   (text-transformation x0 y0 x1 y1))
-          (with-transformed-positions* ((medium-transformation medium) x0 y0 x1 y1)
-            (compose-transformations (medium-native-transformation medium)
-                                     (text-transformation x0 y0 x1 y1)))))))
+(defun medium-text-transformation (medium x0 y0 x1 y1 line-direction)
+  (flet ((text-transformation (fx fy tx ty)
+           (if (ecase line-direction
+                 ((:left-to-right :right-to-left) (and (= fy ty) (< fx tx)))
+                 ((:top-to-bottom :bottom-to-top) (and (< fy ty) (= fx tx))))
+               (make-translation-transformation fx fy)
+               (compose-transformations
+                (draw-text-rotation* fx fy tx ty line-direction)
+                (make-translation-transformation fx fy)))))
+    (if (eq (text-style-unit (medium-text-style medium)) :coordinate)
+        (compose-transformations (medium-device-transformation medium)
+                                 (text-transformation x0 y0 x1 y1))
+        (with-transformed-positions* ((medium-transformation medium) x0 y0 x1 y1)
+          (compose-transformations (medium-native-transformation medium)
+                                   (text-transformation x0 y0 x1 y1))))))
 
 ;;; The baseline is assumed to be at y=0.
 (defun align-bounding-rectangle (xmin ymin xmax ymax align-x align-y)
@@ -57,4 +56,3 @@
        (setf ymin (- vsize))
        (setf ymax 0))))
   (values xmin ymin xmax ymax))
-

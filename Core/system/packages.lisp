@@ -2099,9 +2099,8 @@
    ;; Mixins and helpers available for backends
    #:transform-coordinates-mixin
    #:draw-text-rotation*
-   #:medium-text-transformation
    #:align-bounding-rectangle
-   #:canonical-text-direction
+   #:medium-text-transformation
    ;; From CLIM (mentioned in the spec)
    #:adopt-frame
    #:allocate-space
@@ -2153,6 +2152,8 @@
    #:medium-native-region
    ;; CLIM-EXTENSIONS
    #:medium-miter-limit
+   #:medium-line-direction
+   #:medium-page-direction
    ;; selection
    #:release-selection
    #:publish-selection

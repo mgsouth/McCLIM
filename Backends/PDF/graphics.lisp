@@ -227,9 +227,6 @@ is T."
 (defun medium-font (medium)
   (text-style-mapping (port medium) (medium-merged-text-style medium)))
 
-(defmethod climi::medium-line-direction (medium) :left-to-right)
-(defmethod climi::medium-page-direction (medium) :top-to-bottom)
-
 (defmethod medium-draw-text* ((medium pdf-medium) string x y
                               start end
                               align-x align-y
@@ -250,7 +247,9 @@ is T."
         (declare (ignore final-x final-y))
         (multiple-value-bind (mxx mxy myx myy tx ty)
             (climi::get-transformation
-             (medium-text-transformation medium x y toward-x toward-y))
+             ;; PDF backend can't change the text direction.
+             (medium-text-transformation
+              medium x y toward-x toward-y :left-to-right))
           (pdf:set-transform-matrix mxx mxy myx myy tx ty))
         (let ((x (ecase align-x
                    (:left 0)

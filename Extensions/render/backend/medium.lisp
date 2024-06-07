@@ -213,9 +213,9 @@
          (text-style (medium-text-style medium))
          (font (text-style-mapping port text-style))
          (glyph-ids (glyph-codes-buffer medium (- end start)))
-         (direction (climi::medium-line-direction medium))
-         (transformation (climb:medium-text-transformation
-                          medium x y toward-x toward-y)))
+         (direction (medium-line-direction medium))
+         (transformation (medium-text-transformation
+                          medium x y toward-x toward-y direction)))
     (multiple-value-bind (x y xmin ymin xmax ymax)
         (mcclim-truetype:font-prepare-glyphs
          glyph-ids font string start end 0 0 align-x align-y direction)

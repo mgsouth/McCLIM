@@ -585,7 +585,8 @@ setmatrix")
         (declare (ignore final-x final-y))
         (multiple-value-bind (mxx mxy myx myy tx ty)
             (climi::get-transformation
-             (medium-text-transformation medium x y toward-x toward-y))
+             (medium-text-transformation
+              medium x y toward-x toward-y :left-to-right))
           (format file-stream "[~,3F ~,3F ~,3F ~,3F ~,3F ~,3F] concat~%"
                   mxx mxy myx myy tx ty))
         ;; Only one line?

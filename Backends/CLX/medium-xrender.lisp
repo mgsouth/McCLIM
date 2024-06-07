@@ -417,9 +417,9 @@
          (font (text-style-mapping port text-style))
          (glyph-ids (clx-render-medium-%buffer% medium))
          (glyph-set (ensure-glyph-set port))
-         (direction (climi::medium-line-direction medium))
+         (direction (medium-line-direction medium))
          (transformation (medium-text-transformation
-                          medium x y toward-x toward-y)))
+                          medium x y toward-x toward-y direction)))
     (multiple-value-bind (x y xmin ymin xmax ymax)
         (font-prepare-glyphs glyph-ids font string start end
                              0 0 align-x align-y direction)
