@@ -10,7 +10,8 @@
 
 (in-package #:clim-clx)
 
-(defclass clx-render-medium (ttf-medium-mixin clx-medium)
+(defclass clx-render-medium (climi::multiline-medium-mixin
+                             ttf-medium-mixin clx-medium)
   ((%buffer% ;; stores the drawn string glyph ids.
     :initform (make-array 1024
                           :element-type '(unsigned-byte 32)

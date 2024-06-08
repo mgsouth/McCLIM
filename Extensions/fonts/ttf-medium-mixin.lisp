@@ -28,14 +28,14 @@ a font implementing the protocol defined below."))
                                    (merge-text-styles
                                     text-style
                                     (medium-merged-text-style medium))))
-         (ascent (font-ascent font))
-         (line-height (+ ascent (font-descent font))))
-    (multiple-value-bind (xmin ymin xmax ymax origin-x origin-y)
+         (baseline (font-ascent font))
+         (line-height (+ baseline (font-descent font))))
+    (multiple-value-bind (xmin ymin xmax ymax cursor-dx cursor-dy)
         (line-bbox font string start end)
       (declare (ignore xmin ymin xmax ymax))
-      (values origin-x (+ origin-y line-height)
-              origin-x origin-y
-              ascent))))
+      (values cursor-dx (+ cursor-dy line-height)
+              cursor-dx cursor-dy
+              baseline))))
 
 ;;; Alternative version could take pixmaps from font-glyph-info, convert them to
 ;;; patterns and call draw-design on that. This would be faster than consing new

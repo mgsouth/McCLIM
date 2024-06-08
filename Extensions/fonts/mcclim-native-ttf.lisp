@@ -219,6 +219,8 @@
 (declaim (inline char-glyph-code glyph-code-char))
 (defun char-glyph-code (char next)
   (declare (optimize (speed 3) (safety 0)))
+  ;; Instead of an error we present [] character.
+  #+ (or)
   (assert (and (char/= char #\newline)
                (not (eql next #\newline))))
   (if next
@@ -350,22 +352,22 @@ of resulting sequence are equal."
 
 
 (defun line-bbox (font string start end)
-  (let ((origin-x 0)
-        (origin-y 0)
+  (let ((cursor-dx 0)
+        (cursor-dy 0)
         (xmin most-positive-fixnum)
         (ymin most-positive-fixnum)
         (xmax most-negative-fixnum)
         (ymax most-negative-fixnum))
     (flet ((process-code (code)
              (let ((glyph (font-glyph-info font code :left-to-right)))
-               (minf xmin (+ origin-x (glyph-info-left glyph)))
-               (minf ymin (+ origin-y (- (glyph-info-top glyph))))
-               (incf origin-x (glyph-info-advance-dx glyph))
-               (incf origin-y (glyph-info-advance-dy glyph))
-               (maxf xmax origin-x)
-               (maxf ymax origin-y))))
+               (minf xmin (+ cursor-dx (glyph-info-left glyph)))
+               (minf ymin (+ cursor-dy (- (glyph-info-top glyph))))
+               (incf cursor-dx (glyph-info-advance-dx glyph))
+               (incf cursor-dy (glyph-info-advance-dy glyph))
+               (maxf xmax cursor-dx)
+               (maxf ymax cursor-dy))))
       (map-over-string-glyph-codes #'process-code string start end)
-      (values xmin ymin xmax ymax origin-x origin-y))))
+      (values xmin ymin xmax ymax cursor-dx cursor-dy))))
 
 (defun font-text-extents (font string &key start end direction)
   "Function computes text extents as if it were drawn with a specified font. It
