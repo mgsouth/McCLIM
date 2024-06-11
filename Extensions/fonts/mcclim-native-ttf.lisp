@@ -254,8 +254,13 @@ of resulting sequence are equal."
   (alexandria:minf end (length string))
   (when (>= start end)
     (return-from string-glyph-codes #()))
-  (let ((array (make-array (- end start) :fill-pointer 0)))
-    (flet ((doit (code) (vector-push code array)))
+  (let ((index 0)
+        (array (make-array (- end start) :fill-pointer nil
+                                         :adjustable nil
+                                         :element-type '(unsigned-byte 32))))
+    (flet ((doit (code)
+             (setf (aref array index) code)
+             (incf index)))
       (declare (dynamic-extent #'doit))
       (map-over-string-glyph-codes #'doit string start end))
     array))
