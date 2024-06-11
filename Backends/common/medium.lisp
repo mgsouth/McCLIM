@@ -88,41 +88,65 @@
 
 (defclass multiline-medium-mixin (medium) ())
 
+(defmethod text-size :around ((medium multiline-medium-mixin) string
+                              &key text-style start end)
+  (orf start 0)
+  (orf end (length string))
+  (loop with ldir = (medium-line-direction medium)
+        with pdir = (medium-page-direction medium)
+        with block-ws = 0
+        with block-hs = 0
+        with cursor-dx = 0
+        with cursor-dy = 0
+        with fbaseline = 0
+        for idx0 = start then (1+ idx1)
+        for idx1 = (position #\newline string :start idx0 :end end)
+        while (< idx0 end)
+        do (multiple-value-bind (width height dx dy baseline)
+               (call-next-method medium string
+                                 :text-style text-style :start idx0 :end (or idx1 end))
+             (maxf block-ws width)
+             (incf block-hs height)
+             (setf fbaseline baseline)
+             (if (null idx1)            ;last line
+                 (progn
+                   (ecase ldir
+                     ((:left-to-right :right-to-left) (setf cursor-dx dx))
+                     ((:top-to-bottom :bottom-to-top) (setf cursor-dy dy))))
+                 (progn
+                   (ecase ldir
+                     ((:left-to-right :right-to-left) (setf cursor-dx 0))
+                     ((:top-to-bottom :bottom-to-top) (setf cursor-dy 0)))
+                   (ecase pdir
+                     (:top-to-bottom (incf cursor-dy height))
+                     (:bottom-to-top (decf cursor-dy height))
+                     (:left-to-right (incf cursor-dx height))
+                     (:right-to-left (decf cursor-dx height))))))
+        until (null idx1)
+        finally (return (values block-ws block-hs cursor-dx cursor-dy fbaseline))))
+
 (defmethod medium-draw-text* :around ((medium multiline-medium-mixin) string x y
                                       start end
                                       align-x align-y
                                       toward-x toward-y transform-glyphs)
-  (loop with page-dir = (medium-page-direction medium)
-        with line-dir = (medium-line-direction medium)
-        with trn = (draw-text-rotation* x y toward-x toward-y line-dir)
-        for idx0 = start then (1+ idx1)
-        for idx1 = (position #\newline string :start idx0 :end end)
-        do (call-next-method medium string x y idx0 idx1
-                             align-x align-y toward-x toward-y
-                             transform-glyphs)
-           (multiple-value-bind (w h dx dy)
-               (if (null idx1)
-                   (text-size medium string :start idx0) ; v \n included
-                   (text-size medium string :start idx0 :end (1+ idx1)))
-             (declare (ignore w dx dy))
-             ;; FIXME text-size should recognize newlines from get-go and this
-             ;; atracious ecase should vanish. -- jd 2024-06-08
-             #+ (or) (progn (incf x dx) (incf toward-x dx)
-                            (incf y dy) (incf toward-y dy))
-             (multiple-value-bind (w h)
-                 (ecase line-dir
-                   ((:left-to-right :right-to-left)
-                    (ecase page-dir
-                      ((:top-to-bottom :left-to-right)
-                       (transform-distance trn 0 h))
-                      ((:bottom-to-top :right-to-left)
-                       (transform-distance trn 0 (- h)))))
-                   ((:top-to-bottom :bottom-to-top)
-                    (ecase page-dir
-                      ((:bottom-to-top :left-to-right)
-                       (transform-distance trn h 0))
-                      ((:top-to-bottom :right-to-left)
-                       (transform-distance trn (- h) 0)))))
-               (incf x w) (incf toward-x w)
-               (incf y h) (incf toward-y h)))
-        while idx1))
+  (let* ((line-direction (medium-line-direction medium))
+         (transformation (compose-transformations
+                          (draw-text-rotation* x y toward-x toward-y line-direction)
+                          (ecase (text-style-unit (medium-text-style medium))
+                            (:coordinate +identity-transformation+)
+                            (:normal (invert-transformation
+                                      (medium-device-transformation medium)))))))
+    (loop for idx0 = start then (1+ idx1)
+          for idx1 = (position #\newline string :start idx0 :end end)
+          do (call-next-method medium string x y idx0 (or idx1 end)
+                               align-x align-y toward-x toward-y
+                               transform-glyphs)
+             (multiple-value-bind (w h dx dy baseline)
+                 (if (null idx1)
+                     (text-size medium string :start idx0 :end end) ; vvv \n included
+                     (text-size medium string :start idx0 :end (1+ idx1)))
+               (declare (ignore w h baseline))
+               (with-transformed-distance (transformation dx dy)
+                 (incf x dx) (incf toward-x dx)
+                 (incf y dy) (incf toward-y dy)))
+          while idx1)))
