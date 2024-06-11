@@ -191,10 +191,11 @@
 (defun draw-string (frame stream string x0 y0 x1 y1)
   (with-drawing-options (stream :line-direction (line-direction frame)
                                 :page-direction (page-direction frame))
-   (draw-text* stream string x0 y0 :toward-x x1 :toward-y y1
-                                   :align-x (align-x frame)
-                                   :align-y (align-y frame)
-                                   :text-style (frame-text-style frame)))
+    (surrounding-output-with-border (stream :filled nil :padding 0)
+      (draw-text* stream string x0 y0 :toward-x x1 :toward-y y1
+                                      :align-x (align-x frame)
+                                      :align-y (align-y frame)
+                                      :text-style (frame-text-style frame))))
   (with-drawing-options (stream :line-thickness 3 :line-dashes nil
                                 :ink (compose-in +dark-red+ (make-opacity .5)))
     (let ((dx (- x1 x0))
