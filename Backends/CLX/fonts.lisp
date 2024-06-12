@@ -99,7 +99,12 @@
         end (or end (length string))
         text-style (clim:merge-text-styles text-style (clim:medium-merged-text-style medium)))
   (when (= start end)
-    (return-from climb:text-size (values 0 0 0 0 (clim:text-style-ascent text-style medium))))
+    (return-from climb:text-size
+      (values 0
+              (text-style-height text-style medium)
+              0
+              0
+              (text-style-ascent text-style medium))))
   (let ((text (string string))
         (font (text-style-mapping (clim:port medium) text-style)))
     (multiple-value-bind (xmin ymin xmax ymax

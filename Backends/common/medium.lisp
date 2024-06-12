@@ -92,38 +92,36 @@
                               &key text-style start end)
   (orf start 0)
   (orf end (length string))
-  (loop with ldir = (medium-line-direction medium)
-        with pdir = (medium-page-direction medium)
-        with block-ws = 0
-        with block-hs = 0
-        with cursor-dx = 0
-        with cursor-dy = 0
-        with fbaseline = 0
-        for idx0 = start then (1+ idx1)
-        for idx1 = (position #\newline string :start idx0 :end end)
-        while (< idx0 end)
-        do (multiple-value-bind (width height dx dy baseline)
-               (call-next-method medium string
-                                 :text-style text-style :start idx0 :end (or idx1 end))
-             (maxf block-ws width)
-             (incf block-hs height)
-             (setf fbaseline baseline)
-             (if (null idx1)            ;last line
-                 (progn
-                   (ecase ldir
-                     ((:left-to-right :right-to-left) (setf cursor-dx dx))
-                     ((:top-to-bottom :bottom-to-top) (setf cursor-dy dy))))
-                 (progn
-                   (ecase ldir
-                     ((:left-to-right :right-to-left) (setf cursor-dx 0))
-                     ((:top-to-bottom :bottom-to-top) (setf cursor-dy 0)))
-                   (ecase pdir
-                     (:top-to-bottom (incf cursor-dy height))
-                     (:bottom-to-top (decf cursor-dy height))
-                     (:left-to-right (incf cursor-dx height))
-                     (:right-to-left (decf cursor-dx height))))))
-        until (null idx1)
-        finally (return (values block-ws block-hs cursor-dx cursor-dy fbaseline))))
+  (let ((block-ws 0)
+        (block-hs 0)
+        (line-breaks 0))
+    (flet ((handle-line (idx0 idx1)
+             (multiple-value-bind (ws hs dx dy baseline)
+                 (call-next-method medium string :text-style text-style
+                                                 :start idx0 :end idx1)
+               (declare (ignore dx dy baseline))
+               (incf line-breaks)
+               (maxf block-ws ws)
+               (incf block-hs hs)))
+           (handle-last (idx0)
+             (multiple-value-bind (ws hs dx dy baseline)
+                 (call-next-method medium string :text-style text-style
+                                                 :start idx0 :end end)
+               (when (plusp line-breaks)
+                 (if (top-to-bottom-block-p medium)
+                     (setf dy block-hs)
+                     (setf dy (- block-hs))))
+               (maxf block-ws ws)
+               (incf block-hs hs)
+               (values block-ws
+                       block-hs
+                       dx dy baseline))))
+      (loop for idx0 = start then (1+ idx1)
+            for idx1 = (position #\newline string :start idx0 :end end)
+            until (null idx1)
+            do (handle-line idx0 idx1)
+            finally
+               (return (handle-last idx0))))))
 
 (defmethod medium-draw-text* :around ((medium multiline-medium-mixin) string x y
                                       start end
