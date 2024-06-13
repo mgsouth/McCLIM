@@ -82,7 +82,7 @@
   (let ((font (text-style-mapping (port medium) text-style)))
     (xlib:char-width font (char-code char))))
 
-(defun font-text-extents (font string &key start end direction)
+(defun clx-font-text-extents (font string &key start end direction)
   (declare (ignore direction))
   (multiple-value-bind (width ascent descent
                         left-bearing right-bearing overall-ascent overall-descent
@@ -106,7 +106,7 @@
                           left top width height
                           ascent descent linegap
                           cursor-dx cursor-dy)
-        (font-text-extents font text :start start :end end)
+        (clx-font-text-extents font text :start start :end end)
       (declare (ignore xmin ymin xmax ymax left top descent linegap))
       (values width height cursor-dx cursor-dy ascent))))
 
