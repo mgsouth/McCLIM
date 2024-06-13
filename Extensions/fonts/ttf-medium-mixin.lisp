@@ -23,17 +23,20 @@ a font implementing the protocol defined below."))
         end (or end (length string)))
   (when (>= start end)
     (return-from text-size
-      (values 0 0 0 0 (text-style-ascent text-style medium))))
+      (values 0
+              (text-style-height text-style medium)
+              0
+              0
+              (text-style-ascent text-style medium))))
   (let* ((font (text-style-mapping (port medium)
                                    (merge-text-styles
                                     text-style
                                     (medium-merged-text-style medium))))
          (baseline (font-ascent font))
          (line-height (+ baseline (font-descent font))))
-    (multiple-value-bind (xmin ymin xmax ymax cursor-dx cursor-dy)
-        (line-bbox font string start end)
-      (declare (ignore xmin ymin xmax ymax))
-      (values cursor-dx (+ cursor-dy line-height)
+    (multiple-value-bind (cursor-dx cursor-dy)
+        (line-advance medium font string start end)
+      (values (abs cursor-dx) line-height
               cursor-dx cursor-dy
               baseline))))
 

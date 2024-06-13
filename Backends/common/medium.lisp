@@ -21,9 +21,7 @@
          (toward-y (round-coordinate toward-y))
          (dx (- toward-x x))
          (dy (- toward-y y))
-         (angle (ecase line-direction
-                  ((:left-to-right :right-to-left) (find-angle 1 0 dx dy))
-                  ((:top-to-bottom :bottom-to-top) (find-angle 0 1 dx dy)))))
+         (angle (find-angle 1 0 dx dy)))
     (make-rotation-transformation* angle x y)))
 
 (defun medium-text-transformation (medium x0 y0 x1 y1 line-direction)
@@ -108,9 +106,11 @@
                  (call-next-method medium string :text-style text-style
                                                  :start idx0 :end end)
                (when (plusp line-breaks)
-                 (if (top-to-bottom-block-p medium)
-                     (setf dy block-hs)
-                     (setf dy (- block-hs))))
+                 (ecase (medium-page-direction medium)
+                   (:top-to-bottom (setf dy (+ block-hs)))
+                   (:bottom-to-top (setf dy (- block-hs)))
+                   (:left-to-right (setf dy (- block-hs)))
+                   (:right-to-left (setf dy (+ block-hs)))))
                (maxf block-ws ws)
                (incf block-hs hs)
                (values block-ws
@@ -129,7 +129,7 @@
                                       toward-x toward-y transform-glyphs)
   (let* ((line-direction (medium-line-direction medium))
          (transformation (compose-transformations
-                          (draw-text-rotation* x y toward-x toward-y line-direction)
+                          (draw-text-line-advance x y toward-x toward-y line-direction)
                           (ecase (text-style-unit (medium-text-style medium))
                             (:coordinate +identity-transformation+)
                             (:normal (invert-transformation

@@ -1520,9 +1520,9 @@ the associated sheet can be determined."
          (line-direction (graphics-state-line-direction graphic))
          (transformation (compose-transformations
                           (medium-transformation medium)
-                          (draw-text-rotation* origin-x origin-y
-                                               toward-x toward-y
-                                               line-direction))))
+                          (draw-text-line-advance origin-x origin-y
+                                                  toward-x toward-y
+                                                  line-direction))))
     (multiple-value-bind (sw sh dx dy)
         (text-metrics medium string :text-style text-style)
       (case align-x

@@ -348,7 +348,8 @@ of resulting sequence are equal."
         (multiple-value-bind (arr left top width height hx vy kerning)
             (make-glyph-pixarray font char next direction transformation)
           (let ((info (make-glyph-info code arr left top width height hx vy)))
-            (multiple-value-bind (info x0 y0 dx dy) (glyph-info-advance font info kerning direction)
+            (multiple-value-bind (info x0 y0 dx dy)
+                (glyph-info-advance font info kerning direction)
               (setf (glyph-info-origin-x info) x0)
               (setf (glyph-info-origin-y info) y0)
               (setf (glyph-info-advance-dx info) dx)
@@ -356,54 +357,17 @@ of resulting sequence are equal."
             info))))))
 
 
-(defun line-bbox (font string start end)
+(defun line-advance (medium font string start end)
   (let ((cursor-dx 0)
-        (cursor-dy 0)
-        (xmin most-positive-fixnum)
-        (ymin most-positive-fixnum)
-        (xmax most-negative-fixnum)
-        (ymax most-negative-fixnum))
-    (flet ((process-code (code)
-             (let ((glyph (font-glyph-info font code :left-to-right)))
-               (minf xmin (+ cursor-dx (glyph-info-left glyph)))
-               (minf ymin (+ cursor-dy (- (glyph-info-top glyph))))
-               (incf cursor-dx (glyph-info-advance-dx glyph))
-               (incf cursor-dy (glyph-info-advance-dy glyph))
-               (maxf xmax cursor-dx)
-               (maxf ymax cursor-dy))))
+        (cursor-dy 0))
+    (labels ((process-code (code)
+               (let ((glyph (font-glyph-info font code (medium-line-direction medium))))
+                 (incf cursor-dx (glyph-info-advance-dx glyph))
+                 (incf cursor-dy (glyph-info-advance-dy glyph)))))
       (map-over-string-glyph-codes #'process-code string start end)
-      (values xmin ymin xmax ymax cursor-dx cursor-dy))))
-
-(defun font-text-extents (font string &key start end direction)
-  "Function computes text extents as if it were drawn with a specified font. It
-returns two distinct extents: first is an exact pixel-wise bounding box. The
-second is a text bounding box with all its bearings. Text may contain newlines,
-if it doesn't linegap should be nil. Cursor advance is returned as the last two
-values.
-
-Width and height are relative to the position [-top, left]. For right-to-left
-direction left will be probably a negative number with the width being close to
-its absolute value. All other values are relative to the postion
-origin. Coordinate system is in the fourth quadrant (same as sheet coordinates).
-
-Returned values:
-
-xmin ymin xmax ymax
-left top width height ascent descent linegap
-cursor-dx cursor-dy"
-  (declare (ignore direction))
-  (when (alexandria:emptyp string)
-    (values 0 0 0 0 0 0))
-  (let* ((ascent (font-ascent font))
-         (descent (font-descent font))
-         (line-height (+ ascent descent)))
-    (multiple-value-bind (xmin ymin xmax ymax dx dy)
-        (line-bbox font string start end)
-      (values xmin ymin xmax ymax            ; text bbox
-              0 ascent dx (+ dy line-height) ; x0 y0 xn yn
-              ascent descent 0               ; ascent, descent, line gap
-              dx dy                          ; cursor advancement
-              ))))
+      (when (member (medium-line-direction medium) '(:top-to-bottom :bottom-to-top))
+        (rotatef cursor-dx cursor-dy))
+      (values cursor-dx cursor-dy))))
 
 
 (deftype index () `(integer 0 #.array-dimension-limit))
