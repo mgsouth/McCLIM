@@ -1507,7 +1507,6 @@ the associated sheet can be determined."
        (if-supplied (filled)
                     (eql (slot-value record 'filled) filled))))
 
-;;; FIXME Text direction.
 (def-grecording draw-text (gs-transformation-mixin
                            gs-text-style-mixin gs-layout-mixin)
     ((string (create-string string start end))
@@ -1523,21 +1522,21 @@ the associated sheet can be determined."
                           (draw-text-line-advance origin-x origin-y
                                                   toward-x toward-y
                                                   line-direction))))
-    (multiple-value-bind (sw sh dx dy)
+    (multiple-value-bind (sw sh after below)
         (text-metrics medium string :text-style text-style)
       (case align-x
-        (:left   (setf dx sw))
-        (:right  (setf dx 0))
-        (:center (setf dx (/ sw 2))))
+        (:left   (setf after sw))
+        (:right  (setf after 0))
+        (:center (setf after (/ sw 2))))
       (case align-y
-        (:top    (setf dy sh))
-        (:bottom (setf dy 0))
-        (:center (setf dy (/ sh 2))))
+        (:top    (setf below sh))
+        (:bottom (setf below 0))
+        (:center (setf below (/ sh 2))))
       (%enclosing-transform-polygon transformation
-                                    (- (+ origin-x dx) sw)
-                                    (- (+ origin-y dy) sh)
-                                    (+ origin-x dx)
-                                    (+ origin-y dy)))))
+                                    (- (+ origin-x after) sw)
+                                    (- (+ origin-y below) sh)
+                                    (+ origin-x after)
+                                    (+ origin-y below)))))
 
 #+ (or) ;; debugging
 (defmethod replay-output-record :after

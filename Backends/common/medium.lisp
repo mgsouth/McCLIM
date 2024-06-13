@@ -55,33 +55,20 @@
         (with-transformed-positions* ((medium-transformation medium) x0 y0 x1 y1)
           (text-transformation x0 y0 x1 y1)))))
 
-;;; The baseline is assumed to be at y=0.
-(defun align-bounding-rectangle (xmin ymin xmax ymax align-x align-y)
-  (ecase align-x
-    (:left)
-    (:center
-     (let ((hcenter (/ (- xmax xmin) 2)))
-       (setf xmin (- hcenter))
-       (setf xmax (+ hcenter))))
-    (:right
-     (let ((hsize (- xmax xmin)))
-       (setf xmin (- hsize))
-       (setf xmax 0))))
-  (ecase align-y
-    (:top
-     (let ((vsize (- ymax ymin)))
-       (setf ymin 0)
-       (setf ymax vsize)))
-    (:center
-     (let ((vcenter (/ (- ymax ymin) 2)))
-       (setf ymin (- vcenter))
-       (setf ymax (+ vcenter))))
-    (:baseline)
-    (:bottom
-     (let ((vsize (- ymax ymin)))
-       (setf ymin (- vsize))
-       (setf ymax 0))))
-  (values xmin ymin xmax ymax))
+(defun text-alignment-offset (xmin ymin xmax ymax align-x align-y)
+  (let ((xcenter (/ (+ xmax xmin) 2.0))
+        (ycenter (/ (+ ymax ymin) 2.0)))
+    (values
+     (ecase align-x
+       (:baseline 0)
+       (:left     (+ 0 xmin))
+       (:right    (- 0 xmax))
+       (:center   (- 0 xcenter)))
+     (ecase align-y
+       (:baseline 0)
+       (:top      (- 0 ymin))
+       (:bottom   (- 0 ymax))
+       (:center   (- 0 ycenter))))))
 
 
 (defclass multiline-medium-mixin (medium) ())
@@ -115,7 +102,8 @@
                (incf block-hs hs)
                (values block-ws
                        block-hs
-                       dx dy baseline))))
+                       dx dy
+                       (- baseline dy)))))
       (loop for idx0 = start then (1+ idx1)
             for idx1 = (position #\newline string :start idx0 :end end)
             until (null idx1)

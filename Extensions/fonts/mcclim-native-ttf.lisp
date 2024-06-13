@@ -378,198 +378,186 @@ of resulting sequence are equal."
 
 (deftype index () `(integer 0 #.array-dimension-limit))
 
-(defun font-prepare-glyphs (glyph-ids font string start end
-                            x y align-x align-y direction)
+(defun fill-glyph-indexes (medium font string start end glyph-ids)
+  (let ((idx 0)
+        (direction (medium-line-direction medium)))
+    (flet ((process (code)
+             (let ((info (font-glyph-info font code direction)))
+               (setf (aref glyph-ids idx) (glyph-info-id info))
+               (incf idx))))
+      (map-over-string-glyph-codes #'process string start end))))
+
+(defun font-prepare-glyphs (medium font string start end align-x align-y)
   (declare (optimize (speed 3))
            (type index start end)
            (type string string))
   (when (>= start end)
     (return-from font-prepare-glyphs (values 0 0 0 0 0 0)))
-  (ecase direction
-    (:left-to-right
-     (font-prepare-glyphs/ltr
-      glyph-ids font string start end x y align-x align-y direction))
-    (:right-to-left
-     (font-prepare-glyphs/rtl
-      glyph-ids font string start end x y align-x align-y direction))
-    (:top-to-bottom
-     (font-prepare-glyphs/ttb
-      glyph-ids font string start end x y align-x align-y direction))
-    (:bottom-to-top
-     (font-prepare-glyphs/btt
-      glyph-ids font string start end x y align-x align-y direction))))
+  (ecase (medium-line-direction medium)
+    (:left-to-right (font-prepare-glyphs/ltr medium font string start end align-x align-y))
+    (:right-to-left (font-prepare-glyphs/rtl medium font string start end align-x align-y))
+    (:top-to-bottom (font-prepare-glyphs/ttb medium font string start end align-x align-y))
+    (:bottom-to-top (font-prepare-glyphs/btt medium font string start end align-x align-y))))
 
-(defun font-prepare-glyphs/ltr (glyph-ids font string start end
-                                x y align-x align-y direction)
-  (declare (optimize (speed 3))
+(defun font-prepare-glyphs/ltr (medium font string start end align-x align-y)
+  (declare ;(optimize (speed 3))
            (type index start end)
-           (type string string))
+           (type string string)
+           (ignore medium))
   (let ((firstp t) xmin ymin xmax ymax advance-x)
-    (flet ((process-code (code index)
-             (let ((info (font-glyph-info font code direction)))
+    (flet ((process-code (code)
+             (let ((info (font-glyph-info font code :left-to-right)))
                (when firstp
                  (setf firstp nil
-                       xmin x
-                       ymin (- y (font-ascent font))
-                       ymax (+ y (font-descent font))
+                       xmin 0
+                       ymin (- (font-ascent font))
+                       ymax (+ (font-descent font))
                        advance-x 0))
-               (incf advance-x (glyph-info-advance-dx info))
-               (setf (aref (the (simple-array (unsigned-byte 32)) glyph-ids) index)
-                     (the (unsigned-byte 32) (glyph-info-id info))))))
+               (incf advance-x (glyph-info-advance-dx info)))))
       (declare (inline process-code))
       (loop with this-char = (char string start)
-            with idx0 of-type index = 0
             for idx1 of-type index from (1+ start) below end
             as next-char = (char string idx1)
             as code = (char-glyph-code this-char next-char)
-            do (process-code code idx0)
+            do (process-code code)
                (setf this-char next-char)
-               (incf idx0)
             finally
-               (process-code (char-code this-char) idx0)
+               (process-code (char-code this-char))
                (setf xmax (+ xmin advance-x))))
     (let ((dx (ecase align-x
-                (:left   0)
+                (:baseline 0)
+                (:left   0 #|(- xmin)|#)
                 (:center (- (/ (- xmax xmin) 2.0)))
                 (:right  (- (- xmax xmin)))))
           (dy (ecase align-y
                 (:baseline 0)
-                (:center (- y (/ (+ ymax ymin) 2.0)))
-                (:top    (- y ymin))
-                (:bottom (- y ymax)))))
-      (incf x dx) (incf xmin dx) (incf xmax dx)
-      (incf y dy) (incf ymin dy) (incf ymax dy))
-    (values x y xmin ymin xmax ymax)))
+                (:center (- (/ (+ ymax ymin) 2.0)))
+                (:top    (- ymin))
+                (:bottom (- ymax)))))
+      (incf xmin dx) (incf xmax dx)
+      (incf ymin dy) (incf ymax dy)
+      (values dx dy xmin ymin xmax ymax))))
 
-(defun font-prepare-glyphs/ttb (glyph-ids font string start end
-                                x y align-x align-y direction)
-  (declare (optimize (speed 3))
+(defun font-prepare-glyphs/ttb (medium font string start end align-x align-y)
+  (declare ;(optimize (speed 3))
            (type index start end)
-           (type string string))
+           (type string string)
+           (ignore medium))
   (let ((firstp t) xmin ymin xmax ymax advance-y
         (line-height (+ (font-descent font)
                         (font-ascent font))))
-    (flet ((process-code (code index)
-             (let ((info (font-glyph-info font code direction)))
+    (flet ((process-code (code)
+             (let ((info (font-glyph-info font code :top-to-bottom)))
                (when firstp
                  (setf firstp nil
-                       ymin y
-                       xmin (- x (/ line-height 2))
-                       xmax (+ x (/ line-height 2))
+                       ymin 0
+                       xmin (- (/ line-height 2))
+                       xmax (+ (/ line-height 2))
                        advance-y 0))
-               (incf advance-y (glyph-info-advance-dy info))
-               (setf (aref (the (simple-array (unsigned-byte 32)) glyph-ids) index)
-                     (the (unsigned-byte 32) (glyph-info-id info))))))
+               (incf advance-y (glyph-info-advance-dy info)))))
       (declare (inline process-code))
       (loop with this-char = (char string start)
-            with idx0 of-type index = 0
             for idx1 of-type index from (1+ start) below end
             as next-char = (char string idx1)
             as code = (char-glyph-code this-char next-char)
-            do (process-code code idx0)
+            do (process-code code)
                (setf this-char next-char)
-               (incf idx0)
             finally
-               (process-code (char-code this-char) idx0)
+               (process-code (char-code this-char))
                (setf ymax (+ ymin advance-y))))
     (let ((dy (ecase align-x
-                (:left   0)
+                (:baseline 0)
+                (:left   0 #|(- ymin)|#)
                 (:center (- (/ (- ymax ymin) 2.0)))
                 (:right  (- (- ymax ymin)))))
           (dx (ecase align-y
                 (:baseline 0)
-                (:center (- x (/ (+ xmax xmin) 2.0)))
-                (:top    (- x xmax))
-                (:bottom (- x xmin)))))
-      (incf x dx) (incf xmin dx) (incf xmax dx)
-      (incf y dy) (incf ymin dy) (incf ymax dy))
-    (values x y xmin ymin xmax ymax)))
+                (:center (- (/ (+ xmax xmin) 2.0)))
+                (:top    (- xmax))
+                (:bottom (- xmin)))))
+      (incf xmin dx) (incf xmax dx)
+      (incf ymin dy) (incf ymax dy)
+      (values dx dy xmin ymin xmax ymax))))
 
-(defun font-prepare-glyphs/rtl (glyph-ids font string start end
-                                x y align-x align-y direction)
-  (declare (optimize (speed 3))
+(defun font-prepare-glyphs/rtl (medium font string start end align-x align-y)
+  (declare ;(optimize (speed 3))
            (type index start end)
-           (type string string))
+           (type string string)
+           (ignore medium))
   (let ((firstp t) xmin ymin xmax ymax advance-x)
-    (flet ((process-code (code index)
-             (let ((info (font-glyph-info font code direction)))
+    (flet ((process-code (code)
+             (let ((info (font-glyph-info font code :right-to-left)))
                (when firstp
                  (setf firstp nil
-                       xmax x
-                       ymin (- y (font-ascent font))
-                       ymax (+ y (font-descent font))
+                       xmax 0
+                       ymin (- (font-ascent font))
+                       ymax (+ (font-descent font))
                        advance-x 0))
-               (incf advance-x (glyph-info-advance-dx info))
-               (setf (aref (the (simple-array (unsigned-byte 32)) glyph-ids) index)
-                     (the (unsigned-byte 32) (glyph-info-id info))))))
+               (incf advance-x (glyph-info-advance-dx info)))))
       (declare (inline process-code))
       (loop with this-char = (char string start)
-            with idx0 of-type index = 0
             for idx1 of-type index from (1+ start) below end
             as next-char = (char string idx1)
             as code = (char-glyph-code this-char next-char)
-            do (process-code code idx0)
+            do (process-code code)
                (setf this-char next-char)
-               (incf idx0)
             finally
-               (process-code (char-code this-char) idx0)
+               (process-code (char-code this-char))
                (setf xmin (+ xmax advance-x))))
     (let ((dx (ecase align-x
+                (:baseline 0)
                 (:left   (- xmax xmin))
                 (:center (+ (/ (- xmax xmin) 2.0)))
-                (:right  0)))
+                (:right  0 #|hx-x2|#)))
           (dy (ecase align-y
                 (:baseline 0)
-                (:center (- y (/ (+ ymax ymin) 2.0)))
-                (:top    (- y ymin))
-                (:bottom (- y ymax)))))
-      (incf x dx) (incf xmin dx) (incf xmax dx)
-      (incf y dy) (incf ymin dy) (incf ymax dy))
-    (values x y xmin ymin xmax ymax)))
+                (:center (- (/ (+ ymax ymin) 2.0)))
+                (:top    (- ymin))
+                (:bottom (- ymax)))))
+      (incf xmin dx) (incf xmax dx)
+      (incf ymin dy) (incf ymax dy)
+      (values dx dy xmin ymin xmax ymax))))
 
-(defun font-prepare-glyphs/btt (glyph-ids font string start end
-                                x y align-x align-y direction)
-  (declare (optimize (speed 3))
+(defun font-prepare-glyphs/btt (medium font string start end align-x align-y)
+  (declare ;(optimize (speed 3))
            (type index start end)
-           (type string string))
+           (type string string)
+           (ignore medium))
   (let ((firstp t) xmin ymin xmax ymax advance-y
         (line-height (+ (font-descent font)
                         (font-ascent font))))
-    (flet ((process-code (code index)
-             (let ((info (font-glyph-info font code direction)))
+    (flet ((process-code (code)
+             (let ((info (font-glyph-info font code :bottom-to-top)))
                (when firstp
                  (setf firstp nil
-                       ymax y
-                       xmin (- x (/ line-height 2))
-                       xmax (+ x (/ line-height 2))
+                       ymax 0
+                       xmin (- (/ line-height 2))
+                       xmax (+ (/ line-height 2))
                        advance-y 0))
-               (incf advance-y (glyph-info-advance-dy info))
-               (setf (aref (the (simple-array (unsigned-byte 32)) glyph-ids) index)
-                     (the (unsigned-byte 32) (glyph-info-id info))))))
+               (incf advance-y (glyph-info-advance-dy info)))))
       (declare (inline process-code))
       (loop with this-char = (char string start)
-            with idx0 of-type index = 0
             for idx1 of-type index from (1+ start) below end
             as next-char = (char string idx1)
             as code = (char-glyph-code this-char next-char)
-            do (process-code code idx0)
+            do (process-code code)
                (setf this-char next-char)
-               (incf idx0)
             finally
-               (process-code (char-code this-char) idx0)
+               (process-code (char-code this-char))
                (setf ymin (+ ymax advance-y))))
     (let ((dy (ecase align-x
+                (:baseline 0)
                 (:left   (- ymax ymin))
                 (:center (/ (- ymax ymin) 2.0))
-                (:right  0)))
+                (:right  0 #|hx-y2|#)))
           (dx (ecase align-y
                 (:baseline 0)
-                (:center (- x (/ (+ xmax xmin) 2.0)))
-                (:top    (- x xmax))
-                (:bottom (- x xmin)))))
-      (incf x dx) (incf xmin dx) (incf xmax dx)
-      (incf y dy) (incf ymin dy) (incf ymax dy))
-    (values x y xmin ymin xmax ymax)))
+                (:center (- (/ (+ xmax xmin) 2.0)))
+                (:top    (- xmax))
+                (:bottom (- xmin)))))
+      (incf xmin dx) (incf xmax dx)
+      (incf ymin dy) (incf ymax dy)
+      (values dx dy xmin ymin xmax ymax))))
 
 
 ;;; ttf-port-mixin
@@ -862,14 +850,9 @@ a font implementing the protocol defined below."))
          ;; Glyph things.
          (font (text-style-mapping (port medium)
                                    (medium-text-style medium)))
-         (glyph-codes (string-glyph-codes string :start start :end end))
-         ;; GLYPH-IDS are not used, but font-prepare-glyphs expects it.
-         (glyph-ids (make-array (- end start)
-                                :element-type '(unsigned-byte 32)
-                                :adjustable nil :fill-pointer nil)))
+         (glyph-codes (string-glyph-codes string :start start :end end)))
     (multiple-value-bind (x y xmin ymin xmax ymax)
-        (font-prepare-glyphs
-         glyph-ids font string start end 0 0 align-x align-y direction)
+        (font-prepare-glyphs medium font string start end align-x align-y)
       (declare (ignore xmin ymin xmax ymax))
       (naive-render-composite-glyphs
        font glyph-codes medium x y base direction))))

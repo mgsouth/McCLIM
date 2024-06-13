@@ -216,9 +216,10 @@
          (direction (medium-line-direction medium))
          (transformation (medium-text-transformation
                           medium x y toward-x toward-y direction)))
+    (fill-glyph-indexes medium font string start end glyph-ids)
     (multiple-value-bind (x y xmin ymin xmax ymax)
-        (mcclim-truetype:font-prepare-glyphs
-         glyph-ids font string start end 0 0 align-x align-y direction)
+        (font-prepare-glyphs medium font glyph-ids
+                             string start end align-x align-y)
       (with-identity-transformation (medium)
         (if (translation-transformation-p transformation)
             (draw-glyphs/fast font glyph-ids (- end start)
