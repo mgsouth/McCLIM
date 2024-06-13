@@ -69,6 +69,10 @@
    ;; Horizontal line metrics
    (ascent                           :reader font-ascent)
    (descent                          :reader font-descent)
+   ;; Vertical line metrics
+   (vascent                          :reader font-vascent)
+   (vdescent                         :reader font-vdescent)
+   ;;
    (units->pixels                    :reader zpb-ttf-font-units->pixels))
   (:default-initargs :fixed nil :dpi 72 :kerning t))
 
@@ -78,13 +82,15 @@
 
 (defmethod initialize-instance :after
     ((font truetype-font) &key dpi &allow-other-keys)
-  (with-slots (face size ascent descent font-loader) font
+  (with-slots (face size ascent descent vascent vdescent font-loader) font
     (let* ((loader (zpb-ttf-font-loader face))
            (em->units (zpb-ttf:units/em loader))
            (dpi-factor (/ dpi 72))
            (units->pixels (/ (* size dpi-factor) em->units)))
       (setf ascent       (+ (* units->pixels (zpb-ttf:ascender loader)))
             descent      (- (* units->pixels (zpb-ttf:descender loader)))
+            vascent      (+ (* units->pixels (slot-value loader 'zpb-ttf:vascender)))
+            vdescent     (- (* units->pixels (slot-value loader 'zpb-ttf:vdescender)))
             (slot-value font 'units->pixels) units->pixels))
     (pushnew font (all-fonts face))))
 
