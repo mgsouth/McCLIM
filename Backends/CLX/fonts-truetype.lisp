@@ -34,8 +34,8 @@
 ;;; is the next character code. For standalone glyphs (byte 16 16) is zero.
 
 (defmethod font-generate-glyph :around
-    ((port clx-ttf-port) font code direction transformation)
-  (declare (ignore font code direction transformation))
+    ((port clx-ttf-port) font code direction)
+  (declare (ignore font code direction))
   (let* ((info (call-next-method))
          (pixarray (glyph-info-pixarray info))
          (x0 (glyph-info-origin-x info))
@@ -46,10 +46,6 @@
       (setf pixarray (make-array (list 1 1)
                                  :element-type '(unsigned-byte 8)
                                  :initial-element 0)))
-    ;; We negate X1 because we want to start drawing array X1 pixels /after/ the
-    ;; pen (pixarray contains only a glyph without its left-side bearing). TOP
-    ;; is not negated because glyph coordiantes are in the first quardant (while
-    ;; array's are in the fourth). -- jd 2018-09-29
     (let ((glyph-set (ensure-glyph-set port))
           (glyph-id (draw-glyph-id port)))
       (xlib:render-add-glyph glyph-set glyph-id

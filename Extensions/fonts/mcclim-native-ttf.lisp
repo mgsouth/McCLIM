@@ -154,7 +154,7 @@
        (:top-to-bottom 0)
        (:bottom-to-top 0))))
 
-(defun make-glyph-pixarray (font char next direction transformation)
+(defun make-glyph-pixarray (font char next direction)
   "Render a character of 'face', returning a 2D (unsigned-byte 8) array suitable
    as an alpha mask, and dimensions. This function returns seven values: alpha
    mask byte array, x-origin, y-origin (subtracted from position before
@@ -168,25 +168,21 @@
              (kerning (kerning-offset font char next direction))
              (bounding-box (map 'vector (lambda (x) (float (* x units->pixels)))
                                 (zpb-ttf:bounding-box glyph)))
-             (min-x (elt bounding-box 0))
-             (min-y (elt bounding-box 1))
-             (max-x (elt bounding-box 2))
-             (max-y (elt bounding-box 3))
+             (x1 (elt bounding-box 0))
+             (y1 (elt bounding-box 1))
+             (x2 (elt bounding-box 2))
+             (y2 (elt bounding-box 3))
              width height left top array)
-        (with-bounding-rectangle* (x1 y1 x2 y2)
-            (transform-region transformation (make-rectangle* min-x min-y max-x max-y))
-          (setq left (floor x1))
-          (setq top (ceiling y2))
-          (setq width  (- (ceiling x2) (floor x1)))
-          (setq height (- (ceiling y2) (floor y1)))
-          (setq array (make-array (list height width)
-                                  :initial-element 0
-                                  :element-type '(unsigned-byte 8))))
+        (setq left (floor x1))
+        (setq top (ceiling y2))
+        (setq width  (- (ceiling x2) (floor x1)))
+        (setq height (- (ceiling y2) (floor y1)))
+        (setq array (make-array (list height width)
+                                :initial-element 0
+                                :element-type '(unsigned-byte 8)))
         (let* ((glyph-tr (compose-transformations
-                          (compose-transformations
-                           (make-translation-transformation (- left) top)
-                           (make-scaling-transformation units->pixels (- units->pixels)))
-                          transformation))
+                          (make-translation-transformation (- left) top)
+                          (make-scaling-transformation units->pixels (- units->pixels))))
                (paths (paths-from-glyph* glyph glyph-tr))
                (state (aa:make-state)))
           (dolist (path paths)
@@ -210,13 +206,6 @@
                                                   (logior #x40 (aref array 0 i))
                                                   (aref array (1- height) i)
                                                   (logior #x40 (aref array (1- height) i)))))
-        ;; Transformation is supplied in font coordinates for easy composition
-        ;; with offset and scaling. advance values should be returned in screen
-        ;; coordinates, so we transform it here.
-        (let ((transformation (compose-transformations
-                               #1=(make-scaling-transformation 1.0 -1.0)
-                               (compose-transformations transformation #1#))))
-          (multiple-value-setq (hx vy) (transform-distance transformation hx vy)))
         (values array left top width height
                 (climi::round-coordinate hx)
                 (climi::round-coordinate vy)
@@ -338,31 +327,27 @@ of resulting sequence are equal."
                          (:right-to-left (slot-value font 'rtl-glyph-info))
                          (:top-to-bottom (slot-value font 'ttb-glyph-info))
                          (:bottom-to-top (slot-value font 'btt-glyph-info)))
-    (font-generate-glyph (font-port font) font code direction +identity-transformation+)))
+    (font-generate-glyph (font-port font) font code direction)))
 
-(defun font-glyph-info* (font code direction transformation)
-  (font-generate-glyph (font-port font) font code direction transformation))
-
-(defgeneric font-generate-glyph (port font code direction transformation)
+(defgeneric font-generate-glyph (port font code direction)
   (:documentation "Truetype TTF renderer internal interface.")
-  (:method (port (font cached-truetype-font) code direction transformation)
+  (:method (port (font cached-truetype-font) code direction)
     (declare (ignore port))
     (multiple-value-bind (char next) (glyph-code-char code)
-      (let ((transformation (let ((scale (make-scaling-transformation 1.0 -1.0)))
-                              (compose-transformations
-                               scale (compose-transformations transformation scale)))))
-        (multiple-value-bind (arr left top width height hx vy kerning)
-            (make-glyph-pixarray font char next direction transformation)
-          (let ((info (make-glyph-info code arr left top width height hx vy)))
-            (multiple-value-bind (info x0 y0 dx dy)
-                (glyph-info-advance font info kerning direction)
-              (setf (glyph-info-origin-x info) x0)
-              (setf (glyph-info-origin-y info) y0)
-              (setf (glyph-info-advance-dx info) dx)
-              (setf (glyph-info-advance-dy info) dy))
-            info))))))
+      (multiple-value-bind (arr left top width height hx vy kerning)
+          (make-glyph-pixarray font char next direction)
+        (let ((info (make-glyph-info code arr left top width height hx vy)))
+          (multiple-value-bind (info x0 y0 dx dy)
+              (glyph-info-advance font info kerning direction)
+            (setf (glyph-info-origin-x info) x0)
+            (setf (glyph-info-origin-y info) y0)
+            (setf (glyph-info-advance-dx info) dx)
+            (setf (glyph-info-advance-dy info) dy))
+          info)))))
 
 
+(deftype index () `(integer 0 #.array-dimension-limit))
+
 (defun line-advance (medium font string start end)
   (let ((cursor-dx 0)
         (cursor-dy 0))
@@ -374,9 +359,6 @@ of resulting sequence are equal."
       (when (member (medium-line-direction medium) '(:top-to-bottom :bottom-to-top))
         (rotatef cursor-dx cursor-dy))
       (values cursor-dx cursor-dy))))
-
-
-(deftype index () `(integer 0 #.array-dimension-limit))
 
 (defun fill-glyph-indexes (medium font string start end glyph-ids)
   (let ((idx 0)
