@@ -451,9 +451,7 @@ or NIL if the current transformation is the identity transformation."
           (when transform-matrix
             (free-glyphset glyphset)))))))
 
-(defun font-text-extents (font string
-                          &key align-x align-y (start 0) (end (length string)) (direction :ltr))
-  (declare (ignore align-x align-y))
+(defun font-text-extents (font string &key (start 0) (end (length string)) (direction :ltr))
   ;; Values to return:
   ;;-> xmin ymin xmax ymax left top width height ascent descent linegap cursor-dx cursor-dy
   (with-face-from-font (face font)
@@ -519,6 +517,20 @@ or NIL if the current transformation is the identity transformation."
                     (return (apply #'values sizes)))))
             (t
              (text-extents font string start end))))))
+
+(defmethod climb:text-bounding-rectangle*
+    ((medium clx-freetype-medium) string &key text-style (start 0) end)
+  (climi::orf end (length string))
+  (when (= start end)
+    (return-from climb:text-bounding-rectangle* (values 0 0 0 0)))
+  (let ((text (string string))
+        (font (clim:text-style-mapping
+               (clim:port medium)
+               (clim:merge-text-styles text-style
+                                       (clim:medium-merged-text-style medium)))))
+    (multiple-value-bind (xmin ymin xmax ymax)
+        (font-text-extents font text :start start :end end)
+      (values xmin ymin xmax ymax))))
 
 (defmethod climb:text-size ((medium clx-freetype-medium) string &key text-style (start 0) end)
   (let* ((string (ensure-string-value string))

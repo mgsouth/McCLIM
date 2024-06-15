@@ -184,6 +184,30 @@
     (declare (ignore height final-x final-y baseline))
     width))
 
+(defmethod climb:text-bounding-rectangle*
+    ((medium postscript-font-medium) string &key text-style (start 0) end)
+  (declare (ignore direction))
+  (setf string (string string))
+  (climi::orf end (length string))
+  (when (>= start end)
+    (return-from climb:text-bounding-rectangle*
+      (values 0 0 0 0)))
+  (setf text-style
+        (if text-style
+            (merge-text-styles text-style
+                               (medium-merged-text-style medium))
+            (medium-text-style medium)))
+  (let* ((font-name (text-style-mapping (port medium) text-style))
+         (metrics-key (font-name-metrics-key font-name))
+         (size (font-name-size font-name))
+         (scale (float (/ size 1000))))
+    (multiple-value-bind (width ymin ymax xmin xmax
+                          font-ascent font-descent
+                          direction first-not-done)
+        (psfont-text-extents metrics-key string :start start :end end)
+      (declare (ignore width font-ascent font-descent direction first-not-done))
+      (values (* scale xmin) (* scale ymin) (* scale xmax) (* scale ymax)))))
+
 (defun psfont-text-extents (metrics-key string &key (start 0) (end (length string)))
   (let* ((font-info (or (gethash metrics-key *font-metrics*)
                         (error "Unknown font ~S." metrics-key)))

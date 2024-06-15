@@ -82,8 +82,7 @@
   (let ((font (text-style-mapping (port medium) text-style)))
     (xlib:char-width font (char-code char))))
 
-(defun clx-font-text-extents (font string &key start end direction)
-  (declare (ignore direction))
+(defun clx-font-text-extents (font string &key start end)
   (multiple-value-bind (width ascent descent
                         left-bearing right-bearing overall-ascent overall-descent
                         overall-direction next-start)
@@ -93,6 +92,17 @@
       (values left-bearing (- ascent) right-bearing descent
               left-bearing overall-ascent width height overall-ascent overall-descent 0
               width 0))))
+
+(defmethod text-bounding-rectangle* ((medium clx-medium) string
+                                     &key text-style (start 0) end)
+  (unless end
+    (setf end (length string)))
+  (when (>= start end)
+    (return-from text-bounding-rectangle* (values 0 0 0 0)))
+  (let* ((text (string string))
+         (text-style (merge-text-styles text-style (medium-merged-text-style medium)))
+         (font (text-style-mapping (clim:port medium) text-style)))
+    (clx-font-text-extents font text :start start :end end)))
 
 (defmethod text-size ((medium clx-medium) string &key text-style (start 0) end)
   (setf string (string string)

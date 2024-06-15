@@ -717,6 +717,21 @@ a font implementing the protocol defined below."))
          (info (font-glyph-info font (char-code char) :left-to-right)))
     (abs (- (glyph-info-advance-dx info) (glyph-info-origin-x info)))))
 
+;;; FIXME stub
+(defmethod text-bounding-rectangle* ((medium ttf-medium-mixin) string
+                                     &key text-style (start 0) end)
+  (setf string (string string)
+        end (or end (length string)))
+  (multiple-value-bind (w h dx dy baseline)
+      (text-size medium string :text-style text-style :start start :end end)
+    (declare (ignore dy))
+    (let (xmin ymin xmax ymax)
+      (setf xmin (if (plusp dx) 0 dx)
+            xmax (+ xmin w)
+            ymin (- baseline)
+            ymax (+ ymin h))
+      (values xmin ymin xmax ymax))))
+
 (defmethod text-size ((medium ttf-medium-mixin) string &key text-style (start 0) end)
   (setf string (string string)
         end (or end (length string)))

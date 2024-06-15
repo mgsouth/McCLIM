@@ -55,6 +55,11 @@
   (frob medium-buffering-output-p medium))
 
 ;;; Trampoline.
+(defmethod text-bounding-rectangle* ((sheet sheet-with-medium-mixin) string &rest args)
+  (let ((medium (sheet-medium sheet)))
+    (apply #'text-bounding-rectangle* medium string args)))
+
+;;; Trampoline.
 (defmethod invoke-with-output-buffered
     ((sheet sheet-with-medium-mixin) continuation &optional (buffered-p t))
   (let ((medium (sheet-medium sheet)))
