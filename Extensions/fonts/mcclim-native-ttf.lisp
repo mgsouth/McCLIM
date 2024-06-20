@@ -138,66 +138,117 @@
       (setq result (nreverse result))
       result)))
 
-(defun advance-width (font glyph)
-  (* (zpb-ttf-font-units->pixels font)
-     (zpb-ttf:advance-width glyph)))
-
-(defun advance-height (font glyph)
-  (* (zpb-ttf-font-units->pixels font)
-     (zpb-ttf:advance-height glyph)))
-
-(defun kerning-offset (font char next direction)
-  (* (zpb-ttf-font-units->pixels font)
-     (ecase direction
-       (:left-to-right (zpb-ttf:kerning-offset char next font))
-       (:right-to-left (zpb-ttf:kerning-offset next char font))
-       (:top-to-bottom 0)
-       (:bottom-to-top 0))))
-
+;;; This long explanation is because I've confused myself with font coordinates
+;;; and origins too many times and decided to go step by step with explanations.
+;;; -- jd 2024-06-19
+;;; 
+;;;
+;;; The glyph bounding rectangle MN is specified in graphics coordinates
+;;; (y grows upwards) relative to [0 0].
+;;; M=[x1 y1], N=[x2 y2], O=[x1 y2], P=[x2 y1].
+;;;
+;;;    ^     
+;;;    |     O...........N
+;;;    |     :           :
+;;;    |     :           :
+;;;    |     :           :
+;;;    |     :           : 
+;;;  --L-----:-----------:-----R--
+;;;    |     :           :
+;;;    |     M...........P     dx
+;;;    |      
+;;; 
+;;; 
+;;; Depending on the text direction the glyph origin (the cursor position when
+;;; drawing a glyph) differs. We need to compute the origin now and transform it
+;;; along with the glyph. L=[0 0], R=[dx 0], T=[cx, ascent], B=[cx, -descent].
+;;;
+;;;
+;;;    ^           T
+;;;    |
+;;;    |
+;;;    |     O...........N
+;;;    |     :           :
+;;;    |     :           :
+;;;    |     :           :
+;;;    |     :           : 
+;;;  --L-----:-----------:-----R--
+;;;    |     :           :
+;;;    |     M...........P     dx
+;;;    |      
+;;;    |           B
+;;;
+;;; Internally glyphs are represented as bitmaps in screen coordinates in [em]
+;;; units, so we need to flip the coordinate system, scale it and then align the
+;;; bounding box with axes so X and Y are positive.
+;;;
+;;; This step may seem not intuitive. For me it is easier to imagine that
+;;; the glyph stays at place, and that we rotate y-axis. For clarity I'm
+;;; leaving the same labels, but all points are transformed.
+;;; 
+;;;    |           T                ;;          |     T              
+;;;    |                            ;;          |                    
+;;;    |                            ;;          |                    
+;;;    |     O...........N          ;;  --------O-----------N--------
+;;;    |     :           :          ;;          |           :        
+;;;    |     :           :          ;;          |           :        
+;;;    |     :           :          ;;          |           :        
+;;;    |     :           :          ;;          |           :        
+;;;  --L-----:-----------:-----R--  ;;    L     |           :     R  
+;;;    |     :           :          ;;          |           :        
+;;;    |     M...........P     dx   ;;          M...........P     dx 
+;;;    |                            ;;          |                    
+;;;    v           B                ;;          v     B              
+;;;
+;;; In other words the transformation is scaling by [dpi, -dpi] and
+;;; transformation by [-x1 +y2].
+;;;
+;;; To avoid rounding errors we compute and round coordiantes by hand and use
+;;; the transformation to draw this array.
+;;; 
 (defun make-glyph-pixarray (font char next direction)
   "Render a character of 'face', returning a 2D (unsigned-byte 8) array suitable
    as an alpha mask, and dimensions. This function returns seven values: alpha
    mask byte array, x-origin, y-origin (subtracted from position before
    rendering), glyph width and height, horizontal and vertical advances."
   (clim-sys:with-lock-held (*zpb-font-lock*)
-    (with-slots (units->pixels size ascent descent) font
+    (with-slots (units->pixels ascent descent vascent vdescent) font
       (let* ((font-loader (zpb-ttf-font-loader (font-face font)))
              (glyph (zpb-ttf:find-glyph char font-loader))
-             (hx (advance-width font glyph))
-             (vy (advance-height font glyph))
-             (kerning (kerning-offset font char next direction))
-             (bounding-box (map 'vector (lambda (x) (float (* x units->pixels)))
-                                (zpb-ttf:bounding-box glyph)))
-             (x1 (elt bounding-box 0))
-             (y1 (elt bounding-box 1))
-             (x2 (elt bounding-box 2))
-             (y2 (elt bounding-box 3))
-             width height left top array)
-        (setq left (floor x1))
-        (setq top (ceiling y2))
-        (setq width  (- (ceiling x2) (floor x1)))
-        (setq height (- (ceiling y2) (floor y1)))
-        (setq array (make-array (list height width)
-                                :initial-element 0
-                                :element-type '(unsigned-byte 8)))
-        (let* ((glyph-tr (compose-transformations
-                          (make-translation-transformation (- left) top)
-                          (make-scaling-transformation units->pixels (- units->pixels))))
-               (paths (paths-from-glyph* glyph glyph-tr))
-               (state (aa:make-state)))
-          (dolist (path paths)
-            (vectors:update-state state path))
-          (aa:cells-sweep state
-                          (lambda (x y alpha)
-                            (when (array-in-bounds-p array y x)
-                              (setf alpha (min 255 (abs alpha))
-                                    (aref array y x) (climi::clamp
-                                                      (floor (+ (* (- 256 alpha) (aref array y x))
-                                                                (* alpha 255))
-                                                             256)
-                                                      0 255))))))
+             (scale units->pixels)
+             (glyf-bbox (zpb-ttf:bounding-box glyph))
+             (x1 (* scale (elt glyf-bbox 0)))
+             (y1 (* scale (elt glyf-bbox 1)))
+             (x2 (* scale (elt glyf-bbox 2)))
+             (y2 (* scale (elt glyf-bbox 3)))
+             ;;
+             (dx (- (floor x1)))
+             (dy (ceiling y2))
+             (ws (- (ceiling x2) (floor x1)))
+             (hs (- (ceiling y2) (floor y1)))
+             (cx (climi::round-coordinate (/ ws 2.0)))
+             (array (make-array (list hs ws) :initial-element 0
+                                             :element-type '(unsigned-byte 8)))
+             (transf (compose-transformations
+                      (make-translation-transformation dx dy)
+                      (make-scaling-transformation units->pixels (- units->pixels)))))
+        (flet ((set-pixel (x y alpha)
+                 (when (array-in-bounds-p array y x) ;unnecessary test?
+                   (setf alpha (min 255 (abs alpha))
+                         (aref array y x) (climi::clamp
+                                           (floor (+ (* (- 256 alpha) (aref array y x))
+                                                     (* alpha 255))
+                                                  256)
+                                           0 255)))))
+          (declare (dynamic-extent #'set-pixel))
+          (let ((paths (paths-from-glyph* glyph transf))
+                (state (aa:make-state)))
+            (dolist (path paths)
+              (vectors:update-state state path))
+            (aa:cells-sweep state #'set-pixel)))
         #+ (or) ;; draw delicate border around each glyph (for testing)
-        (progn
+        (let ((height (array-dimension array 0))
+              (width (array-dimension array 1)))
           (loop for j from 0 below height do (setf (aref array j 0)
                                                    (logior #x40 (aref array j 0))
                                                    (aref array j (1- width))
@@ -206,10 +257,48 @@
                                                   (logior #x40 (aref array 0 i))
                                                   (aref array (1- height) i)
                                                   (logior #x40 (aref array (1- height) i)))))
-        (values array left top width height
-                (climi::round-coordinate hx)
-                (climi::round-coordinate vy)
-                (climi::round-coordinate kerning))))))
+        (let ((hx (climi::round-coordinate (* scale (zpb-ttf:advance-width glyph))))
+              (vy (climi::round-coordinate (* scale (zpb-ttf:advance-height glyph))))
+              (kr (climi::round-coordinate
+                   (ecase direction
+                     (:left-to-right (* scale (zpb-ttf:kerning-offset char next font)))
+                     (:right-to-left (* scale (zpb-ttf:kerning-offset next char font)))
+                     ((:top-to-bottom :bottom-to-top) 0))))
+              (origin-x nil)
+              (origin-y nil)
+              (advance-x 0)
+              (advance-y 0)
+              (font-bbox (zpb-ttf:bounding-box font-loader))
+              xmin ymin xmax ymax)
+          (ecase direction
+            (:left-to-right
+             (setf origin-x 0
+                   origin-y 0
+                   advance-x (+ hx kr)))
+            (:right-to-left
+             (setf origin-x hx
+                   origin-y 0
+                   advance-x (- (+ hx kr))))
+            (:top-to-bottom
+             (setf origin-x cx
+                   origin-y (- (ceiling ascent))
+                   advance-y vy))
+            (:bottom-to-top
+             (setf origin-x cx
+                   origin-y (ceiling descent)
+                   advance-y (- vy))))
+          (setf xmin (- (floor (* scale (elt font-bbox 0))) origin-x)
+                xmax (- (ceiling (* scale (elt font-bbox 2))) origin-x)
+                ;; Mind the flip over the Y axis.
+                ymin (- (floor (- (* scale (elt font-bbox 3)))) origin-y)
+                ymax (- (ceiling (- (* scale (elt font-bbox 1)))) origin-y))
+          ;; Finaly, _after_ adjusting the bounding rectangle, move origin to
+          ;; conform to the bitmap coordinates.
+          (incf origin-x dx)
+          (incf origin-y dy)
+          ;; Let there be light.
+          (values array origin-x origin-y advance-x advance-y
+                  xmin ymin xmax ymax))))))
 
 (declaim (inline char-glyph-code glyph-code-char))
 (defun char-glyph-code (char next)
@@ -264,24 +353,21 @@ of resulting sequence are equal."
 (deftype glyph-pixarray () '(simple-array (unsigned-byte 8) (* *)))
 
 (defstruct (glyph-info (:constructor make-glyph-info
-                           (id pixarray left top width height
-                            advance-hx advance-vy)))
+                           (id pixarray
+                            origin-x origin-y advance-dx advance-dy
+                            xmin ymin xmax ymax)))
   (id 0                      :type fixnum)
   (pixarray nil :read-only t :type (or null glyph-pixarray))
-  ;; duplicates the pixarray dimensions
-  (width 0      :read-only t)
-  (height 0     :read-only t)
-  ;; Bearings
-  (left 0       :read-only t)
-  (top 0        :read-only t)
-  ;; Horizontal and vertical advance width and height.
-  (advance-hx 0)
-  (advance-vy 0)
   ;; Metrics configured for the particular direction.
   (origin-x 0 :type fixnum)
   (origin-y 0 :type fixnum)
   (advance-dx 0 :type fixnum)
-  (advance-dy 0 :type fixnum))
+  (advance-dy 0 :type fixnum)
+  ;; Maximal bounding rectangle of the glyph.
+  (xmin 0 :type fixnum)
+  (ymin 0 :type fixnum)
+  (xmax 0 :type fixnum)
+  (ymax 0 :type fixnum))
 
 (defclass cached-truetype-font (truetype-font)
   ;; FIXME cache pixarrays.
@@ -290,36 +376,6 @@ of resulting sequence are equal."
    (rtl-glyph-info :initform (make-hash-table :size 512))
    (ttb-glyph-info :initform (make-hash-table :size 512))
    (btt-glyph-info :initform (make-hash-table :size 512))))
-
-(defun glyph-info-advance (font info kerning direction)
-  (ecase direction
-    (:left-to-right
-     (let ((origin-x  (- (glyph-info-left info)))
-           (origin-y  (glyph-info-top info))
-           (cursor-dx (+ (glyph-info-advance-hx info) kerning))
-           (cursor-dy 0))
-       (values info origin-x origin-y cursor-dx cursor-dy)))
-    (:right-to-left
-     (let ((origin-x  (- (glyph-info-advance-hx info)
-                         (glyph-info-left info)))
-           (origin-y  (glyph-info-top info))
-           (cursor-dx (- (+ (glyph-info-advance-hx info) kerning)))
-           (cursor-dy 0))
-       (values info origin-x origin-y cursor-dx cursor-dy)))
-    (:top-to-bottom
-     (let ((origin-x  (climi::round-coordinate (/ (glyph-info-width info) 2.0)))
-           (origin-y  (- (glyph-info-top info)
-                         (climi::round-coordinate (font-ascent font))))
-           (cursor-dx 0)
-           (cursor-dy (+ (glyph-info-advance-vy info) kerning)))
-       (values info origin-x origin-y cursor-dx cursor-dy)))
-    (:bottom-to-top
-     (let ((origin-x  (climi::round-coordinate (/ (glyph-info-width info) 2.0)))
-           (origin-y  (+ (glyph-info-top info)
-                         (climi::round-coordinate (font-descent font))))
-           (cursor-dx 0)
-           (cursor-dy (- (+ (glyph-info-advance-vy info) kerning))))
-       (values info origin-x origin-y cursor-dx cursor-dy)))))
 
 (defun font-glyph-info (font code direction)
   (ensure-gethash code (ecase direction
@@ -334,19 +390,35 @@ of resulting sequence are equal."
   (:method (port (font cached-truetype-font) code direction)
     (declare (ignore port))
     (multiple-value-bind (char next) (glyph-code-char code)
-      (multiple-value-bind (arr left top width height hx vy kerning)
+      (multiple-value-bind (arr
+                            origin-x origin-y advance-x advance-y
+                            xmin ymin xmax ymax)
           (make-glyph-pixarray font char next direction)
-        (let ((info (make-glyph-info code arr left top width height hx vy)))
-          (multiple-value-bind (info x0 y0 dx dy)
-              (glyph-info-advance font info kerning direction)
-            (setf (glyph-info-origin-x info) x0)
-            (setf (glyph-info-origin-y info) y0)
-            (setf (glyph-info-advance-dx info) dx)
-            (setf (glyph-info-advance-dy info) dy))
-          info)))))
+        (make-glyph-info code arr
+                         origin-x origin-y advance-x advance-y
+                         xmin ymin xmax ymax)))))
 
 
 (deftype index () `(integer 0 #.array-dimension-limit))
+
+(defun line-bbox (medium font string start end)
+  (let ((cursor-dx 0)
+        (cursor-dy 0)
+        (xmin 0) (ymin 0) (xmax 0) (ymax 0))
+    (labels ((process-code (code)
+               (let ((glyph (font-glyph-info font code (medium-line-direction medium))))
+                 (minf xmin (+ cursor-dx (glyph-info-xmin glyph)))
+                 (minf ymin (+ cursor-dy (glyph-info-ymin glyph)))
+                 (maxf xmax (+ cursor-dx (glyph-info-xmax glyph)))
+                 (maxf ymax (+ cursor-dy (glyph-info-ymax glyph)))
+                 (incf cursor-dx (glyph-info-advance-dx glyph))
+                 (incf cursor-dy (glyph-info-advance-dy glyph)))))
+      (map-over-string-glyph-codes #'process-code string start end)
+      (when (member (medium-line-direction medium) '(:top-to-bottom :bottom-to-top))
+        (rotatef cursor-dx cursor-dy)
+        (rotatef xmin ymin)
+        (rotatef xmax ymax))
+      (values xmin ymin xmax ymax cursor-dx cursor-dy))))
 
 (defun line-advance (medium font string start end)
   (let ((cursor-dx 0)
@@ -717,20 +789,15 @@ a font implementing the protocol defined below."))
          (info (font-glyph-info font (char-code char) :left-to-right)))
     (abs (- (glyph-info-advance-dx info) (glyph-info-origin-x info)))))
 
-;;; FIXME stub
 (defmethod text-bounding-rectangle* ((medium ttf-medium-mixin) string
                                      &key text-style (start 0) end)
   (setf string (string string)
         end (or end (length string)))
-  (multiple-value-bind (w h dx dy baseline)
-      (text-size medium string :text-style text-style :start start :end end)
-    (declare (ignore dy))
-    (let (xmin ymin xmax ymax)
-      (setf xmin (if (plusp dx) 0 dx)
-            xmax (+ xmin w)
-            ymin (- baseline)
-            ymax (+ ymin h))
-      (values xmin ymin xmax ymax))))
+  (let ((font (text-style-mapping (port medium)
+                                  (merge-text-styles
+                                   text-style
+                                   (medium-merged-text-style medium)))))
+    (line-bbox medium font string start end)))
 
 (defmethod text-size ((medium ttf-medium-mixin) string &key text-style (start 0) end)
   (setf string (string string)
@@ -763,6 +830,7 @@ a font implementing the protocol defined below."))
 ;;; Compare with the function GLYPH-INFO-ADVANCE.
 (defun naive-render-composite-glyphs (font glyph-codes
                                       medium x y transformation direction)
+  #+ (or)
   (flet ((compute-offset-x (info)
            (ecase direction
              (:left-to-right 0)
