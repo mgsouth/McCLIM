@@ -226,7 +226,6 @@
              (dy (ceiling y2))
              (ws (- (ceiling x2) (floor x1)))
              (hs (- (ceiling y2) (floor y1)))
-             (cx (climi::round-coordinate (/ ws 2.0)))
              (array (make-array (list hs ws) :initial-element 0
                                              :element-type '(unsigned-byte 8)))
              (transf (compose-transformations
@@ -257,41 +256,53 @@
                                                   (logior #x40 (aref array 0 i))
                                                   (aref array (1- height) i)
                                                   (logior #x40 (aref array (1- height) i)))))
-        (let ((hx (climi::round-coordinate (* scale (zpb-ttf:advance-width glyph))))
-              (vy (climi::round-coordinate (* scale (zpb-ttf:advance-height glyph))))
-              (kr (climi::round-coordinate
-                   (ecase direction
-                     (:left-to-right (* scale (zpb-ttf:kerning-offset char next font)))
-                     (:right-to-left (* scale (zpb-ttf:kerning-offset next char font)))
-                     ((:top-to-bottom :bottom-to-top) 0))))
-              (origin-x nil)
-              (origin-y nil)
-              (advance-x 0)
-              (advance-y 0)
-              (font-bbox (zpb-ttf:bounding-box font-loader))
-              xmin ymin xmax ymax)
+        (let* ((hx (climi::round-coordinate (* scale (zpb-ttf:advance-width glyph))))
+               (vy (climi::round-coordinate (* scale (zpb-ttf:advance-height glyph))))
+               (cx (climi::round-coordinate (/ hx 2.0)))
+               (kr (climi::round-coordinate
+                    (ecase direction
+                      (:left-to-right (* scale (zpb-ttf:kerning-offset char next font)))
+                      (:right-to-left (* scale (zpb-ttf:kerning-offset next char font)))
+                      ((:top-to-bottom :bottom-to-top) 0))))
+               (xmin (- x1))
+               (xmax (- hx xmin))
+               ;; Mind the flip please.
+               (ymin (- ascent))
+               (ymax (+ descent))
+               origin-x origin-y advance-x advance-y)
+          (ecase direction
+            ((:left-to-right :right-to-left)
+             (setf xmin (- x1) xmax (- hx xmin)
+                   ymin (- ascent) ymax (+ descent)))
+            ((:top-to-bottom :bottom-to-top)
+             (setf xmin (- cx vascent) xmax (+ cx vdescent)
+                   ymin (+ y2) ymax (- y1))))
           (ecase direction
             (:left-to-right
              (setf origin-x 0
                    origin-y 0
-                   advance-x (+ hx kr)))
+                   advance-x (+ hx kr)
+                   advance-y 0))
             (:right-to-left
-             (setf origin-x hx
+             (setf origin-x (ceiling x2)
                    origin-y 0
-                   advance-x (- (+ hx kr))))
+                   advance-x (- (+ hx kr))
+                   advance-y 0))
             (:top-to-bottom
              (setf origin-x cx
                    origin-y (- (ceiling ascent))
+                   advance-x 0
                    advance-y vy))
             (:bottom-to-top
              (setf origin-x cx
                    origin-y (ceiling descent)
+                   advance-x 0
                    advance-y (- vy))))
-          (setf xmin (- (floor (* scale (elt font-bbox 0))) origin-x)
-                xmax (- (ceiling (* scale (elt font-bbox 2))) origin-x)
-                ;; Mind the flip over the Y axis.
-                ymin (- (floor (- (* scale (elt font-bbox 3)))) origin-y)
-                ymax (- (ceiling (- (* scale (elt font-bbox 1)))) origin-y))
+          ;; Make the bounding box relative to the new origin.
+          (setf xmin (floor (- xmin origin-x))
+                ymin (floor (- ymin origin-y))
+                xmax (ceiling (- xmax origin-x))
+                ymax (ceiling (- ymax origin-y)))
           ;; Finaly, _after_ adjusting the bounding rectangle, move origin to
           ;; conform to the bitmap coordinates.
           (incf origin-x dx)
@@ -414,10 +425,12 @@ of resulting sequence are equal."
                  (incf cursor-dx (glyph-info-advance-dx glyph))
                  (incf cursor-dy (glyph-info-advance-dy glyph)))))
       (map-over-string-glyph-codes #'process-code string start end)
-      (when (member (medium-line-direction medium) '(:top-to-bottom :bottom-to-top))
-        (rotatef cursor-dx cursor-dy)
-        (rotatef xmin ymin)
-        (rotatef xmax ymax))
+      (ecase (medium-line-direction medium)
+        ((:left-to-right :right-to-left))
+        ((:top-to-bottom :bottom-to-top)
+         (rotatef xmin ymin)
+         (rotatef xmax ymax)
+         (rotatef cursor-dx cursor-dy)))
       (values cursor-dx cursor-dy xmin ymin xmax ymax))))
 
 (defun fill-glyph-indexes (medium font string start end glyph-ids)
@@ -430,14 +443,29 @@ of resulting sequence are equal."
       (map-over-string-glyph-codes #'process string start end))))
 
 (defun font-prepare-glyphs (medium font string start end align-x align-y)
-  (declare (optimize (speed 3))
+  (declare ;(optimize (speed 3))
            (type index start end)
            (type string string))
   (when (>= start end)
     (return-from font-prepare-glyphs (values 0 0 0 0 0 0)))
   (multiple-value-bind (cursor-dx cursor-dy xmin ymin xmax ymax)
       (line-advance medium font string start end)
-    (declare (ignore cursor-dx cursor-dy))
+    (ecase (medium-line-direction medium)
+      ((:left-to-right :right-to-left))
+      ((:top-to-bottom :bottom-to-top)
+       ;; Vertical metric natural orientation is top-to-bottom while alignment
+       ;; values are specified in terms of left-to-right. Thus:
+       (rotatef cursor-dx cursor-dy)
+       (rotatef xmin ymin)
+       (rotatef xmax ymax)
+       (psetf align-x (ecase align-y
+                        ((:baseline :center) align-y)
+                        (:top :right)
+                        (:bottom :left))
+              align-y (ecase align-x
+                        ((:baseline :center) align-x)
+                        (:left :top)
+                        (:right :bottom)))))
     (let* ((after xmax)
            (below ymax)
            (sw (- after xmin))
@@ -650,20 +678,22 @@ a font implementing the protocol defined below."))
         end (or end (length string)))
   (when (>= start end)
     (return-from text-size
-      (values 0
+      (values (text-style-width text-style medium)
               (text-style-height text-style medium)
-              0
-              0
+              0 0
               (text-style-ascent text-style medium))))
   (let* ((font (text-style-mapping (port medium)
                                    (merge-text-styles
                                     text-style
                                     (medium-merged-text-style medium))))
-         (baseline (font-ascent font))
-         (line-height (+ baseline (font-descent font))))
-    (multiple-value-bind (cursor-dx cursor-dy)
+         (baseline (ecase (medium-line-direction medium)
+                     ((:left-to-right :right-to-left)
+                      (font-ascent font))
+                     ((:top-to-bottom :bottom-to-top)
+                      (font-vascent font)))))
+    (multiple-value-bind (cursor-dx cursor-dy xmin ymin xmax ymax)
         (line-advance medium font string start end)
-      (values (abs cursor-dx) line-height
+      (values (- xmax xmin) (- ymax ymin)
               cursor-dx cursor-dy
               baseline))))
 
@@ -674,6 +704,7 @@ a font implementing the protocol defined below."))
 ;;; ORIGIN-X and ORIGIN-Y are relative to glyph pixmap, while polygons are
 ;;; specified relative to the drawing origin, that's why we compute offset.
 ;;; Compare with the function GLYPH-INFO-ADVANCE.
+#+ (or)
 (defun naive-render-composite-glyphs (font glyph-codes
                                       medium x y transformation direction)
   #+ (or)
@@ -750,8 +781,10 @@ a font implementing the protocol defined below."))
 (defmethod medium-draw-text* ((medium ttf-medium-mixin) string x y start end
                               align-x align-y
                               toward-x toward-y transform-glyphs)
-  (climi::orf end (length string))
-  (let* ((direction (climi::medium-line-direction medium))
+  #+ (or)
+  (let* ((start (or start 0))
+         (end (or end (length string)))
+         (direction (climi::medium-line-direction medium))
          ;; DRAW-DESIGN doesn't operate in native coordinates. This is why we
          ;; need to "cancel" the device transformation.
          (base (compose-transformations
