@@ -44,7 +44,7 @@
   (defparameter *font-path*
     #P"~/Documents/Sync/back/Repositories/cl-dejavu/Hanza/HanaMinA.ttf")
   (defparameter *my-text-style*
-    (clim:make-device-font-text-style (clim:find-port) (list *font-path* 36))))
+    (clim:make-device-font-text-style (clim:find-port) (list *font-path* :size 24))))
 
 (define-application-frame draw-text-test ()
   ((coords :accessor coords :initform '(400 450 500 450))
