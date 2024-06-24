@@ -231,7 +231,6 @@ is T."
                               start end
                               align-x align-y
                               toward-x toward-y transform-glyphs)
-  (declare (ignore transform-glyphs))
   (unless (and (zerop start)
                (or (null end) (= end (length string))))
     (setf string (subseq string 0 end)))
@@ -248,8 +247,8 @@ is T."
         (multiple-value-bind (mxx mxy myx myy tx ty)
             (climi::get-transformation
              ;; PDF backend can't change the text direction.
-             (medium-text-transformation
-              medium x y toward-x toward-y :left-to-right))
+             (medium-text-transformation medium x y toward-x toward-y
+                                         :left-to-right transform-glyphs))
           (pdf:set-transform-matrix mxx mxy myx myy tx ty))
         (let ((x (ecase align-x
                    (:left 0)

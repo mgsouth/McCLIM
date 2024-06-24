@@ -54,8 +54,8 @@
    ;;
    (font :accessor font :initform :default)
    (size :accessor size :initform :large)
-   (unit :accessor unit :initform :coordinate)
    (text-style :accessor frame-text-style)
+   (transform-glyphs :accessor frame-transform-glyphs :initform t)
    ;;
    (text :accessor text :initform *neutral*)
    (align-x :accessor align-x :initform :left)
@@ -79,14 +79,10 @@
 (defun update-text-style (frame)
   (if (eq (font frame) :default)
       (setf (frame-text-style frame)
-            (make-text-style :serif :roman (size frame) (unit frame)))
-      (error "fixme unit for device fonts")
-      #+ (or)
+            (make-text-style :serif :roman (size frame)))
       (setf (frame-text-style frame)
             (clim:make-device-font-text-style
-             (port frame) (list (font frame)
-                                (size frame)
-                                (unit frame))))))
+             (port frame) (list (font frame) :size (size frame))))))
 
 (define-draw-text-test-command com-set-baseline
     ((coords 'sequence))
@@ -147,11 +143,10 @@
   (with-application-frame (frame)
     (setf (page-direction frame) direction)))
 
-(define-draw-text-test-command com-set-text-style-unit
-    ((unit '(member :coordinate :normal)))
+(define-draw-text-test-command com-set-transform-glyphs
+    ((transform-glyphs 'boolean))
   (with-application-frame (frame)
-    (setf (unit frame) unit)
-    (update-text-style frame)))
+    (setf (frame-transform-glyphs frame) transform-glyphs)))
 
 (define-draw-text-test-command (com-draw-to-stream :keystroke (#\p :control)) ()
   (let (port dest args)
@@ -195,7 +190,8 @@
       (draw-text* stream string x0 y0 :toward-x x1 :toward-y y1
                                       :align-x (align-x frame)
                                       :align-y (align-y frame)
-                                      :text-style (frame-text-style frame))))
+                                      :text-style (frame-text-style frame)
+                                      :transform-glyphs (frame-transform-glyphs frame))))
   (with-drawing-options (stream :line-thickness 3 :line-dashes nil
                                 :ink (compose-in +dark-red+ (make-opacity .5)))
     (let ((dx (- x1 x0))
@@ -309,14 +305,14 @@
     (formatting-cell (stream)
       (with-output-as-gadget (stream)
         (declare (ignorable stream))
-        (labelling (:label "TEXT-STYLE-UNIT" :background +white+)
-          (make-pane 'option-pane :items '(:coordinate :normal)
-                                  :value (unit frame)
+        (labelling (:label "TRANSFORM-GLYPHS" :background +white+)
+          (make-pane 'option-pane :items '(t nil)
+                                  :value (frame-transform-glyphs frame)
                                   :value-changed-callback
                                   (lambda (g v)
                                     (declare (ignore g))
                                     (execute-frame-command
-                                     frame `(com-set-text-style-unit ,v)))))))
+                                     frame `(com-set-transform-glyphs ,v)))))))
     (formatting-cell (stream)
       (with-output-as-gadget (stream)
         (declare (ignorable stream))

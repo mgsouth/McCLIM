@@ -24,7 +24,7 @@
          (angle (find-angle 1 0 dx dy)))
     (make-rotation-transformation* angle x y)))
 
-(defun medium-text-transformation (medium x0 y0 x1 y1 line-direction)
+(defun medium-text-transformation (medium x0 y0 x1 y1 line-direction transform-glyphs)
   (flet ((text-transformation (fx fy tx ty)
            (if (ecase line-direction
                  ((:left-to-right :right-to-left) (and (= fy ty) (< fx tx)))
@@ -33,14 +33,14 @@
                (compose-transformations
                 (draw-text-rotation* fx fy tx ty line-direction)
                 (make-translation-transformation fx fy)))))
-    (if (eq (text-style-unit (medium-text-style medium)) :coordinate)
+    (if transform-glyphs
         (compose-transformations (medium-device-transformation medium)
                                  (text-transformation x0 y0 x1 y1))
         (with-transformed-positions* ((medium-transformation medium) x0 y0 x1 y1)
           (compose-transformations (medium-native-transformation medium)
                                    (text-transformation x0 y0 x1 y1))))))
 
-(defun medium-text-transformation* (medium x0 y0 x1 y1 line-direction)
+(defun medium-text-transformation* (medium x0 y0 x1 y1 line-direction transform-glyphs)
   (flet ((text-transformation (fx fy tx ty)
            (if (ecase line-direction
                  ((:left-to-right :right-to-left) (and (= fy ty) (< fx tx)))
@@ -49,7 +49,7 @@
                (compose-transformations
                 (draw-text-rotation* fx fy tx ty line-direction)
                 (make-translation-transformation fx fy)))))
-    (if (eq (text-style-unit (medium-text-style medium)) :coordinate)
+    (if transform-glyphs
         (compose-transformations (medium-transformation medium)
                                  (text-transformation x0 y0 x1 y1))
         (with-transformed-positions* ((medium-transformation medium) x0 y0 x1 y1)
@@ -113,15 +113,15 @@
 
 (defmethod medium-draw-text* :around ((medium multiline-medium-mixin) string x y
                                       start end
-                                      align-x align-y
-                                      toward-x toward-y transform-glyphs)
+                                      align-x align-y toward-x toward-y
+                                      transform-glyphs)
   (let* ((line-direction (medium-line-direction medium))
-         (transformation (compose-transformations
-                          (draw-text-line-advance x y toward-x toward-y line-direction)
-                          (ecase (text-style-unit (medium-text-style medium))
-                            (:coordinate +identity-transformation+)
-                            (:normal (invert-transformation
-                                      (medium-device-transformation medium)))))))
+         (base-transf (draw-text-line-advance x y toward-x toward-y line-direction))
+         (transformation (if transform-glyphs
+                             base-transf
+                             (compose-transformations
+                              base-transf
+                              (invert-transformation (medium-device-transformation medium))))))
     (loop for idx0 = start then (1+ idx1)
           for idx1 = (position #\newline string :start idx0 :end end)
           do (call-next-method medium string x y idx0 (or idx1 end)

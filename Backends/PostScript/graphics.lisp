@@ -570,7 +570,6 @@ setmatrix")
                               start end
                               align-x align-y
                               toward-x toward-y transform-glyphs)
-  (declare (ignore transform-glyphs))
   (setq string (if (characterp string)
                    (make-string 1 :initial-element string)
                    (subseq string start end)))
@@ -585,8 +584,8 @@ setmatrix")
         (declare (ignore final-x final-y))
         (multiple-value-bind (mxx mxy myx myy tx ty)
             (climi::get-transformation
-             (medium-text-transformation
-              medium x y toward-x toward-y :left-to-right))
+             (medium-text-transformation medium x y toward-x toward-y
+                                         :left-to-right transform-glyphs))
           (format file-stream "[~,3F ~,3F ~,3F ~,3F ~,3F ~,3F] concat~%"
                   mxx mxy myx myy tx ty))
         ;; Only one line?

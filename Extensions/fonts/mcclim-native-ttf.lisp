@@ -611,19 +611,17 @@ of resulting sequence are equal."
 (defclass ttf-device-text-style (climi::device-font-text-style)
   ((path :initarg :path :reader device-font-path)
    (size :initarg :size :reader device-font-size :reader text-style-size)
-   (unit :initarg :unit :reader device-font-unit :reader text-style-unit)
    (preload :initarg :preload :reader device-font-preload)))
 
 (defmethod text-style-components ((style ttf-device-text-style))
-  (with-slots (size unit) style
-    (values :device :device size unit)))
+  (with-slots (size) style
+    (values :device :device size)))
 
 (defmethod make-device-font-text-style ((port ttf-port-mixin) font)
-  (destructuring-bind (path &key (size :normal) (unit :normal)
-                                 (preload nil) &allow-other-keys)
+  (destructuring-bind (path &key (size :normal) (preload nil) &allow-other-keys)
       (if (listp font) font (list font))
     (make-instance 'ttf-device-text-style
-                   :path path :size size :unit unit :preload preload
+                   :path path :size size :preload preload
                    :display-device port :device-font-name font)))
 
 (defmethod text-style-mapping ((port ttf-port-mixin)

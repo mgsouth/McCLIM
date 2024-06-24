@@ -420,7 +420,8 @@
          (glyph-set (ensure-glyph-set port))
          (direction (medium-line-direction medium))
          (transformation (medium-text-transformation
-                          medium x y toward-x toward-y direction)))
+                          medium x y toward-x toward-y
+                          direction transform-glyphs)))
     (fill-glyph-indexes medium font string start end glyph-ids)
     (multiple-value-bind (x y xmin ymin xmax ymax)
         (font-prepare-glyphs medium font string start end align-x align-y)
