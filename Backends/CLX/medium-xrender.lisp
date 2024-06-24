@@ -419,7 +419,7 @@
          (glyph-ids (clx-render-medium-%buffer% medium))
          (glyph-set (ensure-glyph-set port))
          (direction (medium-line-direction medium))
-         (transformation (medium-text-transformation
+         (transformation (mcclim-truetype:text-transformation
                           medium x y toward-x toward-y
                           direction transform-glyphs)))
     (fill-glyph-indexes medium font string start end glyph-ids)

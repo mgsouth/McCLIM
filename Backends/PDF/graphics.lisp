@@ -247,8 +247,10 @@ is T."
         (multiple-value-bind (mxx mxy myx myy tx ty)
             (climi::get-transformation
              ;; PDF backend can't change the text direction.
-             (medium-text-transformation medium x y toward-x toward-y
-                                         :left-to-right transform-glyphs))
+             (compose-transformations
+              (medium-native-transformation medium)
+              (draw-text-transformation* medium x y toward-x toward-y
+                                         :left-to-right transform-glyphs)))
           (pdf:set-transform-matrix mxx mxy myx myy tx ty))
         (let ((x (ecase align-x
                    (:left 0)

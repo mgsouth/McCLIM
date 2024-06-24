@@ -8,43 +8,12 @@
          (toward-y (round-coordinate toward-y))
          (dx (- toward-x x))
          (dy (- toward-y y))
-         (angle (ecase line-direction
-                  ((:left-to-right :right-to-left) (find-angle 1 0 dx dy))
-                  ((:top-to-bottom :bottom-to-top) (find-angle 0 1 dx dy)))))
-    (make-rotation-transformation* angle x y)))
-
-(defun draw-text-line-advance (x y toward-x toward-y line-direction)
-  ;; Rounding here is important to ensure a numerical stability of rotation.
-  (let* ((x (round-coordinate x))
-         (y (round-coordinate y))
-         (toward-x (round-coordinate toward-x))
-         (toward-y (round-coordinate toward-y))
-         (dx (- toward-x x))
-         (dy (- toward-y y))
          (angle (find-angle 1 0 dx dy)))
     (make-rotation-transformation* angle x y)))
 
-(defun medium-text-transformation (medium x0 y0 x1 y1 line-direction transform-glyphs)
+(defun draw-text-transformation* (medium x0 y0 x1 y1 line-direction transform-glyphs)
   (flet ((text-transformation (fx fy tx ty)
-           (if (ecase line-direction
-                 ((:left-to-right :right-to-left) (and (= fy ty) (< fx tx)))
-                 ((:top-to-bottom :bottom-to-top) (and (< fy ty) (= fx tx))))
-               (make-translation-transformation fx fy)
-               (compose-transformations
-                (draw-text-rotation* fx fy tx ty line-direction)
-                (make-translation-transformation fx fy)))))
-    (if transform-glyphs
-        (compose-transformations (medium-device-transformation medium)
-                                 (text-transformation x0 y0 x1 y1))
-        (with-transformed-positions* ((medium-transformation medium) x0 y0 x1 y1)
-          (compose-transformations (medium-native-transformation medium)
-                                   (text-transformation x0 y0 x1 y1))))))
-
-(defun medium-text-transformation* (medium x0 y0 x1 y1 line-direction transform-glyphs)
-  (flet ((text-transformation (fx fy tx ty)
-           (if (ecase line-direction
-                 ((:left-to-right :right-to-left) (and (= fy ty) (< fx tx)))
-                 ((:top-to-bottom :bottom-to-top) (and (< fy ty) (= fx tx))))
+           (if (and (= fy ty) (< fx tx))
                (make-translation-transformation fx fy)
                (compose-transformations
                 (draw-text-rotation* fx fy tx ty line-direction)
@@ -116,7 +85,7 @@
                                       align-x align-y toward-x toward-y
                                       transform-glyphs)
   (let* ((line-direction (medium-line-direction medium))
-         (base-transf (draw-text-line-advance x y toward-x toward-y line-direction))
+         (base-transf (draw-text-rotation* x y toward-x toward-y line-direction))
          (transformation (if transform-glyphs
                              base-transf
                              (compose-transformations

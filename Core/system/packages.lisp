@@ -2098,6 +2098,7 @@
    ;; Mixins and helpers available for backends
    #:transform-coordinates-mixin
    #:draw-text-rotation*
+   #:draw-text-transformation*
    #:align-bounding-rectangle
    #:medium-text-transformation
    ;; From CLIM (mentioned in the spec)

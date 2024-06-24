@@ -1517,11 +1517,11 @@ the associated sheet can be determined."
      transform-glyphs)
   (let* ((text-style (graphics-state-text-style graphic))
          (line-direction (graphics-state-line-direction graphic))
-         (transformation (compose-transformations
-                          (medium-transformation medium)
-                          (draw-text-line-advance origin-x origin-y
-                                                  toward-x toward-y
-                                                  line-direction))))
+         (transformation (draw-text-transformation* medium
+                                                    origin-x origin-y
+                                                    toward-x toward-y
+                                                    line-direction
+                                                    transform-glyphs)))
     (multiple-value-bind (sw sh after below)
         (text-metrics medium string :text-style text-style)
       (case align-x
@@ -1533,10 +1533,10 @@ the associated sheet can be determined."
         (:bottom (setf below 0))
         (:center (setf below (/ sh 2))))
       (%enclosing-transform-polygon transformation
-                                    (- (+ origin-x after) sw)
-                                    (- (+ origin-y below) sh)
-                                    (+ origin-x after)
-                                    (+ origin-y below)))))
+                                    (- after sw)
+                                    (- below sh)
+                                    (+ after)
+                                    (+ below)))))
 
 #+ (or) ;; debugging
 (defmethod replay-output-record :after
