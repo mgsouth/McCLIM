@@ -61,7 +61,7 @@
     (values
      (ecase align-x
        (:baseline 0)
-       (:left     (+ 0 xmin))
+       (:left     (- 0 xmin))
        (:right    (- 0 xmax))
        (:center   (- 0 xcenter)))
      (ecase align-y

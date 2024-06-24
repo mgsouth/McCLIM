@@ -186,7 +186,6 @@
 
 (defmethod climb:text-bounding-rectangle*
     ((medium postscript-font-medium) string &key text-style (start 0) end)
-  (declare (ignore direction))
   (setf string (string string))
   (climi::orf end (length string))
   (when (>= start end)
