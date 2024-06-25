@@ -296,6 +296,10 @@
                    origin-y (ceiling descent)
                    advance-x 0
                    advance-y (- vy))))
+          (setf x1 (floor (- x1 origin-x))
+                y1 (floor (- (- y2) origin-y))
+                x2 (+ x1 ws)
+                y2 (+ y1 hs))
           ;; Make the bounding box relative to the new origin.
           (setf xmin (floor (- xmin origin-x))
                 ymin (floor (- ymin origin-y))
@@ -307,7 +311,7 @@
           (incf origin-y dy)
           ;; Let there be light.
           (values array origin-x origin-y advance-x advance-y
-                  xmin ymin xmax ymax))))))
+                  xmin ymin xmax ymax x1 y1 x2 y2))))))
 
 (declaim (inline char-glyph-code glyph-code-char))
 (defun char-glyph-code (char next)
@@ -364,7 +368,7 @@ of resulting sequence are equal."
 (defstruct (glyph-info (:constructor make-glyph-info
                            (id pixarray
                             origin-x origin-y advance-dx advance-dy
-                            xmin ymin xmax ymax)))
+                            xmin ymin xmax ymax x1 y1 x2 y2)))
   (id 0                      :type fixnum)
   (pixarray nil :read-only t :type (or null glyph-pixarray))
   ;; Metrics configured for the particular direction.
@@ -376,7 +380,12 @@ of resulting sequence are equal."
   (xmin 0 :type fixnum)
   (ymin 0 :type fixnum)
   (xmax 0 :type fixnum)
-  (ymax 0 :type fixnum))
+  (ymax 0 :type fixnum)
+  ;; Minimal bounding rectangle of the glyph (for stencil ops).
+  (x1 0 :type fixnum)
+  (y1 0 :type fixnum)
+  (x2 0 :type fixnum)
+  (y2 0 :type fixnum))
 
 (defclass cached-truetype-font (truetype-font)
   ;; FIXME cache pixarrays.
@@ -399,27 +408,34 @@ of resulting sequence are equal."
   (:method (port (font cached-truetype-font) code direction)
     (declare (ignore port))
     (multiple-value-bind (char next) (glyph-code-char code)
-      (multiple-value-bind (arr
-                            origin-x origin-y advance-x advance-y
-                            xmin ymin xmax ymax)
+      (multiple-value-bind (arr origin-x origin-y advance-x advance-y
+                            xmin ymin xmax ymax x1 y1 x2 y2)
           (make-glyph-pixarray font char next direction)
         (make-glyph-info code arr
                          origin-x origin-y advance-x advance-y
-                         xmin ymin xmax ymax)))))
+                         xmin ymin xmax ymax x1 y1 x2 y2)))))
 
 
 (deftype index () `(integer 0 #.array-dimension-limit))
 
-(defun line-advance (medium font string start end)
+(defun line-metrics (medium font string start end)
   (let ((cursor-dx 0)
         (cursor-dy 0)
+        (x1 0) (y1 0) (x2 0) (y2 0)
         (xmin 0) (ymin 0) (xmax 0) (ymax 0))
     (labels ((process-code (code)
                (let ((glyph (font-glyph-info font code (medium-line-direction medium))))
+                 ;; Minimal bounding box (stencil ops)
+                 (minf x1 (+ cursor-dx (glyph-info-x1 glyph)))
+                 (minf y1 (+ cursor-dy (glyph-info-y1 glyph)))
+                 (maxf x2 (+ cursor-dx (glyph-info-x2 glyph)))
+                 (maxf y2 (+ cursor-dy (glyph-info-y2 glyph)))
+                 ;; Maximal bounding box (alignment)
                  (minf xmin (+ cursor-dx (glyph-info-xmin glyph)))
                  (minf ymin (+ cursor-dy (glyph-info-ymin glyph)))
                  (maxf xmax (+ cursor-dx (glyph-info-xmax glyph)))
                  (maxf ymax (+ cursor-dy (glyph-info-ymax glyph)))
+                 ;; Cursor advancement
                  (incf cursor-dx (glyph-info-advance-dx glyph))
                  (incf cursor-dy (glyph-info-advance-dy glyph)))))
       (map-over-string-glyph-codes #'process-code string start end)
@@ -429,7 +445,7 @@ of resulting sequence are equal."
          (rotatef xmin ymin)
          (rotatef xmax ymax)
          (rotatef cursor-dx cursor-dy)))
-      (values cursor-dx cursor-dy xmin ymin xmax ymax))))
+      (values cursor-dx cursor-dy xmin ymin xmax ymax x1 y1 x2 y2))))
 
 (defun fill-glyph-indexes (medium font string start end glyph-ids)
   (let ((idx 0)
@@ -440,17 +456,14 @@ of resulting sequence are equal."
                (incf idx))))
       (map-over-string-glyph-codes #'process string start end))))
 
-;;; FIXME line-advance computes the glyph bounding rectangle based on line
-;;; metrics (that contain bearings), so there is excess space that may impact
-;;; performance when drawing through the stencil. -- jd 2024-06-25
 (defun font-prepare-glyphs (medium font string start end align-x align-y)
   (declare ;(optimize (speed 3))
            (type index start end)
            (type string string))
   (when (>= start end)
     (return-from font-prepare-glyphs (values 0 0 0 0 0 0)))
-  (multiple-value-bind (cursor-dx cursor-dy xmin ymin xmax ymax)
-      (line-advance medium font string start end)
+  (multiple-value-bind (cursor-dx cursor-dy xmin ymin xmax ymax x1 y1 x2 y2)
+      (line-metrics medium font string start end)
     (ecase (medium-line-direction medium)
       ((:left-to-right :right-to-left))
       ((:top-to-bottom :bottom-to-top)
@@ -479,11 +492,19 @@ of resulting sequence are equal."
         (:top    (setf below sh))
         (:bottom (setf below 0))
         (:center (setf below (/ sh 2.0))))
-      (let ((prior (- after sw))
-            (above (- below sh)))
+      (let* ((prior (- after sw))
+             (above (- below sh))
+             (dx (- prior xmin))
+             (dy (- above ymin)))
+        #+ (or)                         ; maximal
         (values (- prior xmin)
                 (- above ymin)
-                prior above after below)))))
+                prior above
+                after below)
+        #- (or)                         ; minimal
+        (values dx dy
+                (+ x1 dx) (+ y1 dy)
+                (+ x2 dx) (+ y2 dy))))))
 
 
 ;;; ttf-port-mixin
@@ -692,7 +713,7 @@ a font implementing the protocol defined below."))
                                    text-style
                                    (medium-merged-text-style medium)))))
     (multiple-value-bind (cursor-dx cursor-dy xmin ymin xmax ymax)
-        (line-advance medium font string start end)
+        (line-metrics medium font string start end)
       (declare (ignore cursor-dx cursor-dy))
       (values xmin ymin xmax ymax))))
 
@@ -715,7 +736,7 @@ a font implementing the protocol defined below."))
                      ((:top-to-bottom :bottom-to-top)
                       (font-vascent font)))))
     (multiple-value-bind (cursor-dx cursor-dy xmin ymin xmax ymax)
-        (line-advance medium font string start end)
+        (line-metrics medium font string start end)
       (values (- xmax xmin) (- ymax ymin)
               cursor-dx cursor-dy
               baseline))))
