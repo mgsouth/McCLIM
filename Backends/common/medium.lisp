@@ -1,6 +1,6 @@
 (in-package #:climi)
 
-(defun draw-text-rotation* (x y toward-x toward-y line-direction)
+(defun draw-text-rotation* (x y toward-x toward-y)
   ;; Rounding here is important to ensure a numerical stability of rotation.
   (let* ((x (round-coordinate x))
          (y (round-coordinate y))
@@ -11,12 +11,12 @@
          (angle (find-angle 1 0 dx dy)))
     (make-rotation-transformation* angle x y)))
 
-(defun draw-text-transformation* (medium x0 y0 x1 y1 line-direction transform-glyphs)
+(defun draw-text-transformation* (medium x0 y0 x1 y1 transform-glyphs)
   (flet ((text-transformation (fx fy tx ty)
            (if (and (= fy ty) (< fx tx))
                (make-translation-transformation fx fy)
                (compose-transformations
-                (draw-text-rotation* fx fy tx ty line-direction)
+                (draw-text-rotation* fx fy tx ty)
                 (make-translation-transformation fx fy)))))
     (if transform-glyphs
         (compose-transformations (medium-transformation medium)
@@ -85,7 +85,7 @@
                                       align-x align-y toward-x toward-y
                                       transform-glyphs)
   (let* ((line-direction (medium-line-direction medium))
-         (base-transf (draw-text-rotation* x y toward-x toward-y line-direction))
+         (base-transf (draw-text-rotation* x y toward-x toward-y))
          (transformation (if transform-glyphs
                              base-transf
                              (compose-transformations

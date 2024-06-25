@@ -404,7 +404,7 @@
               (:bottom "text-after-edge"))))
       ;; FIXME SVG can do LTR, RTL and TTB, but not BTT -- implement that and
       ;; replace :LEFT-TO-RIGHT with (MEDIUM-LINE-DIRECTION MEDIUM).
-      (let ((transformation (draw-text-rotation* x y toward-x toward-y :left-to-right)))
+      (let ((transformation (draw-text-rotation* x y toward-x toward-y)))
         (cl-who:with-html-output (stream drawable)
           (:text :x (fmt x)
                  :y (fmt y)

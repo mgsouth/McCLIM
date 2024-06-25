@@ -1516,11 +1516,9 @@ the associated sheet can be determined."
      toward-x toward-y
      transform-glyphs)
   (let* ((text-style (graphics-state-text-style graphic))
-         (line-direction (graphics-state-line-direction graphic))
          (transformation (draw-text-transformation* medium
                                                     origin-x origin-y
                                                     toward-x toward-y
-                                                    line-direction
                                                     transform-glyphs)))
     (multiple-value-bind (sw sh after below)
         (text-metrics medium string :text-style text-style)
