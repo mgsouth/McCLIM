@@ -398,6 +398,7 @@
                               toward-x toward-y transform-glyphs)
   (declare (optimize (speed 3))
            (type index start)
+           (type (or null index) end)
            (type string string))
   (climi::orf end (length string))
   (when (or (alexandria:emptyp string) (>= start end))
@@ -423,7 +424,7 @@
                           medium x y toward-x toward-y
                           direction transform-glyphs)))
     (fill-glyph-indexes medium font string start end glyph-ids)
-    (multiple-value-bind (x y xmin ymin xmax ymax)
+    (multiple-value-bind (cx cy xmin ymin xmax ymax)
         (font-prepare-glyphs medium font string start end align-x align-y)
       ;; When the source is not uniform then render-compsite-glyphs is much
       ;; slower than first drawing on a stencil and then filling the
@@ -431,7 +432,7 @@
       (if (and (translation-transformation-p transformation)
                (uniform-ink-p (medium-ink medium)))
           (draw-glyphs/fast glyph-set glyph-ids (- end start)
-                            medium x y transformation)
+                            medium cx cy transformation)
           (draw-glyphs/fine glyph-set glyph-ids (- end start)
-                            medium x y transformation
+                            medium cx cy transformation
                             xmin ymin xmax ymax)))))

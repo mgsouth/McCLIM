@@ -9,15 +9,15 @@
          (dx (- toward-x x))
          (dy (- toward-y y))
          (angle (find-angle 1 0 dx dy)))
-    (make-rotation-transformation* angle x y)))
+    (make-rotation-transformation* angle 0 0)))
 
 (defun draw-text-transformation* (medium x0 y0 x1 y1 transform-glyphs)
   (flet ((text-transformation (fx fy tx ty)
            (if (and (= fy ty) (< fx tx))
                (make-translation-transformation fx fy)
                (compose-transformations
-                (draw-text-rotation* fx fy tx ty)
-                (make-translation-transformation fx fy)))))
+                (make-translation-transformation fx fy)
+                (draw-text-rotation* fx fy tx ty)))))
     (if transform-glyphs
         (compose-transformations (medium-transformation medium)
                                  (text-transformation x0 y0 x1 y1))
@@ -84,8 +84,7 @@
                                       start end
                                       align-x align-y toward-x toward-y
                                       transform-glyphs)
-  (let* ((line-direction (medium-line-direction medium))
-         (base-transf (draw-text-rotation* x y toward-x toward-y))
+  (let* ((base-transf (draw-text-rotation* x y toward-x toward-y))
          (transformation (if transform-glyphs
                              base-transf
                              (compose-transformations

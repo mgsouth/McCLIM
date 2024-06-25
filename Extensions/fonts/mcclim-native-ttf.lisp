@@ -675,15 +675,15 @@ a font implementing the protocol defined below."))
                     (angle (ecase line-direction
                              ((:left-to-right :right-to-left) (find-angle 1 0 dx dy))
                              ((:top-to-bottom :bottom-to-top) (find-angle 0 1 dx dy)))))
-               (make-rotation-transformation* angle fx fy)))
+               (make-rotation-transformation* angle 0 0)))
            (text-transformation (fx fy tx ty)
              (if (ecase line-direction
                    ((:left-to-right :right-to-left) (and (= fy ty) (< fx tx)))
                    ((:top-to-bottom :bottom-to-top) (and (< fy ty) (= fx tx))))
                  (make-translation-transformation fx fy)
                  (compose-transformations
-                  (draw-text-rotation fx fy tx ty)
-                  (make-translation-transformation fx fy)))))
+                  (make-translation-transformation fx fy)
+                  (draw-text-rotation fx fy tx ty)))))
     (if transform-glyphs
         (compose-transformations (medium-device-transformation medium)
                                  (text-transformation x0 y0 x1 y1))
