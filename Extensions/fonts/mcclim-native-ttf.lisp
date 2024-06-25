@@ -148,14 +148,14 @@
 ;;; M=[x1 y1], N=[x2 y2], O=[x1 y2], P=[x2 y1].
 ;;;
 ;;;    ^     
-;;;    |     O...........N
+;;;  y2|     O...........N
 ;;;    |     :           :
 ;;;    |     :           :
 ;;;    |     :           :
 ;;;    |     :           : 
 ;;;  --L-----:-----------:-----R--
 ;;;    |     :           :
-;;;    |     M...........P     dx
+;;;  y1|     M...........P     dx
 ;;;    |      
 ;;; 
 ;;; 
@@ -167,14 +167,14 @@
 ;;;    ^           T
 ;;;    |
 ;;;    |
-;;;    |     O...........N
+;;;  y2|     O...........N
 ;;;    |     :           :
 ;;;    |     :           :
 ;;;    |     :           :
 ;;;    |     :           : 
 ;;;  --L-----:-----------:-----R--
 ;;;    |     :           :
-;;;    |     M...........P     dx
+;;;  y1|     M...........P     dx
 ;;;    |      
 ;;;    |           B
 ;;;
@@ -189,14 +189,14 @@
 ;;;    |           T                ;;          |     T              
 ;;;    |                            ;;          |                    
 ;;;    |                            ;;          |                    
-;;;    |     O...........N          ;;  --------O-----------N--------
+;;; -y2|     O...........N          ;;  --------O-----------N--------
 ;;;    |     :           :          ;;          |           :        
 ;;;    |     :           :          ;;          |           :        
 ;;;    |     :           :          ;;          |           :        
 ;;;    |     :           :          ;;          |           :        
 ;;;  --L-----:-----------:-----R--  ;;    L     |           :     R  
 ;;;    |     :           :          ;;          |           :        
-;;;    |     M...........P     dx   ;;          M...........P     dx 
+;;; -y1|     M...........P     dx   ;;          M...........P     dx
 ;;;    |                            ;;          |                    
 ;;;    v           B                ;;          v     B              
 ;;;
@@ -264,19 +264,17 @@
                       (:left-to-right (* scale (zpb-ttf:kerning-offset char next font)))
                       (:right-to-left (* scale (zpb-ttf:kerning-offset next char font)))
                       ((:top-to-bottom :bottom-to-top) 0))))
-               (xmin (- x1))
-               (xmax (- hx xmin))
                ;; Mind the flip please.
                (ymin (- ascent))
                (ymax (+ descent))
+               (xmin (- cx vascent))
+               (xmax (+ cx vdescent))
                origin-x origin-y advance-x advance-y)
-          (ecase direction
+          (case direction
+            ;; 1) vascent and vdescent fallback values are too big (full-width/2)
+            ;; 2) usually when we align to :left and :right we expect baseline
             ((:left-to-right :right-to-left)
-             (setf xmin (- x1) xmax (- hx xmin)
-                   ymin (- ascent) ymax (+ descent)))
-            ((:top-to-bottom :bottom-to-top)
-             (setf xmin (- cx vascent) xmax (+ cx vdescent)
-                   ymin (+ y2) ymax (- y1))))
+             (setf xmin (- x1) xmax (- hx xmin))))
           (ecase direction
             (:left-to-right
              (setf origin-x 0
@@ -442,6 +440,9 @@ of resulting sequence are equal."
                (incf idx))))
       (map-over-string-glyph-codes #'process string start end))))
 
+;;; FIXME line-advance computes the glyph bounding rectangle based on line
+;;; metrics (that contain bearings), so there is excess space that may impact
+;;; performance when drawing through the stencil. -- jd 2024-06-25
 (defun font-prepare-glyphs (medium font string start end align-x align-y)
   (declare ;(optimize (speed 3))
            (type index start end)
