@@ -84,23 +84,25 @@
                                       start end
                                       align-x align-y toward-x toward-y
                                       transform-glyphs)
-  (let* ((base-transf (draw-text-rotation* x y toward-x toward-y))
-         (transformation (if transform-glyphs
-                             base-transf
-                             (compose-transformations
-                              base-transf
-                              (invert-transformation (medium-device-transformation medium))))))
-    (loop for idx0 = start then (1+ idx1)
-          for idx1 = (position #\newline string :start idx0 :end end)
-          do (call-next-method medium string x y idx0 (or idx1 end)
-                               align-x align-y toward-x toward-y
-                               transform-glyphs)
+  (let* ((base-transf (medium-device-transformation medium))
+         (text-transf (if transform-glyphs
+                          (draw-text-rotation* x y toward-x toward-y)
+                          (with-transformed-positions* (base-transf x y toward-x toward-y)
+                            (compose-transformations
+                             (draw-text-rotation* x y toward-x toward-y)
+                             (invert-transformation base-transf))))))
+    (flet ((advance-line (idx0 idx1)
              (multiple-value-bind (w h dx dy baseline)
-                 (if (null idx1)
-                     (text-size medium string :start idx0 :end end) ; vvv \n included
-                     (text-size medium string :start idx0 :end (1+ idx1)))
+                 ;; IDX1 is a position of #\newline hence #'1+
+                 (text-size medium string :start idx0 :end (1+ idx1))
                (declare (ignore w h baseline))
-               (with-transformed-distance (transformation dx dy)
+               (with-transformed-distance (text-transf dx dy)
                  (incf x dx) (incf toward-x dx)
-                 (incf y dy) (incf toward-y dy)))
-          while idx1)))
+                 (incf y dy) (incf toward-y dy)))))
+     (loop for idx0 = start then (1+ idx1)
+           for idx1 = (position #\newline string :start idx0 :end end)
+           do (call-next-method medium string x y idx0 (or idx1 end)
+                                align-x align-y toward-x toward-y
+                                transform-glyphs)
+           while idx1
+           do (advance-line idx0 idx1)))))
