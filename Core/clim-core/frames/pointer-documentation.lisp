@@ -104,7 +104,9 @@
       (map-translators (stream-output-history stream))
       (setf known-size most-positive-fixnum)
       (map-translators (pointer-documentation-blank-area stream event)))
-    (list current-modifier (sort result #'< :key #'car) other-modifiers)))
+    (list current-modifier
+          (sort result #'< :key #'car)
+          (sort other-modifiers #'<))))
 
 (defun print-pointer-documentation (pstream stream state event)
   (unless state
