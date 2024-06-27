@@ -164,16 +164,6 @@
   (scroll-extent pane x y)
   (values x y))
 
-;;; output any buffered stuff before input
-(defmethod stream-read-gesture :before ((stream clim-stream-pane)
-                                        &key timeout peek-p
-                                          input-wait-test
-                                          input-wait-handler
-                                          pointer-button-press-handler)
-  (declare (ignore timeout peek-p input-wait-test input-wait-handler
-                   pointer-button-press-handler))
-  (force-output stream))
-
 (defmethod redisplay-frame-pane ((frame application-frame)
                                  (pane symbol)
                                  &key force-p)
