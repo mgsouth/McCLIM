@@ -235,50 +235,6 @@ alive.")
                                                            %doc-state%
                                                            %event%))))))))))
 
-(defgeneric invoke-with-output-to-pointer-documentation (frame continuation)
-  (:documentation "Invoke `continuation' with a single argument -
-a stream that the continuation can write to, the output of which
-will be used as the background message of the pointer
-documentation pane of `frame'. If the pointer-documentation of
-`frame' is not a `pointer-documentation-pane', `continuation'
-will not be called."))
-
-(defmethod invoke-with-output-to-pointer-documentation
-    ((frame standard-application-frame) continuation)
-  (with-accessors ((pointer-documentation frame-pointer-documentation-output)) frame
-    (when (typep pointer-documentation 'pointer-documentation-pane)
-      (setf (background-message pointer-documentation)
-            (with-output-to-output-record (pointer-documentation)
-              (funcall continuation pointer-documentation))
-            (background-message-time pointer-documentation) (get-universal-time)))))
-
-(defmacro with-output-to-pointer-documentation ((stream frame) &body body)
-  "Bind `stream' to the pointer-documentation pane of `frame' and
-capture the output of `body' on `stream' as the background
-message of the pointer documentation pane. If `frame' does not
-have a `pointer-documentation-pane' as pointer documentation,
-`body' will not be evaluated."
-  `(invoke-with-output-to-pointer-documentation
-    ,frame #'(lambda (,stream)
-               ,@body)))
-
-;;; A hook for applications to draw random strings in the
-;;; *pointer-documentation-output* without screwing up the real pointer
-;;; documentation too badly.
-
-(defun frame-display-pointer-documentation-string (frame string)
-  (with-output-to-pointer-documentation (stream frame)
-      (write-string string stream))
-  (let ((*pointer-documentation-output* (frame-pointer-documentation-output frame)))
-    ;; To see the string it is necessary to trigger the redisplay of
-    ;; pointer-documentation-pane with FRAME-UPDATE-POINTER-DOCUMENTATION.
-    ;; As INPUT-CONTEXT we pass NIL. FRAME-COMPUTE-POINTER-DOCUMENTATION-STATE and
-    ;; FRAME-PRINT-POINTER-DOCUMENTATION specialize on that.
-    ;; We pass the STRING as EVENT argument in this way
-    ;; FRAME-COMPUTE-POINTER-DOCUMENTATION-STATE calculate a new state
-    ;; value cached for icremental-redisplay machinery.  -- admich 2019-11-15
-    (frame-update-pointer-documentation frame nil nil string)))
-
 (defmethod frame-compute-pointer-documentation-state
     ((frame standard-application-frame) (input-context null) stream event)
   (declare (ignore stream))

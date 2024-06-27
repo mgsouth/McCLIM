@@ -318,8 +318,7 @@ current message was set."))
             (funcall continuation minibuffer)))))
 
 (defmethod invoke-with-minibuffer-stream ((minibuffer pointer-documentation-pane) continuation)
-  (clim-extensions:with-output-to-pointer-documentation (stream (pane-frame minibuffer))
-    (funcall continuation stream)))
+  (funcall continuation minibuffer))
 
 (defmethod invoke-with-minibuffer-stream ((minibuffer null) continuation)
   nil)

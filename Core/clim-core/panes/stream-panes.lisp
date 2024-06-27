@@ -256,23 +256,6 @@ current background message was set."))
    :end-of-line-action :allow
    :end-of-page-action :allow))
 
-(defmethod stream-accept :before ((stream pointer-documentation-pane) type
-                                  &rest args)
-  (declare (ignore type args))
-  (window-clear stream)
-  (when (background-message stream)
-    (setf (background-message stream) nil)
-    (redisplay-frame-pane (pane-frame stream) stream)))
-
-(defmethod stream-accept :around ((pane pointer-documentation-pane) type &rest args)
-  (declare (ignore type args))
-  (unwind-protect (loop
-                    (handler-case
-                        (with-input-focus (pane)
-                          (return (call-next-method)))
-                      (parse-error () nil)))
-    (window-clear pane)))
-
 
 ;;; Constructors
 

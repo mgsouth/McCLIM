@@ -1944,9 +1944,6 @@
    #:box-adjuster-gadget
    #:compose-space-aux
    #:simple-event-loop
-   #:invoke-with-output-to-pointer-documentation
-   #:with-output-to-pointer-documentation
-   #:frame-display-pointer-documentation-string
    #:list-pane-items
    #:output-record-baseline
    #:output-record-offset
