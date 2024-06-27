@@ -293,10 +293,12 @@
       (values w h (- x2 x0) (- y2 y0)))))
 
 (defmethod text-metrics (sheet (record string) &rest args)
-  (multiple-value-bind (width height cursor-dx cursor-dy hbase)
-      (apply #'text-size sheet record args)
-    (declare (ignore cursor-dy))
-    (values width height cursor-dx (- height hbase))))
+  (multiple-value-bind (xmin ymin xmax ymax)
+      (apply #'text-bounding-rectangle* sheet record args)
+    (values (- xmax xmin)
+            (- ymax ymin)
+            xmax
+            ymax)))
 
 ;;; The compound line size of multiple elements. This is tricky, because the
 ;;; embedded line may have a different direction from the parent. The page
