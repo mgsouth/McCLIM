@@ -232,18 +232,12 @@
 
 ;;; Pointer Documentation Pane
 
-(defparameter *default-pointer-documentation-background* +black+)
-(defparameter *default-pointer-documentation-foreground* +white+)
+(defparameter *default-pointer-documentation-background* +grey10+)
+(defparameter *default-pointer-documentation-foreground* +grey90+)
 
 (defclass pointer-documentation-pane (clim-stream-pane)
-  ((background-message :initform nil
-                       :accessor background-message
-                       :documentation "An output record, or NIL, that will
-be shown when there is no pointer documentation to show.")
-   (background-message-time :initform 0
-                            :accessor background-message-time
-                            :documentation "The universal time at which the
-current background message was set."))
+  ((documentation-state :accessor pointer-documentation-state :initform nil)
+   (cached-blank-area :accessor %pointer-documentation-blank-area :initform nil))
   (:default-initargs
    :display-time nil
    :default-view +pointer-documentation-view+
