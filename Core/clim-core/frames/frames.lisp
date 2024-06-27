@@ -207,12 +207,7 @@
     :accessor frame-disabled-commands
     :initarg :disabled-commands
     :initform nil
-    :documentation "A list of command names that have been disabled in this frame.")
-   (documentation-record
-    :accessor documentation-record
-    :initform nil
-    :documentation "Updating output record for pointer documentation produced by
-                    presentations.")))
+    :documentation "A list of command names that have been disabled in this frame.")))
 
 (defmethod port ((frame standard-application-frame))
   (if-let ((manager (frame-manager frame)))
@@ -841,13 +836,6 @@ frames and will not have focus.
   nil)
 
 (defmethod frame-input-context-track-pointer
-    ((frame standard-application-frame)
-     input-context
-     (stream output-recording-stream) event)
-  (declare (ignore input-context event))
-  nil)
-
-(defmethod frame-input-context-track-pointer
     ((frame standard-application-frame) input-context stream event)
   (declare (ignore input-context stream event))
   nil)
@@ -893,7 +881,7 @@ frames and will not have focus.
                                (device-event-y event)
                                (event-modifier-state event)
                                input-context)
-  (frame-update-pointer-documentation frame input-context stream event))
+  (update-pointer-documentation frame input-context stream event))
 
 (defun simple-event-loop (&optional (frame *application-frame*))
   "An simple event loop for applications that want all events to be handled by

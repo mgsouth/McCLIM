@@ -47,7 +47,8 @@
   (frob medium-text-style medium)
   (frob (setf medium-text-style) text-style medium)
   (frob medium-current-text-style medium)
-  (frob medium-beep medium))
+  (frob medium-beep medium)
+  (frob medium-buffering-output-p medium))
 
 ;;; Trampoline.
 (defmethod invoke-with-output-buffered

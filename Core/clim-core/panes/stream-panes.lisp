@@ -164,16 +164,6 @@
   (scroll-extent pane x y)
   (values x y))
 
-;;; output any buffered stuff before input
-(defmethod stream-read-gesture :before ((stream clim-stream-pane)
-                                        &key timeout peek-p
-                                          input-wait-test
-                                          input-wait-handler
-                                          pointer-button-press-handler)
-  (declare (ignore timeout peek-p input-wait-test input-wait-handler
-                   pointer-button-press-handler))
-  (force-output stream))
-
 (defmethod redisplay-frame-pane ((frame application-frame)
                                  (pane symbol)
                                  &key force-p)
@@ -242,18 +232,12 @@
 
 ;;; Pointer Documentation Pane
 
-(defparameter *default-pointer-documentation-background* +black+)
-(defparameter *default-pointer-documentation-foreground* +white+)
+(defparameter *default-pointer-documentation-background* +grey10+)
+(defparameter *default-pointer-documentation-foreground* +grey90+)
 
 (defclass pointer-documentation-pane (clim-stream-pane)
-  ((background-message :initform nil
-                       :accessor background-message
-                       :documentation "An output record, or NIL, that will
-be shown when there is no pointer documentation to show.")
-   (background-message-time :initform 0
-                            :accessor background-message-time
-                            :documentation "The universal time at which the
-current background message was set."))
+  ((documentation-state :accessor pointer-documentation-state :initform nil)
+   (cached-blank-area :accessor %pointer-documentation-blank-area :initform nil))
   (:default-initargs
    :display-time nil
    :default-view +pointer-documentation-view+
@@ -265,23 +249,6 @@ current background message was set."))
    :background *default-pointer-documentation-background*
    :end-of-line-action :allow
    :end-of-page-action :allow))
-
-(defmethod stream-accept :before ((stream pointer-documentation-pane) type
-                                  &rest args)
-  (declare (ignore type args))
-  (window-clear stream)
-  (when (background-message stream)
-    (setf (background-message stream) nil)
-    (redisplay-frame-pane (pane-frame stream) stream)))
-
-(defmethod stream-accept :around ((pane pointer-documentation-pane) type &rest args)
-  (declare (ignore type args))
-  (unwind-protect (loop
-                    (handler-case
-                        (with-input-focus (pane)
-                          (return (call-next-method)))
-                      (parse-error () nil)))
-    (window-clear pane)))
 
 
 ;;; Constructors
