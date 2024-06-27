@@ -841,13 +841,6 @@ frames and will not have focus.
   nil)
 
 (defmethod frame-input-context-track-pointer
-    ((frame standard-application-frame)
-     input-context
-     (stream output-recording-stream) event)
-  (declare (ignore input-context event))
-  nil)
-
-(defmethod frame-input-context-track-pointer
     ((frame standard-application-frame) input-context stream event)
   (declare (ignore input-context stream event))
   nil)
