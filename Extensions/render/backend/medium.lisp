@@ -1,6 +1,8 @@
 (in-package #:mcclim-render)
 
-(defclass render-medium-mixin (ttf-medium-mixin basic-medium)
+(defclass render-medium-mixin (climi::multiline-medium-mixin
+                               ttf-medium-mixin
+                               basic-medium)
   ((%buffer% ;; stores the drawn string glyph ids.
     :initform (make-array 1024
                           :element-type '(unsigned-byte 32)
@@ -219,8 +221,7 @@
                           direction transform-glyphs)))
     (fill-glyph-indexes medium font string start end glyph-ids)
     (multiple-value-bind (x y xmin ymin xmax ymax)
-        (font-prepare-glyphs medium font glyph-ids
-                             string start end align-x align-y)
+        (font-prepare-glyphs medium font string start end align-x align-y)
       (with-identity-transformation (medium)
         (if (translation-transformation-p transformation)
             (draw-glyphs/fast font glyph-ids (- end start)
