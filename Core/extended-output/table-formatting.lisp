@@ -641,8 +641,8 @@
                (end-slice-p (cell-w cell-h)
                  (or (and limit-n (>= current-n limit-n))
                      (and limit-s (if row-wise-p
-                                      (>= (+ current-x cell-w) limit-s)
-                                      (>= (+ current-y cell-h) limit-s)))))
+                                      (> (+ current-x cell-w) limit-s)
+                                      (> (+ current-y cell-h) limit-s)))))
                (parse-cell (item)
                  (with-bounding-rectangle* (:width cell-w :height cell-h) item
                    (when (end-slice-p cell-w cell-h)
