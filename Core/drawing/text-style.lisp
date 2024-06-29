@@ -310,6 +310,8 @@
   (when (and (typep s1 'text-style)
              (eq s1 s2))
     (return-from merge-text-styles s1))
+  (when (null s1)
+    (return-from merge-text-styles s2))
   (setq s1 (parse-text-style s1))
   (setq s2 (parse-text-style s2))
   (if (and (not (device-font-text-style-p s1))

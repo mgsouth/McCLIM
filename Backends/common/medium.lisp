@@ -24,21 +24,6 @@
         (with-transformed-positions* ((medium-transformation medium) x0 y0 x1 y1)
           (text-transformation x0 y0 x1 y1)))))
 
-(defun text-alignment-offset (xmin ymin xmax ymax align-x align-y)
-  (let ((xcenter (/ (+ xmax xmin) 2.0))
-        (ycenter (/ (+ ymax ymin) 2.0)))
-    (values
-     (ecase align-x
-       (:baseline 0)
-       (:left     (- 0 xmin))
-       (:right    (- 0 xmax))
-       (:center   (- 0 xcenter)))
-     (ecase align-y
-       (:baseline 0)
-       (:top      (- 0 ymin))
-       (:bottom   (- 0 ymax))
-       (:center   (- 0 ycenter))))))
-
 
 (defclass multiline-medium-mixin (medium) ())
 
@@ -87,30 +72,30 @@
   (orf end (length string))
   (let ((block-ws 0)
         (block-hs 0)
-        (line-breaks 0))
+        (current-dy 0))
     (flet ((handle-line (idx0 idx1)
              (multiple-value-bind (ws hs dx dy baseline)
                  (call-next-method medium string :text-style text-style
                                                  :start idx0 :end idx1)
                (declare (ignore dx dy baseline))
-               (incf line-breaks)
                (maxf block-ws ws)
-               (incf block-hs hs)))
+               (incf block-hs hs)
+               (ecase (medium-page-direction medium)
+                 ((:top-to-bottom :right-to-left)
+                  (incf current-dy hs))
+                 ((:bottom-to-top :left-to-right)
+                  (format *debug-io* "decf by ~s~%" hs)
+                  (decf current-dy hs)))))
            (handle-last (idx0)
              (multiple-value-bind (ws hs dx dy baseline)
                  (call-next-method medium string :text-style text-style
                                                  :start idx0 :end end)
-               (when (plusp line-breaks)
-                 (ecase (medium-page-direction medium)
-                   (:top-to-bottom (setf dy (+ block-hs)))
-                   (:bottom-to-top (setf dy (- block-hs)))
-                   (:left-to-right (setf dy (- block-hs)))
-                   (:right-to-left (setf dy (+ block-hs)))))
+               (declare (ignore dy))
                (maxf block-ws ws)
                (incf block-hs hs)
                (values block-ws
                        block-hs
-                       dx dy
+                       dx current-dy
                        baseline))))
       (loop for idx0 = start then (1+ idx1)
             for idx1 = (position #\newline string :start idx0 :end end)

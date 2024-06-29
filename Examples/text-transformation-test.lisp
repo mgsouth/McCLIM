@@ -40,11 +40,8 @@
 (defparameter *neutral* "0123456789")
 
 #+ (or)
-(progn
-  (defparameter *font-path*
-    #P"~/Documents/Sync/back/Repositories/cl-dejavu/Hanza/HanaMinA.ttf")
-  (defparameter *my-text-style*
-    (clim:make-device-font-text-style (clim:find-port) (list *font-path* :size 24))))
+(defparameter *font-path*
+  #P"/home/jack//Workshop/Other/deck-2024-03-26/Repositories/cl-dejavu/Hanza/HanaMinA.ttf")
 
 (define-application-frame draw-text-test ()
   ((coords :accessor coords :initform '(400 450 500 450))

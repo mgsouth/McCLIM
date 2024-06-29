@@ -423,6 +423,13 @@ of resulting sequence are equal."
         (cursor-dy 0)
         (x1 0) (y1 0) (x2 0) (y2 0)
         (xmin 0) (ymin 0) (xmax 0) (ymax 0))
+    (ecase (medium-line-direction medium)
+      ((:left-to-right :right-to-left)
+       (setf ymin (- (font-ascent font)))
+       (setf ymax (+ (font-descent font))))
+      ((:top-to-bottom :bottom-to-top)
+       (setf xmin (- (font-vdescent font)))
+       (setf xmax (+ (font-vascent font)))))
     (labels ((process-code (code)
                (let ((glyph (font-glyph-info font code (medium-line-direction medium))))
                  ;; Minimal bounding box (stencil ops)
@@ -715,21 +722,22 @@ a font implementing the protocol defined below."))
     (multiple-value-bind (cursor-dx cursor-dy xmin ymin xmax ymax)
         (line-metrics medium font string start end)
       (declare (ignore cursor-dx cursor-dy))
-      (values xmin ymin xmax ymax))))
+      (values xmin ymin xmax ymax
+              ;; cursor-dx cursor-dy
+              ;; prior above after below
+              ))))
 
 (defmethod text-size ((medium ttf-medium-mixin) string &key text-style (start 0) end)
   (setf string (string string)
-        end (or end (length string)))
+        end (or end (length string))
+        text-style (merge-text-styles text-style (medium-merged-text-style medium)))
   (when (>= start end)
     (return-from text-size
       (values (text-style-width text-style medium)
               (text-style-height text-style medium)
               0 0
               (text-style-ascent text-style medium))))
-  (let* ((font (text-style-mapping (port medium)
-                                   (merge-text-styles
-                                    text-style
-                                    (medium-merged-text-style medium))))
+  (let* ((font (text-style-mapping (port medium) text-style))
          (baseline (ecase (medium-line-direction medium)
                      ((:left-to-right :right-to-left)
                       (font-ascent font))
