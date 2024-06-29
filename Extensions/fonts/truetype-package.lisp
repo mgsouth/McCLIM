@@ -1,5 +1,9 @@
 (defpackage #:mcclim-truetype
   (:use #:climi #:clim #:clim-lisp #:climb #:clime)
+  (:import-from #:climi
+                #:round-coordinate
+                #:find-angle
+                #:with-transformed-positions*)
   (:import-from :alexandria
                 #:ensure-gethash
                 #:when-let
@@ -52,7 +56,9 @@
            #:glyph-info-advance-dx
            #:glyph-info-advance-dy)
   ;; Helpers
-  (:export #:font-prepare-glyphs)
+  (:export #:fill-glyph-indexes
+           #:font-prepare-glyphs
+           #:text-transformation)
   ;; Consumer exports
   (:export #:ttf-port-mixin
            #:ttf-medium-mixin))

@@ -10,9 +10,7 @@
   :components ((:static-file "README.md")
                (:file "truetype-package")
                (:file "fontconfig" :depends-on ("truetype-package"))
-               (:file "mcclim-native-ttf" :depends-on ("truetype-package"))
-               (:file "ttf-port-mixin" :depends-on ("truetype-package" "mcclim-native-ttf"))
-               (:file "ttf-medium-mixin" :depends-on ("truetype-package" "mcclim-native-ttf"))))
+               (:file "mcclim-native-ttf" :depends-on ("truetype-package"))))
 
 (defsystem "mcclim-fonts/clx-freetype"
   :depends-on ("mcclim-fonts" "mcclim-clx" "cl-freetype2" "mcclim-fontconfig" "mcclim-harfbuzz")

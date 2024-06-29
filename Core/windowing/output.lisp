@@ -46,9 +46,18 @@
   (frob (setf medium-default-text-style) text-style medium)
   (frob medium-text-style medium)
   (frob (setf medium-text-style) text-style medium)
+  (frob medium-line-direction medium)
+  (frob (setf medium-line-direction) line-direction medium)
+  (frob medium-page-direction medium)
+  (frob (setf medium-page-direction) page-direction medium)
   (frob medium-current-text-style medium)
   (frob medium-beep medium)
   (frob medium-buffering-output-p medium))
+
+;;; Trampoline.
+(defmethod text-bounding-rectangle* ((sheet sheet-with-medium-mixin) string &rest args)
+  (let ((medium (sheet-medium sheet)))
+    (apply #'text-bounding-rectangle* medium string args)))
 
 ;;; Trampoline.
 (defmethod invoke-with-output-buffered

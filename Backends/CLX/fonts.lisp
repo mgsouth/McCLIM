@@ -82,8 +82,7 @@
   (let ((font (text-style-mapping (port medium) text-style)))
     (xlib:char-width font (char-code char))))
 
-(defun font-text-extents (font string &key start end direction)
-  (declare (ignore direction))
+(defun clx-font-text-extents (font string &key start end)
   (multiple-value-bind (width ascent descent
                         left-bearing right-bearing overall-ascent overall-descent
                         overall-direction next-start)
@@ -94,19 +93,35 @@
               left-bearing overall-ascent width height overall-ascent overall-descent 0
               width 0))))
 
+(defmethod text-bounding-rectangle* ((medium clx-medium) string
+                                     &key text-style (start 0) end)
+  (unless end
+    (setf end (length string)))
+  (when (>= start end)
+    (return-from text-bounding-rectangle* (values 0 0 0 0)))
+  (let* ((text (string string))
+         (text-style (merge-text-styles text-style (medium-merged-text-style medium)))
+         (font (text-style-mapping (clim:port medium) text-style)))
+    (clx-font-text-extents font text :start start :end end)))
+
 (defmethod text-size ((medium clx-medium) string &key text-style (start 0) end)
   (setf string (string string)
         end (or end (length string))
         text-style (clim:merge-text-styles text-style (clim:medium-merged-text-style medium)))
   (when (= start end)
-    (return-from climb:text-size (values 0 0 0 0 (clim:text-style-ascent text-style medium))))
+    (return-from climb:text-size
+      (values 0
+              (text-style-height text-style medium)
+              0
+              0
+              (text-style-ascent text-style medium))))
   (let ((text (string string))
         (font (text-style-mapping (clim:port medium) text-style)))
     (multiple-value-bind (xmin ymin xmax ymax
                           left top width height
                           ascent descent linegap
                           cursor-dx cursor-dy)
-        (font-text-extents font text :start start :end end)
+        (clx-font-text-extents font text :start start :end end)
       (declare (ignore xmin ymin xmax ymax left top descent linegap))
       (values width height cursor-dx cursor-dy ascent))))
 

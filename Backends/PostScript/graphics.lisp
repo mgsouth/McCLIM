@@ -563,11 +563,13 @@ setmatrix")
   (apply #'concatenate 'string
          (map 'list #'postscript-escape-char string)))
 
+(defmethod climi::medium-line-direction (medium) :left-to-right)
+(defmethod climi::medium-page-direction (medium) :top-to-bottom)
+
 (defmethod medium-draw-text* ((medium postscript-medium) string x y
                               start end
                               align-x align-y
                               toward-x toward-y transform-glyphs)
-  (declare (ignore transform-glyphs))
   (setq string (if (characterp string)
                    (make-string 1 :initial-element string)
                    (subseq string start end)))
@@ -582,11 +584,14 @@ setmatrix")
         (declare (ignore final-x final-y))
         (multiple-value-bind (mxx mxy myx myy tx ty)
             (climi::get-transformation
-             (medium-text-transformation medium x y toward-x toward-y))
+             (compose-transformations
+              (medium-native-transformation medium)
+              (draw-text-transformation* medium x y toward-x toward-y transform-glyphs)))
           (format file-stream "[~,3F ~,3F ~,3F ~,3F ~,3F ~,3F] concat~%"
                   mxx mxy myx myy tx ty))
         ;; Only one line?
         (let ((x (ecase align-x
+                   (:baseline 0)
                    (:left 0)
                    (:center (- (/ total-width 2)))
                    (:right (- total-width))))

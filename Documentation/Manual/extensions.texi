@@ -7,7 +7,6 @@
 * Frame and sheet names::
 * Frame and sheet shrinking::
 * Frame command table change::
-* Text editor substrate::
 * Extended text formatting::
 * Extended blank area presentation type::
 * Tab Layout::
@@ -135,24 +134,6 @@ change the menu. Menu is managed by the frame manager so @mcclim{}
 adds the appropriate notification protocol.
 
 @include docstrings/fun-clim-extensions-note-frame-command-table-changed.texi
-
-@node Text editor substrate
-@section Text editor substrate
-@cindex drei
-@cindex input-editor
-@cindex text-editor
-@cindex text-field
-
-For brievity only basic topics common to all substrates are covered in
-the manual. Drei documentation is provided as a separate document.
-
-@menu
-* Text field gadget::
-* Text editor pane::
-@end menu
-
-@node Text field gadget
-@node Text editor pane
 
 @node Extended text formatting
 @section Extended text formatting

@@ -393,6 +393,7 @@
   (with-drawing-context (drawable medium :text)
     (let ((text-anchor
             (ecase align-x
+              (:baseline "start")
               (:left "start")
               (:center "middle")
               (:right "end")))
@@ -402,7 +403,9 @@
               (:center "central")
               (:baseline "alphabetic")
               (:bottom "text-after-edge"))))
-      (let ((transformation (climb:draw-text-rotation* x y toward-x toward-y)))
+      ;; FIXME SVG can do LTR, RTL and TTB, but not BTT -- implement that and
+      ;; replace :LEFT-TO-RIGHT with (MEDIUM-LINE-DIRECTION MEDIUM).
+      (let ((transformation (draw-text-rotation* x y toward-x toward-y)))
         (cl-who:with-html-output (stream drawable)
           (:text :x (fmt x)
                  :y (fmt y)

@@ -2,8 +2,7 @@
 
 (defsystem "mcclim-raster-image"
   :depends-on ("clim" ; for CLIMB:FILE-DESTINATION, CLIMB:REGISTER-OUTPUT-DESTINATION-TYPE
-               "mcclim-render"
-               "mcclim-backend-common")
+               "mcclim-render")
   :serial t
   :components ((:file "package")
                (:file "sheets")

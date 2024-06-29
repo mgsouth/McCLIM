@@ -105,7 +105,7 @@
 (define-protocol-class text-style nil nil)
 (pledge :class standard-text-style (text-style))
 (defgeneric text-style-equalp (style1 style2))
-(declfun make-text-style (family face size &optional unit))
+(declfun make-text-style (family face size))
 (pledge :constant *default-text-style*)
 (pledge :constant *undefined-text-style*)
 
@@ -114,8 +114,6 @@
 (defgeneric text-style-family (instance))
 (defgeneric text-style-face (instance))
 (defgeneric text-style-size (instance)
-  (:method (instance) :normal))
-(defgeneric text-style-unit (instance)
   (:method (instance) :normal))
 (declfun parse-text-style (style-spec))
 (declfun parse-text-style* (style))
@@ -127,8 +125,8 @@
 (defgeneric text-style-height (text-style medium))
 (defgeneric text-style-fixed-width-p (text-style medium))
 (defgeneric text-size (medium string &key text-style start end))
-(defgeneric text-style-character-width (text-style medium char)
-  (:method (text-style medium char) (text-size medium char :text-style text-style)))
+(defgeneric text-style-character-width (text-style medium char) (:method (text-style medium char) (text-size medium char :text-style text-style)))
+(defgeneric text-bounding-rectangle* (medium string &key text-style start end))
 
 ;;; 11.2 Text Style Binding Forms
 (pledge :macro with-text-style ((medium text-style) &body body))

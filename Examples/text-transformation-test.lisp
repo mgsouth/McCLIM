@@ -40,11 +40,8 @@
 (defparameter *neutral* "0123456789")
 
 #+ (or)
-(progn
-  (defparameter *font-path*
-    #P"~/Documents/Sync/back/Repositories/cl-dejavu/Hanza/HanaMinA.ttf")
-  (defparameter *my-text-style*
-    (clim:make-device-font-text-style (clim:find-port) (list *font-path* 36))))
+(defparameter *font-path*
+  #P"/home/jack//Workshop/Other/deck-2024-03-26/Repositories/cl-dejavu/Hanza/HanaMinA.ttf")
 
 (define-application-frame draw-text-test ()
   ((coords :accessor coords :initform '(400 450 500 450))
@@ -54,13 +51,14 @@
    ;;
    (font :accessor font :initform :default)
    (size :accessor size :initform :large)
-   (unit :accessor unit :initform :coordinate)
    (text-style :accessor frame-text-style)
+   (transform-glyphs :accessor frame-transform-glyphs :initform t)
    ;;
    (text :accessor text :initform *neutral*)
    (align-x :accessor align-x :initform :left)
    (align-y :accessor align-y :initform :baseline)
-   (direction :accessor transform-glyphs :initform :left-to-right))
+   (line-direction :accessor line-direction :initform :left-to-right)
+   (page-direction :accessor page-direction :initform :top-to-bottom))
   (:menu-bar nil)
   (:reinitialize-frames t)
   (:pane :application :display-function #'display
@@ -78,14 +76,10 @@
 (defun update-text-style (frame)
   (if (eq (font frame) :default)
       (setf (frame-text-style frame)
-            (make-text-style :serif :roman (size frame) (unit frame)))
-      (error "fixme unit for device fonts")
-      #+ (or)
+            (make-text-style :serif :roman (size frame)))
       (setf (frame-text-style frame)
             (clim:make-device-font-text-style
-             (port frame) (list (font frame)
-                                (size frame)
-                                (unit frame))))))
+             (port frame) (list (font frame) :size (size frame))))))
 
 (define-draw-text-test-command com-set-baseline
     ((coords 'sequence))
@@ -134,16 +128,22 @@
   (with-application-frame (frame)
     (setf (align-y frame) align-y)))
 
-(define-draw-text-test-command com-set-transform-glyphs
-    ((direction '(member :left-to-right :right-to-left :top-to-bottom :bottom-to-top)))
+(define-draw-text-test-command com-set-line-direction
+    ((direction '(member :left-to-right :right-to-left
+                         :top-to-bottom :bottom-to-top)))
   (with-application-frame (frame)
-    (setf (transform-glyphs frame) direction)))
+    (setf (line-direction frame) direction)))
 
-(define-draw-text-test-command com-set-text-style-unit
-    ((unit '(member :coordinate :normal)))
+(define-draw-text-test-command com-set-page-direction
+    ((direction '(member :left-to-right :right-to-left
+                         :top-to-bottom :bottom-to-top)))
   (with-application-frame (frame)
-    (setf (unit frame) unit)
-    (update-text-style frame)))
+    (setf (page-direction frame) direction)))
+
+(define-draw-text-test-command com-set-transform-glyphs
+    ((transform-glyphs 'boolean))
+  (with-application-frame (frame)
+    (setf (frame-transform-glyphs frame) transform-glyphs)))
 
 (define-draw-text-test-command (com-draw-to-stream :keystroke (#\p :control)) ()
   (let (port dest args)
@@ -153,6 +153,12 @@
         (setf dest (accept 'expression  :stream stream :prompt "Destination" :default nil))
         (setf args (accept '(sequence t) :stream stream :prompt "Arguments" :default '())))
       (com-%draw-to-stream port dest args))))
+
+(define-draw-text-test-command (com-draw-to-stream* :keystroke (#\o :control)) ()
+  (let ((port :pdf)
+        (dest "/tmp/foo.pdf")
+        (args '()))
+    (com-%draw-to-stream port dest args)))
 
 (define-draw-text-test-command com-%draw-to-stream
     ((port 'symbol)
@@ -175,11 +181,14 @@
   (coerce (climi::transform-positions transformation coords) 'list))
 
 (defun draw-string (frame stream string x0 y0 x1 y1)
-  (draw-text* stream string x0 y0 :toward-x x1 :toward-y y1
-                                  :align-x (align-x frame)
-                                  :align-y (align-y frame)
-                                  :text-style (frame-text-style frame)
-                                  :transform-glyphs (transform-glyphs frame))
+  (with-drawing-options (stream :line-direction (line-direction frame)
+                                :page-direction (page-direction frame))
+    (surrounding-output-with-border (stream :filled nil :padding 0)
+      (draw-text* stream string x0 y0 :toward-x x1 :toward-y y1
+                                      :align-x (align-x frame)
+                                      :align-y (align-y frame)
+                                      :text-style (frame-text-style frame)
+                                      :transform-glyphs (frame-transform-glyphs frame))))
   (with-drawing-options (stream :line-thickness 3 :line-dashes nil
                                 :ink (compose-in +dark-red+ (make-opacity .5)))
     (let ((dx (- x1 x0))
@@ -277,7 +286,8 @@
                                   :value-changed-callback
                                   (lambda (g v)
                                     (declare (ignore g))
-                                    (execute-frame-command frame `(com-set-align-x ,v)))))))
+                                    (execute-frame-command
+                                     frame `(com-set-align-x ,v)))))))
     (formatting-cell (stream)
       (with-output-as-gadget (stream)
         (declare (ignorable stream))
@@ -287,27 +297,43 @@
                                   :value-changed-callback
                                   (lambda (g v)
                                     (declare (ignore g))
-                                    (execute-frame-command frame `(com-set-align-y ,v)))))))
+                                    (execute-frame-command
+                                     frame `(com-set-align-y ,v)))))))
     (formatting-cell (stream)
       (with-output-as-gadget (stream)
         (declare (ignorable stream))
         (labelling (:label "TRANSFORM-GLYPHS" :background +white+)
-          (make-pane 'option-pane :items '(:left-to-right :right-to-left :top-to-bottom :bottom-to-top)
-                                  :value (transform-glyphs frame)
+          (make-pane 'option-pane :items '(t nil)
+                                  :value (frame-transform-glyphs frame)
                                   :value-changed-callback
                                   (lambda (g v)
                                     (declare (ignore g))
-                                    (execute-frame-command frame `(com-set-transform-glyphs ,v)))))))
+                                    (execute-frame-command
+                                     frame `(com-set-transform-glyphs ,v)))))))
     (formatting-cell (stream)
       (with-output-as-gadget (stream)
         (declare (ignorable stream))
-        (labelling (:label "TEXT-STYLE-UNIT" :background +white+)
-          (make-pane 'option-pane :items '(:coordinate :normal)
-                                  :value (unit frame)
+        (labelling (:label "LINE-DIRECTION" :background +white+)
+          (make-pane 'option-pane :items '(:left-to-right :right-to-left
+                                           :top-to-bottom :bottom-to-top)
+                                  :value (line-direction frame)
                                   :value-changed-callback
                                   (lambda (g v)
                                     (declare (ignore g))
-                                    (execute-frame-command frame `(com-set-text-style-unit ,v))))))))
+                                    (execute-frame-command
+                                     frame `(com-set-line-direction ,v)))))))
+    (formatting-cell (stream)
+      (with-output-as-gadget (stream)
+        (declare (ignorable stream))
+        (labelling (:label "PAGE-DIRECTION" :background +white+)
+          (make-pane 'option-pane :items '(:left-to-right :right-to-left
+                                           :top-to-bottom :bottom-to-top)
+                                  :value (page-direction frame)
+                                  :value-changed-callback
+                                  (lambda (g v)
+                                    (declare (ignore g))
+                                    (execute-frame-command
+                                     frame `(com-set-page-direction ,v))))))))
   (multiple-value-bind (x0 y0) (stream-cursor-initial-position stream)
     (declare (ignore x0))
     (setf (stream-cursor-position stream) (values 660 y0))

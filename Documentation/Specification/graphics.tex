@@ -599,24 +599,19 @@ an integer that is less than the length of the string.  If \arg{end} is
 supplied, it must be an integer that is less than the length of the string, but
 greater than or equal to \arg{start}.
 
-Normally, glyphs are drawn from left to right no matter what transformation is
-in effect.  \arg{toward-x} or \arg{toward-y} (derived from \arg{toward-point} in
-the case of \cl{draw-text}) can be used to change the direction from one glyph
-to the next one.  For example, if \arg{toward-x} is less than the $x$ position
-of \arg{point}, then the glyphs will be drawn from right to left.  If
-\arg{toward-y} is greater than the $y$ position of \arg{point}, then the glyphs'
-baselines will be positioned one above another.  More precisely, the reference
-point in each glyph lies on a line from \arg{point} to \arg{toward-point}, and
-the spacing of each glyph is determined by packing rectangles along that line,
-where each rectangle is ``char-width'' wide and ``char-height'' high.
+The reference point in each glyph lies on a baseline designed by a line from
+\arg{point} to \arg{toward-point}. Manipulating the baseline changes graphics
+orientation while the line direction stays the same. For example when $ltr$
+text is drawn on a baseline from $[0, 0]$ to $[-1, 0]$ then it is rotated by
+$pi$ radians relative in screen coordinates compared to its natural direction.
 
-If \arg{transform-glyphs} is \term{true}, then each glyph is transformed as an
-image before it is drawn.  That is, if a rotation transformation is in effect,
-then each glyph will be rotated individually.  If \arg{transform-glyphs} is not
-supplied, then the individual glyphs are not subject to the current
-transformation.  It is permissible for CLIM implementations to ignore
-\arg{transform-glyphs} if it is too expensive to implement.
-
+\arg{transform-glyphs} has a similar purpose to \cl{line-style-unit}. When the
+parameter is \term{true}, then the drawn text is transformed with the current
+transformation like all other graphics. When \arg{transform-glyphs} is not
+supplied (or \term{false}), then only the baseline is transformed while glyphs
+are not subjected to the current transformation. It is permissible for CLIM
+implementations to ignore \arg{transform-glyphs} if it is too expensive to
+implement.
 
 \subsection {Compound Drawing Functions}
 

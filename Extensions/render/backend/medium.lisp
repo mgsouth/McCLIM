@@ -213,12 +213,13 @@
          (text-style (medium-text-style medium))
          (font (text-style-mapping port text-style))
          (glyph-ids (glyph-codes-buffer medium (- end start)))
-         (direction (climb:canonical-text-direction transform-glyphs))
-         (transformation (climb:medium-text-transformation
-                          medium x y toward-x toward-y direction)))
+         (direction (medium-line-direction medium))
+         (transformation (mcclim-truetype:text-transformation
+                          medium x y toward-x toward-y
+                          direction transform-glyphs)))
+    (fill-glyph-indexes medium font string start end glyph-ids)
     (multiple-value-bind (x y xmin ymin xmax ymax)
-        (mcclim-truetype:font-prepare-glyphs
-         glyph-ids font string start end 0 0 align-x align-y direction)
+        (font-prepare-glyphs medium font string start end align-x align-y)
       (with-identity-transformation (medium)
         (if (translation-transformation-p transformation)
             (draw-glyphs/fast font glyph-ids (- end start)

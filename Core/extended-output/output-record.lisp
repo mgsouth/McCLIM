@@ -876,6 +876,19 @@ the associated sheet can be determined."
   (if-supplied (transformation)
     (transformation-equal (graphics-state-transformation record) transformation)))
 
+(defmethod replay-output-record :around
+    ((record gs-layout-mixin) stream &optional region x-offset y-offset)
+  (declare (ignore region x-offset y-offset))
+  (with-drawing-options
+      (stream :line-direction (graphics-state-line-direction record)
+              :page-direction (graphics-state-page-direction record))
+    (call-next-method)))
+
+(defrecord-predicate gs-layout-mixin (line-direction page-direction)
+  (and (if-supplied (line-direction)
+         (eql (slot-value record 'line-direction) line-direction))
+       (if-supplied (page-direction)
+         (eql (slot-value record 'line-direction) page-direction))))
 
 ;;; 16.3.2. Graphics Displayed Output Records
 
@@ -1494,34 +1507,34 @@ the associated sheet can be determined."
        (if-supplied (filled)
                     (eql (slot-value record 'filled) filled))))
 
-(def-grecording draw-text (gs-text-style-mixin gs-transformation-mixin)
+(def-grecording draw-text (gs-transformation-mixin
+                           gs-text-style-mixin gs-layout-mixin)
     ((string (create-string string start end))
      origin-x origin-y
      (start 0) (end nil)
      align-x align-y
      toward-x toward-y
      transform-glyphs)
-  ;; FIXME Text direction.
-  (let ((text-style (graphics-state-text-style graphic))
-        (transformation (compose-transformations
-                         (medium-transformation medium)
-                         (draw-text-rotation* origin-x origin-y
-                                              toward-x toward-y))))
-    (multiple-value-bind (sw sh dx dy)
+  (let* ((text-style (graphics-state-text-style graphic))
+         (transformation (draw-text-transformation* medium
+                                                    origin-x origin-y
+                                                    toward-x toward-y
+                                                    transform-glyphs)))
+    (multiple-value-bind (sw sh after below)
         (text-metrics medium string :text-style text-style)
       (case align-x
-        (:left   (setf dx sw))
-        (:right  (setf dx 0))
-        (:center (setf dx (/ sw 2))))
+        (:left   (setf after sw))
+        (:right  (setf after 0))
+        (:center (setf after (/ sw 2))))
       (case align-y
-        (:top    (setf dy sh))
-        (:bottom (setf dy 0))
-        (:center (setf dy (/ sh 2))))
+        (:top    (setf below sh))
+        (:bottom (setf below 0))
+        (:center (setf below (/ sh 2))))
       (%enclosing-transform-polygon transformation
-                                    (- (+ origin-x dx) sw)
-                                    (- (+ origin-y dy) sh)
-                                    (+ origin-x dx)
-                                    (+ origin-y dy)))))
+                                    (- after sw)
+                                    (- below sh)
+                                    (+ after)
+                                    (+ below)))))
 
 #+ (or) ;; debugging
 (defmethod replay-output-record :after
@@ -1718,7 +1731,9 @@ the associated sheet can be determined."
   (with-slots (objects stream) self
     (let ((last-object (unless (emptyp objects)
                          (last-elt objects)))
-          (ink (medium-ink stream)))
+          (ink (medium-ink stream))
+          (line-direction (medium-line-direction stream))
+          (page-direction (medium-page-direction stream)))
       (if (and (typep last-object 'draw-text-output-record)
                (match-output-records last-object
                                      :text-style text-style :ink ink))
@@ -1735,7 +1750,9 @@ the associated sheet can be determined."
                                         :toward-x 1 :toward-y 0
                                         :align-x :left :align-y :baseline
                                         :transform-glyphs nil
-                                        :ink ink :text-style text-style)))
+                                        :ink ink :text-style text-style
+                                        :line-direction line-direction
+                                        :page-direction page-direction)))
             (vector-push-extend record objects)
             (update-output-record-cursor self record))))
     (tree-recompute-extent self)))

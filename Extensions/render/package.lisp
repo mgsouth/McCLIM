@@ -1,6 +1,6 @@
 (defpackage #:mcclim-render
   (:nicknames #:clim-render)
-  (:use #:clim #:clime #:clim-lisp #:mcclim-truetype)
+  (:use #:clim #:clime #:climb #:clim-lisp #:mcclim-truetype)
   ;; FIXME document mixins and add examples.
   (:export #:render-port-mixin
            #:image-mirror-mixin)

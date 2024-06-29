@@ -1995,8 +1995,6 @@
    #:indirect-ink-ink
    #:color-rgba
    #:design-ink
-   ;; Text style extensions:
-   #:text-style-unit
    ;; Font listing extension:
    #:font-family
    #:font-face
@@ -2094,14 +2092,15 @@
    #:invoke-with-output-buffered
    ;; Text-style
    #:text-style-character-width
+   #:text-bounding-rectangle*
    #:normalize-font-size
    #:parse-text-style*
    ;; Mixins and helpers available for backends
    #:transform-coordinates-mixin
    #:draw-text-rotation*
-   #:medium-text-transformation
+   #:draw-text-transformation*
    #:align-bounding-rectangle
-   #:canonical-text-direction
+   #:medium-text-transformation
    ;; From CLIM (mentioned in the spec)
    #:adopt-frame
    #:allocate-space
@@ -2136,7 +2135,6 @@
    #:pointer-button-state
    #:pointer-position
    #:text-size
-   #:text-style-unit
    #:text-style-ascent
    #:text-style-descent
    #:text-style-height
@@ -2153,6 +2151,8 @@
    #:medium-native-region
    ;; CLIM-EXTENSIONS
    #:medium-miter-limit
+   #:medium-line-direction
+   #:medium-page-direction
    ;; selection
    #:release-selection
    #:publish-selection

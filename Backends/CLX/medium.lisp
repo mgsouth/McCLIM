@@ -564,6 +564,7 @@ translated, so they begin at different position than [0,0])."))
         (declare (ignore x-cursor y-cursor))
         (unless (and (eq align-x :left) (eq align-y :baseline))
           (setq x (- x (ecase align-x
+                         (:baseline 0)
                          (:left 0)
                          (:center (round text-width 2)) ; worst case
                          (:right text-width))))         ; worst case

@@ -119,6 +119,13 @@
         (baseline (text-style-ascent text-style medium)))
     (values width height x y baseline)))
 
+(defmethod climb:text-bounding-rectangle*
+    ((medium null-medium) string &key text-style (start 0) end)
+  (multiple-value-bind (width height x y baseline)
+      (text-size medium string :text-style text-style :start start :end end)
+    (declare (ignore baseline))
+    (values x y (+ x width) (+ y height))))
+
 (defmethod medium-draw-text* ((medium null-medium) string x y
                               start end
                               align-x align-y

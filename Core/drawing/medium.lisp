@@ -27,95 +27,66 @@
 ;;; graphics-state without consing new objects and assign its state
 ;;; from another graphics-state object. -- jd
 
-
 (defclass graphics-state ()
   ()
   (:documentation "Stores those parts of the medium/stream graphics state
   that need to be restored when drawing an output record"))
 
-(defclass gs-transformation-mixin (graphics-state)
-  ((transformation :initarg :transformation :accessor graphics-state-transformation
-                   :documentation "Medium transformation.")))
+(defmacro define-graphics-state-mixin (class-name slot-names)
+  `(progn
+     (defclass ,class-name (graphics-state)
+       ,(loop for slot-name in slot-names
+              for initarg = (make-keyword slot-name)
+              for acc-name = (intern (format nil "GRAPHICS-STATE-~A" slot-name))
+              collect `(,slot-name :initarg ,initarg :accessor ,acc-name)))
+     (defmethod initialize-instance :after
+         ((object ,class-name) &key (stream nil)
+                                    (medium (when stream (sheet-medium stream))))
+       (when medium
+         ,@(loop for slot-name in slot-names
+                 collect `(unless (slot-boundp object ',slot-name)
+                            (setf (slot-value object ',slot-name)
+                                  (slot-value medium ',slot-name))))))
+     (defmethod (setf graphics-state) :after
+         ((new-gs ,class-name) (old-gs ,class-name))
+       ,@(loop for slot-name in slot-names
+               collect `(setf (slot-value new-gs ',slot-name)
+                              (slot-value old-gs ',slot-name))))))
 
-(defmethod initialize-instance :after ((obj gs-transformation-mixin)
-                                       &key
-                                         (stream nil)
-                                         (medium (when stream
-                                                   (sheet-medium stream))))
-  (when (and medium (not (slot-boundp obj 'transformation)))
-    (setf (slot-value obj 'transformation) (graphics-state-transformation medium))))
+(define-graphics-state-mixin gs-transformation-mixin
+    (transformation))
 
-(defclass gs-ink-mixin (graphics-state)
-  ((ink :initarg :ink :accessor graphics-state-ink)))
+(define-graphics-state-mixin gs-clip-mixin
+    (clipping-region))
 
-(defmethod initialize-instance :after ((obj gs-ink-mixin)
-                                       &key
-                                         (stream nil)
-                                         (medium (when stream
-                                                   (sheet-medium stream))))
-  (when (and medium (not (slot-boundp obj 'ink)))
-    (setf (slot-value obj 'ink) (graphics-state-ink medium))))
+(define-graphics-state-mixin gs-ink-mixin
+    (ink))
 
-(defclass gs-clip-mixin (graphics-state)
-  ((clipping-region :initarg :clipping-region :accessor graphics-state-clip
-                    :documentation "Clipping region in stream coordinates.")))
+(define-graphics-state-mixin gs-line-style-mixin
+    (line-style))
 
-(defmethod initialize-instance :after ((obj gs-clip-mixin)
-                                       &key
-                                         (stream nil)
-                                         (medium (when stream
-                                                   (sheet-medium stream))))
-  (when (and medium (not (slot-boundp obj 'clipping-region)))
-    (setf (slot-value obj 'clipping-region) (graphics-state-clip medium))))
+(define-graphics-state-mixin gs-text-style-mixin
+    (text-style))
 
-(defclass gs-line-style-mixin (graphics-state)
-  ((line-style :initarg :line-style :accessor graphics-state-line-style)))
+(define-graphics-state-mixin gs-layout-mixin
+    (line-direction
+     page-direction))
 
-(defmethod initialize-instance :after ((obj gs-line-style-mixin)
-                                       &key
-                                         (stream nil)
-                                         (medium (when stream
-                                                   (sheet-medium stream))))
-  (when (and medium (not (slot-boundp obj 'line-style)))
-    (setf (slot-value obj 'line-style) (graphics-state-line-style medium))))
-
-(defmethod graphics-state-line-style-border ((record gs-line-style-mixin) (medium medium))
-  (/ (line-style-effective-thickness (graphics-state-line-style record)
-                                     medium)
-     2))
-
-(defclass gs-text-style-mixin (graphics-state)
-  ((text-style :initarg :text-style :accessor graphics-state-text-style)))
-
-(defmethod initialize-instance :after ((obj gs-text-style-mixin)
-                                       &key
-                                         (stream nil)
-                                         (medium (when stream
-                                                   (sheet-medium stream))))
-  (when (and medium (not (slot-boundp obj 'text-style)))
-    (setf (slot-value obj 'text-style) (graphics-state-text-style medium))))
-
-(defclass complete-medium-state
-    (gs-ink-mixin gs-clip-mixin gs-line-style-mixin gs-text-style-mixin gs-transformation-mixin)
+(defclass complete-medium-state (gs-transformation-mixin
+                                 gs-clip-mixin
+                                 gs-ink-mixin
+                                 gs-line-style-mixin
+                                 gs-text-style-mixin
+                                 gs-layout-mixin)
   ())
 
 (defmethod (setf graphics-state) ((new-gs graphics-state) (gs graphics-state))
   #+(or) "This is a no-op, but :after methods don't work without a primary method.")
 
-(defmethod (setf graphics-state) :after ((new-gs gs-ink-mixin) (gs gs-ink-mixin))
-  (setf (graphics-state-ink gs) (graphics-state-ink new-gs)))
-
-(defmethod (setf graphics-state) :after ((new-gs gs-clip-mixin) (gs gs-clip-mixin))
-  (setf (graphics-state-clip gs) (graphics-state-clip new-gs)))
-
-(defmethod (setf graphics-state) :after ((new-gs gs-line-style-mixin) (gs gs-line-style-mixin))
-  (setf (graphics-state-line-style gs) (graphics-state-line-style new-gs)))
-
-(defmethod (setf graphics-state) :after ((new-gs gs-text-style-mixin) (gs gs-text-style-mixin))
-  (setf (graphics-state-text-style gs) (graphics-state-text-style new-gs)))
-
-(defmethod (setf graphics-state) :after ((new-gs gs-transformation-mixin) (gs gs-transformation-mixin))
-  (setf (graphics-state-transformation gs) (graphics-state-transformation new-gs)))
+(defmethod graphics-state-line-style-border
+    ((record gs-line-style-mixin) (medium medium))
+  (let ((style (graphics-state-line-style record)))
+    (/ (line-style-effective-thickness style medium)) 2))
 
 
 ;;; MEDIUM class
@@ -127,18 +98,9 @@
   ;; in basic-medium makes hardware-based transformations hard. -- jd 2018-03-06
   ())
 
-(defclass basic-medium (transform-coordinates-mixin complete-medium-state medium)
-  ((foreground :initarg :foreground
-               :initform +black+
-               :accessor medium-foreground
-               :reader foreground)
-   (background :initarg :background
-               :initform +white+
-               :accessor medium-background
-               :reader background)
-   (ink :initarg :ink
-        :initform +foreground-ink+
-        :accessor medium-ink)
+(defclass basic-medium (transform-coordinates-mixin complete-medium-state
+                        multiline-medium-mixin medium)
+  (;; Graphics state slots - names must coincide with complete-medium-state.
    (transformation :type transformation
                    :initarg :transformation
                    :initform +identity-transformation+
@@ -147,17 +109,31 @@
                     :initarg :clipping-region
                     :initform +everywhere+
                     :documentation "Clipping region in the SHEET coordinates.")
-   ;; always use this slot through its accessor, since there may
-   ;; be secondary methods on it -RS 2001-08-23
+   (ink :initarg :ink
+        :initform +foreground-ink+
+        :accessor medium-ink)
    (line-style :initarg :line-style
                :initform (make-line-style)
                :accessor medium-line-style)
-   ;; always use this slot through its accessor, since there may
-   ;; be secondary methods on it -RS 2001-08-23
    (text-style :initarg :text-style
                :initform *default-text-style*
                :accessor medium-text-style
                :type text-style)
+   (line-direction :initarg :line-direction
+                   :initform :left-to-right
+                   :accessor medium-line-direction)
+   (page-direction :initarg :page-direction
+                   :initform :top-to-bottom
+                   :accessor medium-page-direction)
+   ;; Default values
+   (foreground :initarg :foreground
+               :initform +black+
+               :accessor medium-foreground
+               :reader foreground)
+   (background :initarg :background
+               :initform +white+
+               :accessor medium-background
+               :reader background)
    (default-text-style :initarg :default-text-style
                        :initform *default-text-style*
                        :accessor medium-default-text-style
@@ -474,8 +450,8 @@
   (with-identity-transformation* (medium x y)
     (call-next-method medium pattern x y)))
 
-;; This is correct but first we need to tweak backends to respect the fact that
-;; the rotation is specified by [X TOWARD-X] and [Y TOWARD-Y]. -- jd 2024-02-09
+;;; If TRANSFORM-GLYPHS was always T, that is "text-size-unit" was always
+;;; :COORDINATE, then this method would be correct,.  -- jd 2024-06-29
 #+ (or)
 (defmethod medium-draw-text* :around ((medium transform-coordinates-mixin)
                                       string x y start end
@@ -606,3 +582,166 @@
   (if-let ((sheet (medium-sheet medium)))
     (port sheet)
     (call-next-method)))
+
+
+;;; Helpers and mixins
+(defun draw-text-rotation* (x y toward-x toward-y)
+  ;; Rounding here is important to ensure a numerical stability of rotation.
+  (let* ((x (round-coordinate x))
+         (y (round-coordinate y))
+         (toward-x (round-coordinate toward-x))
+         (toward-y (round-coordinate toward-y))
+         (dx (- toward-x x))
+         (dy (- toward-y y))
+         (angle (find-angle 1 0 dx dy)))
+    (make-rotation-transformation* angle 0 0)))
+
+(defun draw-text-transformation* (medium x0 y0 x1 y1 transform-glyphs)
+  (flet ((text-transformation (fx fy tx ty)
+           (if (and (= fy ty) (< fx tx))
+               (make-translation-transformation fx fy)
+               (compose-transformations
+                (make-translation-transformation fx fy)
+                (draw-text-rotation* fx fy tx ty)))))
+    (if transform-glyphs
+        (compose-transformations (medium-transformation medium)
+                                 (text-transformation x0 y0 x1 y1))
+        (with-transformed-positions* ((medium-transformation medium) x0 y0 x1 y1)
+          (text-transformation x0 y0 x1 y1)))))
+
+
+(defclass multiline-medium-mixin (medium) ())
+
+(defmethod text-bounding-rectangle* :around ((medium multiline-medium-mixin) string
+                                             &key text-style start end)
+  (orf start 0)
+  (orf end (length string))
+  (let ((total-xmin 0)
+        (total-ymin 0)
+        (total-xmax 0)
+        (total-ymax 0)
+        (current-dx 0)
+        (current-dy 0))
+    (flet ((handle-line (idx0 idx1)
+             (multiple-value-bind (xmin ymin xmax ymax)
+                 (call-next-method medium string :text-style text-style
+                                                 :start idx0 :end idx1)
+               (minf total-xmin (+ current-dx xmin))
+               (minf total-ymin (+ current-dy ymin))
+               (maxf total-xmax (+ current-dx xmax))
+               (maxf total-ymax (+ current-dy ymax))
+               (ecase (medium-page-direction medium)
+                 ((:top-to-bottom :right-to-left)
+                  (incf current-dy (- ymax ymin)))
+                 ((:bottom-to-top :left-to-right)
+                  (decf current-dy (- ymax ymin))))))
+           (handle-last (idx0)
+             (multiple-value-bind (xmin ymin xmax ymax)
+                 (call-next-method medium string :text-style text-style
+                                                 :start idx0 :end end)
+               (minf total-xmin (+ current-dx xmin))
+               (minf total-ymin (+ current-dy ymin))
+               (maxf total-xmax (+ current-dx xmax))
+               (maxf total-ymax (+ current-dy ymax))
+               (values total-xmin total-ymin total-xmax total-ymax))))
+      (loop for idx0 = start then (1+ idx1)
+            for idx1 = (position #\newline string :start idx0 :end end)
+            until (null idx1)
+            do (handle-line idx0 idx1)
+            finally
+               (return (handle-last idx0))))))
+
+(defmethod text-size :around ((medium multiline-medium-mixin) string
+                              &key text-style start end)
+  (orf start 0)
+  (orf end (length string))
+  (let ((block-ws 0)
+        (block-hs 0)
+        (current-dy 0))
+    (flet ((handle-line (idx0 idx1)
+             (multiple-value-bind (ws hs dx dy baseline)
+                 (call-next-method medium string :text-style text-style
+                                                 :start idx0 :end idx1)
+               (declare (ignore dx dy baseline))
+               (maxf block-ws ws)
+               (incf block-hs hs)
+               (ecase (medium-page-direction medium)
+                 ((:top-to-bottom :right-to-left)
+                  (incf current-dy hs))
+                 ((:bottom-to-top :left-to-right)
+                  (format *debug-io* "decf by ~s~%" hs)
+                  (decf current-dy hs)))))
+           (handle-last (idx0)
+             (multiple-value-bind (ws hs dx dy baseline)
+                 (call-next-method medium string :text-style text-style
+                                                 :start idx0 :end end)
+               (declare (ignore dy))
+               (maxf block-ws ws)
+               (incf block-hs hs)
+               (values block-ws
+                       block-hs
+                       dx current-dy
+                       baseline))))
+      (loop for idx0 = start then (1+ idx1)
+            for idx1 = (position #\newline string :start idx0 :end end)
+            until (null idx1)
+            do (handle-line idx0 idx1)
+            finally
+               (return (handle-last idx0))))))
+
+(defmethod medium-draw-text* :around ((medium multiline-medium-mixin) string x y
+                                      start end
+                                      align-x align-y toward-x toward-y
+                                      transform-glyphs)
+  (let (text-transf dx dy)
+    (labels ((text-transf ()
+               (or text-transf
+                   (let ((base-transf (medium-device-transformation medium)))
+                     (if transform-glyphs
+                         (draw-text-rotation* x y toward-x toward-y)
+                         (with-transformed-positions*
+                             (base-transf x y toward-x toward-y)
+                           (compose-transformations
+                            (draw-text-rotation* x y toward-x toward-y)
+                            (invert-transformation base-transf)))))))
+             (position-box ()
+               (multiple-value-bind (xmin ymin xmax ymax)
+                   (text-bounding-rectangle* medium string :start start :end end)
+                 (let* ((xmid (/ (+ xmin xmax) 2))
+                        (ymid (/ (+ ymin ymax) 2))
+                        (dx (ecase align-x
+                              (:baseline 0)
+                              (:left   (- xmin))
+                              (:right  (- xmax))
+                              (:center (- xmid))))
+                        (dy (ecase align-y
+                              (:baseline 0)
+                              (:top    (- ymin))
+                              (:bottom (- ymax))
+                              (:center (- ymid)))))
+                   (with-transformed-distance ((text-transf) dx dy)
+                     (incf x dx) (incf toward-x dx)
+                     (incf y dy) (incf toward-y dy)))
+                 (setf align-x :baseline align-y :baseline)))
+             (advance-line ()
+               (unless dx
+                 (multiple-value-bind (w h line-dx line-dy baseline)
+                     (text-size medium #.(format nil " ~%"))
+                   ;;      ;; IDX1 is a position of #\newline hence #'1+
+                   #+ (or) (text-size medium string :start idx0 :end (1+ idx1))
+                   (declare (ignore w h baseline))
+                   (multiple-value-setq (dx dy)
+                     (transform-distance (text-transf) line-dx line-dy))))
+               (incf x dx) (incf toward-x dx)
+               (incf y dy) (incf toward-y dy)))
+      (when (and (or (not (eq align-x :baseline))
+                     (not (eq align-y :baseline)))
+                 (find #\newline string :start start :end end))
+        (position-box))
+      (loop for idx0 = start then (1+ idx1)
+            for idx1 = (position #\newline string :start idx0 :end end)
+            do (call-next-method medium string x y idx0 (or idx1 end)
+                                 align-x align-y toward-x toward-y
+                                 transform-glyphs)
+            while idx1
+            do (advance-line)))))

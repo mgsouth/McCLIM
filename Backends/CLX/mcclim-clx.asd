@@ -7,8 +7,7 @@
                "zpb-ttf"
                "trivial-garbage"
                "clx"
-               "mcclim-fonts/truetype"
-               "mcclim-backend-common")
+               "mcclim-fonts/truetype")
   :serial t
   :components
   ((:module "basic" :pathname "" :components

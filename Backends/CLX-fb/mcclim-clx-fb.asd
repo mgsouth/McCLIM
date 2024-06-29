@@ -1,9 +1,7 @@
 (in-package #:asdf-user)
 
 (defsystem "mcclim-clx-fb"
-  :depends-on ("mcclim-backend-common"
-               "mcclim-clx"
-               "mcclim-render")
+  :depends-on ("mcclim-clx" "mcclim-render")
   :components
   ((:file "package")
    (:file "port" :depends-on ("package" "medium"))
