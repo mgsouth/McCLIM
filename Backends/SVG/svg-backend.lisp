@@ -393,6 +393,7 @@
   (with-drawing-context (drawable medium :text)
     (let ((text-anchor
             (ecase align-x
+              (:baseline "start")
               (:left "start")
               (:center "middle")
               (:right "end")))

@@ -252,6 +252,7 @@ is T."
               (draw-text-transformation* medium x y toward-x toward-y transform-glyphs)))
           (pdf:set-transform-matrix mxx mxy myx myy tx ty))
         (let ((x (ecase align-x
+                   (:baseline 0)
                    (:left 0)
                    (:center (- (/ total-width 2)))
                    (:right (- total-width))))

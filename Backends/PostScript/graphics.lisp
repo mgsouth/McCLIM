@@ -591,6 +591,7 @@ setmatrix")
                   mxx mxy myx myy tx ty))
         ;; Only one line?
         (let ((x (ecase align-x
+                   (:baseline 0)
                    (:left 0)
                    (:center (- (/ total-width 2)))
                    (:right (- total-width))))

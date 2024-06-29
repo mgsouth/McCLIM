@@ -1,8 +1,6 @@
 (in-package #:mcclim-render)
 
-(defclass render-medium-mixin (climi::multiline-medium-mixin
-                               ttf-medium-mixin
-                               basic-medium)
+(defclass render-medium-mixin (ttf-medium-mixin basic-medium)
   ((%buffer% ;; stores the drawn string glyph ids.
     :initform (make-array 1024
                           :element-type '(unsigned-byte 32)

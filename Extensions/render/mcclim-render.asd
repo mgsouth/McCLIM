@@ -5,8 +5,7 @@
   :depends-on ("alexandria"
                "cl-vectors"
                "clim"
-               "mcclim-fonts/truetype"
-               "mcclim-backend-common")
+               "mcclim-fonts/truetype")
   :serial t
   :components ((:file "package")
                (:file "types")
