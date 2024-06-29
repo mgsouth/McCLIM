@@ -1,0 +1,159 @@
+
+* Text directions in scripts around the world
+
+Generally embedding horizontal text inside a vertical one requires us to rotate
+it by pi/2 CW. W3C adds CSS properties that allow customization for that.
+
+Resources:
+
+- [[https://www.w3.org/International/articles/vertical-text/][Styling vertical Chinese, Japanese, Korean and Mongolian text (W3C)]]
+- [[https://en.wikipedia.org/wiki/Horizontal_and_vertical_writing_in_East_Asian_scripts][Horizontal and vertical writing in East Asian scripts (Wikipedia)]]
+- [[https://en.wikipedia.org/wiki/Writing_system#Directionality][Writing system > Directionality (Wikipedia)]] -- general overview
+- [[https://en.wikipedia.org/wiki/Bidirectional_text][Bidirectional text (Wikipedia)]] -- mostly unicode analysis
+- [[https://www.unicode.org/reports/tr50/][Unicode Vertical Text Layout]] -- Unicode(r) Standard Annex #50
+- [[https://en.wikipedia.org/wiki/Complex_text_layout][Complex Text Layout (Wikipedia)]] -- general overview for typesetting
+- [[https://scripts.sil.org/cms/scripts/page.php?item_id=cmplxrndexamples&site_id=nrsi#gsc.tab=0][Examples of Complex Rendering (SIL)]] -- diacritics, shaping, ligatures, bidi..
+- [[https://en.wikipedia.org/wiki/Boustrophedon][Boustrophedon]] -- alternating directions (ox-turn)
+- [[https://en.wikipedia.org/wiki/Hanunoo_script][Hanunoo script (Wikipedia)]] -- left-to-right, bottom-to-top script example
+- [[https://en.wikipedia.org/wiki/Ogham][Ogham (Wikipedia)]] -- bottom-to-top, left-to-right, Old Irish stone script
+- [[https://en.wikipedia.org/wiki/Libyco-Berber_alphabet][Libyco-Berber alphabet (Wikipedia)]] -- usually bottom-to-top or right-to-left
+- [[https://en.wikipedia.org/wiki/Tifinagh][Tifinagl (Wikipedia)]] -- all possible directions, little details, still used
+- [[https://en.wikipedia.org/wiki/Mixtec_languages][Mixtec languages (Wikipedia)]] -- languages of Cloud People (~Mexico)
+- [[https://webdva.github.io/tategaki/][Horizontal to Vertical Japanese Tool (webdva)]] -- converter with preview
+- [[https://ogham.co/][Ogham Transliterator]] -- transliterator and converter with preview
+- [[https://www.ryanestrada.com/learntoreadkoreanin15minutes/][Learn to read Korean in 15 minutes]] -- shows how glyphs are composed
+- [[https://harfbuzz.github.io/shaping-concepts.html][Shaping Concepts]] - part of harfbuzz documentation (introduction to shaping)
+- [[https://www.w3.org/TR/css-writing-modes-3/#abstract][SVG Writing Modes Level 3]] - nice overview of text directions
+
+Glossary:
+
+- sinistrodextrally :: left to right, LTR
+- dextrosinistrally :: right to left, RTL
+- boustrophedonically :: alternating line direction, oxturn + mirrored
+
+- oxturn :: alternating line direction, OXT (horizontal or vertical)
+
+  I'll refer to all custom alternating directions as oxturn-foo, where foo
+  denotes the initial side (i.e oxturn-left, oxturn-top).
+
+* Script Examples
+
+Mind that I don't know what the following texts state. Some languages have
+examples while other doesn't have them (we substitute with Latin text instead).
+
+When I say "left-to-right / top-to-bottom" I mean first the line direction, and
+then the page direction. Some languages have no examples, and some directions
+are listed without even example language.
+
+In short, we have all possible directions for both lines and pages, including
+oxturn. I have not found some particular combinations, most notably
+"bottom-to-top / right-to-left" and "right-to-left / bottom-to-top". Also oxturn
+combinations are few, but there are both vertical and horizontal variants.
+
+** Horizontal Scripts
+
+- left-to-right / top-to-bottom :: Latin, Eastern Asian
+
+  1. English :: "The quick brown fox jumps over the lazy dog."
+  2. Japanese :: "あなたは美しいです。あなたは素晴らしいです。"
+
+- right-to-left / top-to-bottom :: Arabic, Hebrew
+
+  1. Arabic :: "نشاط التدويل"
+  2. Hebrew :: "הנה כמה מילות"
+
+- left-to-right / bottom-to-top :: Hanunó'o
+- right-to-left / bottom-to-top :: ???
+- oxturn-left   / bottom-to-top :: ancient egyptian paintings
+- boustrophedon / top-to-bottom :: ancient Greece (stone tablets), Etruscan, ...
+
+  Line directions are alternating just like you plow the field with an ox. After
+  changing the direction, the text itself is mirrored.
+
+- reverse-boustrophedon / top-to-bottom :: Rapa Nui (historical)
+
+  Like boustrophedon, but instead of mirroring, alternating lines were rotated
+  by pi (180 degrees).
+
+** Vertical Scripts
+
+- top-to-bottom / right-to-left :: traditional Eastern Asian
+  
+  1. Japanese "あなたは美しいです。あなたは素晴らしいです。"
+  2. Chinese "国际化活动"
+
+- top-to-bottom / left-to-right :: traditional Mongolian (and ancestors)
+
+  1. Mongolian "ᠬᠢᠳᠠᠳ ᠮᠣᠩᠭᠤᠯ ᠲᠣᠯᠢ ᠭᠠᠷᠭᠠᠵᠠᠢ ᠁"
+
+- bottom-to-top / left-to-right :: Ogham (Old Irish) -- both orientations
+
+  1. Ogham "ᚋᚉᚉᚂᚔᚋ" :: rotate glyphs horizontally by pi/2 CCW
+
+- bottom-to-top / right-to-left :: ???
+- oxturn-bottom / right-to-left :: Mixtec (Tiger's Claw)
+
+* Backend characteristics
+
+- SVG cater to LTR, RTL and TTB with arbitrary page directions, but not BTT
+
+* McCLIM specification
+
+McCLIM page formatting supports now four major directions of line and page:
+left-to-right, right-to-left, top-to-bottom and bottom-to-top. The stream is
+responsible for stitching individual output records that may have its own
+orientation (i.e bidi text has "chunks" of different directionality).
+
+From the perspective of the operator ~{medium-}draw-text~ we have a combination
+of many arguments that add up to the text direction:
+
+- toward-point - specifies the baseline
+- align-x/align-y - specifies text alignment relative to the (ltr) baseline
+- transform-glyphs - specifies whether the text size should be transformed
+
+Note that the alignment arguments are relative to the baseline treated as a
+horizontal line going from left to right, disregarding of the actual line
+direction. For example when the baseline is oriented vertically in screen
+coordinates, then ~:align-y :top~ will move the rectangle with text the left.
+
+Normally the text size does not depend on the medium transformation. It is
+similar to the line-style-unit :normal, where the line thickness is ignores the
+medium transformation. When ~transform-glyphs~ is true, then the text is
+transformed similar to the line when line-style-unit is ~:coordinate~.
+
+** Bounding rectangle
+
+Depending on the backend it may not be possible to change the baseline
+(console), or to transform the text (console, x11 w/o xrender). McCLIM core
+requires the information about the bounding rectangle of graphics to decide hit
+tests, highlight records and format output. This is why core needs to ask the
+backend about the bounding rectangle for text on a specified baseline.
+
+* Devlog
+
+- [X] implement text-style-unit
+  We don't have text-style-unit, we use transform-glyphs argument instead.
+- [X] Introduce graphics-state properties line-direction and page-direction
+- [X] introduce multine-medium-mixin that respects properties above
+  - [X] implement
+  - [X] test on clx-ttf and clx-fb
+  - [X] test on postscript, raster, pdf, svg and clx
+- [X] make medium-draw-text* respect:
+  - [X] line direction
+  - [X] page direction
+  - [X] medium transformation
+  - [X] transform-glyphs
+- [X] Fix text-size to account for multiple lines
+- [X] Ensure that the both CLX and RENDER backends work with directions
+- [X] Verify that backends that can't support these gracefully degrate
+  - ps/pdf retain overal line bbox direction (but not inside the line)
+  - clx-ugly multiline is relative to the previous line (not "perfect")
+  - implement SVG's bottom-to-top by processing string from the end
+- [X] Remove text-bounding-rectangle -- it is not used anymore
+- [X] Fix the interpretation of the argument ~transform-glyphs~
+  The argument is always ignored.
+- [ ] Incorportate mcclim-bidi and text directions in the page formatting
+- [ ] Ensure that text directions work also in the input editor
+- [X] I've proposed inclusion of vertial metrics to zpb-ttf, when it is merged
+  we should use these new operators for vertical text
+- [ ] Propose an initial protocol for the shaping engine (not implementation)
