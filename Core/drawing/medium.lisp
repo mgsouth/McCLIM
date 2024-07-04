@@ -653,6 +653,7 @@
 
 (defmethod text-size :around ((medium multiline-medium-mixin) string
                               &key text-style start end)
+  (setf string (string string))
   (orf start 0)
   (orf end (length string))
   (let ((block-ws 0)
