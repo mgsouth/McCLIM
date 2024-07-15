@@ -983,7 +983,7 @@
 
 (defclass spacing-pane (single-child-composite-pane)
   ((border-width :initarg :thickness))
-  (:documentation "Never trust a random documentation string.")
+  (:documentation "Never trust a non-deterministic documentation string.")
   (:default-initargs :thickness 1))
 
 (defmacro spacing ((&rest options) &body contents)
@@ -992,11 +992,11 @@
 (defun spacing-p (pane)
   (typep pane 'spacing-pane))
 
-(defmethod compose-space ((pane spacing-pane) &key (width 100) (height 100))
+(defmethod compose-space ((pane spacing-pane) &key width height)
   (with-slots (border-width) pane
     (let* ((delta (* 2 border-width))
-           (width (max (- width delta) delta))
-           (height (max (- height delta) delta))
+           (width (when width (max (- width delta) delta)))
+           (height (when height (max (- height delta) delta)))
            (sr (call-next-method pane :width width :height height)))
       (make-space-requirement
        :width (+ delta (space-requirement-width sr))
@@ -1103,69 +1103,48 @@
   (dolist (child (alexandria:ensure-list contents))
     (sheet-adopt-child sheet child)))
 
-(defmethod compose-space ((bboard bboard-pane) &key (width 100) (height 100))
+(defmethod compose-space ((bboard bboard-pane) &key width height)
   (make-space-requirement :width width :height height))
 
-;;; VIEWPORT
+
+;;; Scrolling: VIEWPORT, VIEWPORT-CHILD-MIXIN, SCROLLER-PANE
+
+;;; Classes and other declarations
 
 (defclass viewport-pane (single-child-composite-pane) ())
 
-(defmethod initialize-instance :after ((pane viewport-pane) &key)
-  (setf (pane-background pane) *3d-normal-color*)
-  #+ (or) ;; useful for debugging
-  (setf (pane-background pane) +deep-pink+))
+(defclass viewport-child-mixin ()
+  ((user-virtual-width
+    :initarg :virtual-width
+    :reader pane-user-virtual-width
+    :type (or null spacing-value))
+   (user-virtual-height
+    :initarg :virtual-height
+    :reader pane-user-virtual-height
+    :type (or null spacing-value)))
+  (:documentation
+  "Mix-in for classes which recognize when they're being run as a virtual-space
+pane under a viewport. In such circumstances they are responsible for managing
+their own sheet-region by way of SPACE-REQUIREMENTS-CHANGED; such calls will be
+completely honored, without modifications based on the visible region of the
+parent viewport, and without calling ALLOCATE-SPACE or otherwise affecting the
+layout of ancestor panes (other than setting a a parent viewport's scrollbars,
+etc.).
 
-(defmethod compose-space ((pane viewport-pane) &rest args &key width height)
-  (apply #'compose-space (sheet-child pane) args))
+Even if a pane is an instance of VIEWPORT-CHILD-MIXIN, it is not running in
+virtual mode unless its direct parent is a VIEWPORT. Also, children of a V-C-M
+pane are not virtual; their space requirements affect the layout of their parent
+and siblings, although they won't affect their grandparent.
 
-(defmethod allocate-space ((pane viewport-pane) width height)
-  (resize-sheet pane width height)
-  (let ((parent       (sheet-parent pane))
-        (child        (sheet-child pane)))
-    ;; This must update (and perform the required repaints) the
-    ;; transformation and region of the child and the scrollbars.
-    ;;
-    ;; Step 1: Allocate space of CHILD. This will resize but not move CHILD.
-    (map-over-sheets (lambda (sheet)
-                       (when (typep sheet 'layout-protocol-mixin)
-                         (setf (pane-space-requirement sheet) nil)))
-                     child)
-    (let* ((child-space (compose-space child :width width :height height))
-           ;;      brutal vvv
-           (child-width  (max (space-requirement-width  child-space) width))
-           (child-height (max (space-requirement-height child-space) height)))
-      (allocate-space child child-width child-height))
-    ;; Step 2: Update the scroll bars. This looks at the bounding
-    ;; rectangle of CHILD which should already be updated.
-    (multiple-value-bind (scroll-x scroll-y)
-        (scroller-pane/update-scroll-bars parent)
-      ;; Step 3: move CHILD to the position corresponding to the updated
-      ;; values of the scroll bars.
-      (move-sheet child (- scroll-x) (- scroll-y)))))
+The mixin adds two pane-configuration slots, VIRTUAL-HEIGHT and
+VIRTUAL-WIDTH. These are comparable to HEIGHT and WIDTH, and like them may have
+any value allowed for the FORMATTING-TABLE X-/Y-SPACING parameters: an integer,
+string or character, function, or (CONS number (MEMBER :POINT :PIXEL :MM
+:CHARACTER :LINE)). If not specified, VIRTUAL-HEIGHT/-WIDTH will default to
+plain :HEIGHT/:WIDTH.
 
-(defmethod note-input-focus-changed ((pane viewport-pane) state)
-  (note-input-focus-changed (sheet-child pane) state))
-
-(defmethod note-space-requirements-changed ((pane viewport-pane) child)
-  (declare (ignore child))
-  (multiple-value-bind (width height) (bounding-rectangle-size pane)
-    (allocate-space pane width height)))
-
-;;; SCROLLER PANE
-
-;;; How scrolling is done
-
-;;; The scroll-pane has a child window called the 'viewport', which
-;;; itself has the scrolled client pane as child. To scroll the client
-;;; pane is to move it [to possibly negative coordinates].
-;;;
-;;; So the viewport is just a kind of hole, where some part of the
-;;; scrolled window shows through.
-
-;;; How the scroll bars are set up
-
-;;; The scroll-bar's min/max values match the min/max arguments to
-;;; scroll-extent. The thumb-size is then calculated accordingly.
+The scrollee pane can still influence the visible (viewport) region with HEIGHT,
+MIN-HEIGHT, etc."))
 
 (defparameter *scrollbar-thickness* 16)
 (defparameter *minimum-thumb-size* 24)
@@ -1211,8 +1190,174 @@ SCROLLER-PANE appear on the ergonomic left hand side, or leave set to
    :width 300
    :height 300))
 
+;;; VIEWPORT-CHILD-MIXIN
+
+(defmethod pane-virtual-p ((pane pane))
+  nil)
+
+(defmethod pane-virtual-p ((pane viewport-child-mixin))
+  (when (typep (sheet-parent pane) 'viewport-pane)
+    t))
+
+(defmethod shared-initialize :after ((object viewport-child-mixin) slot-names
+                                     &key (virtual-width nil virtual-width-p)
+                                       (virtual-height nil virtual-height-p))
+  (flet ((maybe-set (slot arg argp default)
+           ;; If `slot' is settable [(a) SLOT-NAMES is either T or includes
+           ;; `slot', and (b) `slot' is not bound in `object'], set it to `arg' if
+           ;; `argp' is true, otherwise set it to `default'.
+           (when (and (or (eq slot-names 't) (member slot slot-names)) (not (slot-boundp object slot)))
+             (setf (slot-value object slot) (if argp arg default)))))
+    (maybe-set 'user-virtual-width virtual-width virtual-width-p
+                (when (slot-boundp object 'user-width) (slot-value object 'user-width)))
+    (maybe-set 'user-virtual-height virtual-height virtual-height-p
+                (when (slot-boundp object 'user-height) (slot-value object 'user-height)))))
+
+(defmethod note-sheet-adopted :after ((pane viewport-child-mixin))
+  (when (pane-virtual-p pane)
+    (setf (pane-background (sheet-parent pane)) (pane-background pane))))
+
+(defmethod (setf pane-background) :after (value (pane viewport-child-mixin))
+  (when (pane-virtual-p pane)
+    (setf (pane-background (sheet-parent pane)) value)))
+
+;; Default (COMPOSE-SPACE (pane)) method suffices. It and call-arounds will
+;; return a space requirement for the visual pane, based upon HEIGHT
+;; etc. properties.
+
+(defmethod allocate-space :before ((pane viewport-child-mixin) width height)
+  (declare (ignore width height))
+  (when (pane-virtual-p pane)
+    ;; Take this as a signal to initialize our sheet-region.
+    (unless (sheet-region pane)
+      (multiple-value-bind (max-x max-y)
+          (untransform-distance (sheet-native-transformation pane)
+                                (spacing-value-to-device-units
+                                 pane
+                                 (or (pane-user-virtual-width pane) (pane-user-width pane) 1))
+                                (spacing-value-to-device-units
+                                 pane
+                                 (or (pane-user-virtual-height pane) (pane-user-height pane) 1)))
+        (setf (sheet-region pane)
+              (make-bounding-rectangle 0 0 max-x max-y))))))
+
+
+;;; VIEWPORT
+
+;; When a frame is running down the COMPOSE-SPACE or ALLOCATE-SPACE trees it is
+;; setting the _visual_ pane sizes so that everything is located within the
+;; frame. It should not affect _virtual_ (scrollee) child panes. Unfortunately
+;; ALLOCATE-SPACE is the only mechanism provided to initialize the virtual
+;; region. The standard doesn't even provide pane initialization options for
+;; setting the virtual size. We're forced to take the _visual_ options (:HEIGHT,
+;; MIN-HEIGHT, etc.) and apply them to the scrollee virtual pane.
+;;
+;; Our job, as the viewport, is to allow the child scrollee to override these
+;; visual defaults. We should completely honor the requested sizes coming back
+;; from (COMPOSE-SPACE scrollee), although we may wish to take them under
+;; advisement for computing our own, visual, requirements. We should *not* be
+;; forcing anything into the scrollee's sheet-region. In particular, users will
+;; not appreciate their A4-sized workspace turning into A3 because the frame was
+;; resized :/.
+;;
+;; In our current implementation, the job is made harder because some (most?
+;; all?) standard panes are kind of helpless in this regard. They expect to be
+;; force-fed their region sizes, even when it's not quite right. (Which is why,
+;; for example, scrolling in the interactor pane is messed up. The sheet-region
+;; can be forcibly resized without any awareness of the text cursor.)  This is
+;; probably because (a) the current implementation brutally smashes any feeble
+;; attempts at independence, and (b) these panes can exist as scrolling and
+;; non-scrolling instantiations. No doubt user application frames are in the
+;; same boat.
+;;
+;; Although we prefer not to have the visual region larger than the virtual,
+;; it's OK if it is.
+;;
+;; To work with both helpless and empowered children, we introduce an extension,
+;; the class VIEWPORT-CHILD-MIXIN. Any panes which are instances of this class
+;; are allowed and expected to properly manage their own virtual regions.
+
+(defmethod initialize-instance :after ((pane viewport-pane) &key)
+  (setf (pane-background pane) *3d-normal-color*)
+  #+ (or) ;; useful for debugging
+  (setf (pane-background pane) +deep-pink+))
+
+(defmethod compose-space ((pane viewport-pane) &rest args &key width height)
+  (declare (ignore width height))
+  ;; Note: the child should be returning what it prefers for the _visual_ space,
+  ;; not its _virtual_ region.
+  (let* ((space (apply #'compose-space (sheet-child pane) args)))
+    space))
+
+(defmethod allocate-space ((pane viewport-pane) width height)
+  (resize-sheet pane width height)
+  (let ((parent       (sheet-parent pane))
+        (child        (sheet-child pane)))
+    ;; Step 1: Tell child about allocation
+    (if (typep child 'viewport-child-mixin)
+        ;; Cluefull child. Let it know we're in allocation phase. W/H don't
+        ;; matter.
+        ;;
+        ;;XXX Can we get the child to set SR properly w/o using allocate-space?
+        ;; Listen on some notification?
+        (allocate-space child width height)
+        ;; Our poor helpless one... Force its sheet-region.
+        (progn
+          ;; Clear the space-req cache to force compose-space to actually look
+          ;; at child.  Presume this is because we don't have a solid protocol
+          ;; impl which is always notified when child has changed, or maybe we
+          ;; just don't trust user app to do the right thing.
+          ;;
+          ;; Hmm.. in practice, this is papering-over something. If we don't
+          ;; clear the cache here, then something is setting the Viewport layout
+          ;; size to Very Small Values, and it never gets reset. So
+          ;; ALLOCATE-SPACE is winding up as a kind of weird, convienient layout
+          ;; event loop, and sanity resets are being done each time through.
+          (map-over-sheets (lambda (sheet)
+                             (when (typep sheet 'layout-protocol-mixin)
+                               (setf (pane-space-requirement sheet) nil)))
+                           child)
+          (let* ((child-space (compose-space child :width width :height height))
+                 ;;      brutal vvv
+                 (child-width  (max (space-requirement-width child-space) width))
+                 (child-height (max (space-requirement-height child-space) height)))
+            (allocate-space child child-width child-height))))
+    ;; Step 2: Update the scroll bars. This looks at the bounding rectangle of
+    ;; CHILD which should already be updated.
+    (multiple-value-bind (offset-x offset-y)
+        (scroller-pane/update-scroll-bars parent)
+      ;; Step 3: move CHILD to the position corresponding to the updated values
+      ;; of the scroll bars. The position should change only if the some of the
+      ;; visual pane extends past the virtual.
+      (move-sheet child offset-x offset-y))))
+
+(defmethod note-input-focus-changed ((pane viewport-pane) state)
+  (note-input-focus-changed (sheet-child pane) state))
+
+(defmethod note-space-requirements-changed ((pane viewport-pane) child)
+  (declare (ignore child))
+  (multiple-value-bind (width height) (bounding-rectangle-size pane)
+    (allocate-space pane width height)))
+
+;;; SCROLLER PANE
+
+;;; How scrolling is done
+
+;;; The scroll-pane has a child window called the 'viewport', which
+;;; itself has the scrolled client pane as child. To scroll the client
+;;; pane is to move it [to usually negative coordinates].
+;;;
+;;; So the viewport is just a kind of hole, where some part of the
+;;; scrolled window shows through.
+
+;;; How the scroll bars are set up
+
+;;; The scroll-bar's min/max values match the min/max arguments to
+;;; scroll-extent. The thumb-size is then calculated accordingly.
+
 (define-accessor scroll-bar-values (min-value max-value thumb-size value scroll-bar)
-  (:documentation "The accessor for min/max values, thumb size and current value."))
+  (:documentation "The accessor for min/max values, thumb size and current value. When SETF'd the
+scroll bar graphics will be updated."))
 
 (defmacro scrolling ((&rest options) &body contents)
   `(let ((viewport (make-pane 'viewport-pane :contents (list ,@contents))))
@@ -1267,7 +1412,6 @@ SCROLLER-PANE appear on the ergonomic left hand side, or leave set to
                                               :max-height max-height))
               req (fuse-space-requirement req :max-measure-ws max-width
                                               :max-measure-hs max-height)))
-
       req)))
 
 (defmethod allocate-space ((pane scroller-pane) width height)
@@ -1295,33 +1439,6 @@ SCROLLER-PANE appear on the ergonomic left hand side, or leave set to
         (allocate-space hscrollbar
                         (- width vsbar-width)
                         hsbar-height))
-      ;;
-      ;; Recalculate the gadget-values of the scrollbars
-      ;;
-      (when vscrollbar
-        (let* ((scrollee (sheet-child viewport))
-               (min 0)
-               (max (- (max (space-requirement-height (compose-space scrollee))
-                            viewport-height)
-                       viewport-height))
-               (ts  viewport-height)
-               (val (if (zerop (gadget-max-value vscrollbar))
-                        0
-                        (* (/ (gadget-value vscrollbar) (gadget-max-value vscrollbar))
-                           max))))
-          (setf (scroll-bar-values vscrollbar) (values min max ts val))))
-      (when hscrollbar
-        (let* ((scrollee (sheet-child viewport))
-               (min 0)
-               (max (- (max (space-requirement-width (compose-space scrollee))
-                            viewport-width)
-                       viewport-width))
-               (ts  viewport-width)
-               (val (if (zerop (gadget-max-value hscrollbar))
-                        0
-                        (* (/ (gadget-value hscrollbar) (gadget-max-value hscrollbar))
-                           max))))
-          (setf (scroll-bar-values hscrollbar) (values min max ts val))))
       (when viewport
         (move-sheet viewport
                     (+ x-spacing
@@ -1393,27 +1510,57 @@ SCROLLER-PANE appear on the ergonomic left hand side, or leave set to
                             0))))))))
 
 (defun scroller-pane/scroll-boundaries (viewport)
+  "Return
+<min thumb value x> <max x> <min y> <max y>
+<thumb size x> <y>
+<thumb value x> <y>
+<scrollee sheet-region offset x> <y>"
   (let* ((scrollee (sheet-child viewport))
          (scrollee-tr (sheet-transformation scrollee))
          (scrollee-sr (transform-region scrollee-tr (sheet-region scrollee))))
-    (multiple-value-bind (min-x min-y)
+    (multiple-value-bind (offset-x offset-y)
         (bounding-rectangle-position scrollee-sr)
       (multiple-value-bind (sheet-size-x sheet-size-y)
           (bounding-rectangle-size scrollee-sr)
         (multiple-value-bind (viewport-size-x viewport-size-y)
             (bounding-rectangle-size viewport)
-          (let ((scroll-max-x (max (- sheet-size-x viewport-size-x) 0))
-                (scroll-max-y (max (- sheet-size-y viewport-size-y) 0)))
-            (values 0 scroll-max-x
-                    0 scroll-max-y
-                    viewport-size-x viewport-size-y
-                    (clamp (- min-x) 0 scroll-max-x)
-                    (clamp (- min-y) 0 scroll-max-y))))))))
+          (flet ((coerce-coord (old-offset sheet-size view-size)
+                   ;; Coerce a coordinate. It the vewport is longer than the
+                   ;; sheet, then put equal margin on both sides of the
+                   ;; sheet. If the viewport is not larger, but there's some
+                   ;; non-sheet area visible, suck in the sheet. Otherwise,
+                   ;; stick with the sheet offset we have. Return three values:
+                   ;; the new thumb value, the new thumb max value, and the new
+                   ;; sheet offset.
+                   (let* ((diff (- sheet-size view-size))
+                          (old-end (+ old-offset sheet-size)))
+                     (cond
+                       ((minusp diff)
+                        ;; Sheet < view
+                        (values 0 0 (truncate diff 2)))
+                       ((plusp old-offset)
+                        ;; Blank area top/left
+                        (values 0 diff 0))
+                       ((< old-end view-size)
+                        ;; Blank area bottom/right
+                        (values diff diff (- diff)))
+                       (t
+                        ;; Leave it alone
+                        (values (min (- old-offset) diff) diff (max old-offset (- diff))))))))
+            (multiple-value-bind (thumb-x thumb-max-x off-x)
+                (coerce-coord offset-x sheet-size-x viewport-size-x)
+              (multiple-value-bind (thumb-y thumb-max-y off-y)
+                  (coerce-coord offset-y sheet-size-y viewport-size-y)
+                (values 0 thumb-max-x 0 thumb-max-y
+                        viewport-size-x viewport-size-y
+                        thumb-x thumb-y
+                        off-x off-y)))))))))
 
 (defun scroller-pane/update-scroll-bars (pane)
+  "Update scroll bars to reflect current reality. Return the child pane (scrollee) offsets."
   (check-type pane scroller-pane)
   (with-slots (viewport hscrollbar vscrollbar) pane
-    (multiple-value-bind (min-x max-x min-y max-y thb-x thb-y cur-x cur-y)
+    (multiple-value-bind (min-x max-x min-y max-y thb-x thb-y cur-x cur-y off-x off-y)
         (scroller-pane/scroll-boundaries viewport)
       (when hscrollbar
         (setf (scroll-bar-values hscrollbar)
@@ -1421,7 +1568,7 @@ SCROLLER-PANE appear on the ergonomic left hand side, or leave set to
       (when vscrollbar
         (setf (scroll-bar-values vscrollbar)
               (values min-y max-y thb-y cur-y)))
-      (values cur-x cur-y))))
+      (values off-x off-y))))
 
 (defmethod initialize-instance :after ((pane scroller-pane) &key contents &allow-other-keys)
   (sheet-adopt-child pane (first contents))
@@ -1638,15 +1785,15 @@ SCROLLER-PANE appear on the ergonomic left hand side, or leave set to
          ;; Margin of surrounding border.
          (+ m0 (/ line-height 2)))))))
 
-(defmethod compose-space ((pane label-pane) &key (width 100) (height 100))
+(defmethod compose-space ((pane label-pane) &key width height)
   (multiple-value-bind (right top left bottom
                         text-offset text-width text-height)
       (label-pane-margins pane)
     (let* ((padded-width (+ text-width (* 2 text-offset)))
            (padded-height (+ text-height (* 2 text-offset))))
       (if-let ((child (sheet-child pane)))
-        (let ((sr2 (compose-space child :width (- width left right)
-                                        :height (- height top bottom))))
+        (let ((sr2 (compose-space child :width (when width (- width left right))
+                                        :height (when height (- height top bottom)))))
           (make-space-requirement
            :width      (+ left right (max padded-width (space-requirement-width sr2)))
            :min-width  (+ left right (max padded-width (space-requirement-min-width sr2)))

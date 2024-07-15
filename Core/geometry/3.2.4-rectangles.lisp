@@ -207,9 +207,11 @@
     (and (coordinate-between* x1 x x2)
          (coordinate-between* y1 y y2))))
 
-(defmethod bounding-rectangle* ((region standard-rectangle))
-  (with-standard-rectangle* (x1 y1 x2 y2) region
-    (values x1 y1 x2 y2)))
+(locally
+    (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (defmethod bounding-rectangle* ((region standard-rectangle))
+    (with-standard-rectangle* (x1 y1 x2 y2) region
+      (values x1 y1 x2 y2))))
 
 (defmethod transform-region (transformation (rect standard-rectangle))
   (cond ((rectilinear-transformation-p transformation)

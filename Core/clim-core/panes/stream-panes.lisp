@@ -30,8 +30,8 @@
                      :initarg :display-function
                      :accessor pane-display-function)
    ;; size required by the stream
-   (stream-width :initform 100 :accessor stream-width)
-   (stream-height :initform 100 :accessor stream-height))
+   (stream-width :initform 1 :accessor stream-width)
+   (stream-height :initform 1 :accessor stream-height))
   (:default-initargs :display-time t)
   (:documentation
    "This class implements a pane that supports the CLIM graphics,
@@ -101,26 +101,37 @@
               (:line      (* value (stream-line-height pane))))))))
 
 (defun change-stream-space-requirements (pane &key width height)
-  (when width
-    (setf (stream-width pane) width))
-  (when height
-    (setf (stream-height pane) height))
-  (change-space-requirements pane))
+  (check-type pane clim-stream-pane)
+  (if width
+      (setf (stream-width pane) width)
+      (setf width (stream-width pane)))
+  (if height
+      (setf (stream-height pane) height)
+      (setf height (stream-height pane)))
+  (when (or width height)
+    (multiple-value-bind (dev-width dev-height)
+        (transform-distance (sheet-native-transformation pane) (or width 0) (or height 0))
+      (change-space-requirements pane :width (if width dev-width :nochange)
+                                      :height (if height dev-height :nochange)))))
 
-(defmethod compose-space ((pane clim-stream-pane) &key (width 100) (height 100))
+(defmethod compose-space ((pane clim-stream-pane) &key width height)
   (with-bounding-rectangle* (min-x min-y max-x max-y)
-      (stream-output-history pane)
-    (let* ((w (max max-x (- max-x min-x)))
-           (h (max max-y (- max-y min-y)))
-           (width (max w width (stream-width pane)))
-           (height (max h height (stream-height pane))))
-      (make-space-requirement
-       :min-width (clamp w 0 width)
-       :width width
-       :max-width +fill+
-       :min-height (clamp h 0 height)
-       :height height
-       :max-height +fill+))))
+                            (transform-region (sheet-native-transformation pane) (stream-output-history pane))
+    (multiple-value-bind (stream-w stream-h)
+        (transform-distance (sheet-native-transformation pane)
+                            (stream-width pane)
+                            (stream-height pane))
+      (let* ((w (max max-x (- max-x min-x)))
+             (h (max max-y (- max-y min-y)))
+             (width (max w (or width 0) stream-w))
+             (height (max h (or height 0) stream-h)))
+        (make-space-requirement
+         :min-width (clamp w 0 width)
+         :width stream-w
+         :max-width +fill+
+         :min-height (clamp h 0 height)
+         :height stream-h
+         :max-height +fill+)))))
 
 (defmethod allocate-space ((pane clim-stream-pane) width height)
   (multiple-value-bind (w h)
@@ -140,7 +151,7 @@
   (setf (stream-width pane) 0)
   (setf (stream-height pane) 0)
   (scroll-extent pane 0 0)
-  (change-space-requirements pane))
+  (change-space-requirements pane :width 100 :height 100))
 
 (defmethod window-refresh ((pane clim-stream-pane))
   (window-erase-viewport pane)

@@ -83,6 +83,12 @@
 
 (in-package #:clim-internals)
 
+(declaim (inline null-bounding-rectangle-p))
+
+;;; Forward definition
+(defclass stream-output-history-mixin ()
+  ((stream :initarg :stream :reader output-history-stream)))
+
 ;;; These generic functions need to be implemented for all the basic
 ;;; displayed-output-records, so they are defined in this file.
 ;;;

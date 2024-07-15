@@ -343,6 +343,7 @@ FRAME, managed by FRAME-MANAGER, changed to NEW-COMMAND-TABLE."))
 (defgeneric pane-name (pane))
 (defgeneric pane-foreground (pane))
 (defgeneric pane-background (pane))
+(defgeneric (setf pane-background) (value pane))
 (defgeneric pane-text-style (pane))
 
 ;;;; 29.3.3 Scroller Pane Classes
@@ -354,6 +355,12 @@ FRAME, managed by FRAME-MANAGER, changed to NEW-COMMAND-TABLE."))
 (defgeneric scroll-quantum (pane)
   (:documentation "Returns the number of pixels respresenting a 'line', used
 to computed distance to scroll in response to mouse wheel events."))
+(defgeneric pane-virtual-p (pane)       ; McCLIM extension
+  (:documentation "~
+Returns true if the pane is running 'virtual' (e.g., it is the direct scrollee
+child of a viewport pane), whose sheet-region does not directly affect the
+layout of containing panes, and is prepared to deal with layout and allocation
+protocols in that manner."))
 
 (deftype scroll-bar-spec () '(member t :both :vertical :horizontal nil))
 

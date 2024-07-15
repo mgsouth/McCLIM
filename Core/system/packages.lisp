@@ -1071,6 +1071,7 @@
    #:pane-text-style                    ;generic function
    #:pane-viewport                      ;generic function
    #:pane-viewport-region               ;generic function
+   #:pane-virtual-p                     ;generic function
    #:panep                              ;predicate
    #:parse-text-style                   ;function
    #:part-type                          ;presentation type parameter
@@ -1521,6 +1522,7 @@
    #:vertically                         ;macro
    #:view                               ;protocol class
    #:viewp                              ;predicate
+   #:viewport-child-mixin               ;class
    #:vrack-pane                         ;pane
    #:window-clear                       ;generic function
    #:window-configuration-event         ;class

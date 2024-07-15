@@ -178,7 +178,7 @@ returned or error is signaled depending on the argument ERRORP.")
 (defmethod (setf medium-background) (ink (pane pane))
   (setf (medium-background (sheet-medium pane)) ink))
 
-(defmethod compose-space ((pane pane) &key (width 100) (height 100))
+(defmethod compose-space ((pane pane) &key width height)
   (make-space-requirement :width width :height height))
 
 (defmethod allocate-space ((pane pane) width height)

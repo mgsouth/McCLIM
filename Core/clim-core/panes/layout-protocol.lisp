@@ -16,6 +16,10 @@
 ;;; Implementation of the 29.3 Composite and Layout Panes (layout protocol).
 ;;;
 
+;;; XXX FIXME: Why is command prompting re-laying-out entire frame for every
+;;; character typed? Suspect it's because the input field box is extending past
+;;; edge of visible area.
+
 (in-package #:clim-internals)
 
 ;;; CLIM Layout Protocol for Dummies
@@ -176,7 +180,20 @@
           (assert (eq key :relative))
           (setf user-max-foo (+ user-foo val)))
         (frob user-max-foo max-foo +fill+)))
+  (when (typep pane 'pointer-documentation-pane)
+    (format *debug-io*
+            "XXX [clim-core/.panes/layout/merge-1]~65T:user ~A [~A..~A] :min ~A :max ~A~%"
+            user-foo user-min-foo user-max-foo min-foo max-foo))
   ;; Now we have two space requirements which need to be 'merged'.
+  ;;
+  ;; Do not let layout engine exceed maximums or minimums specified by user
+  ;; configuration. Otherwise we can end up with a 40-line
+  ;; pointer-documentation-pane, which eats up all the discretionary space that
+  ;; other panes can use. Ask me how I know....
+  (setf min-foo (clamp min-foo user-min-foo user-max-foo)
+        max-foo (clamp max-foo user-min-foo user-max-foo)
+        foo     (clamp user-foo min-foo max-foo))
+  #+(or)
   (setf min-foo (clamp user-min-foo min-foo max-foo)
         max-foo (clamp user-max-foo min-foo max-foo)
         foo     (clamp user-foo min-foo max-foo))
@@ -187,6 +204,14 @@
   ;; I want proper error checking and in case there is an error we should just
   ;; emit a warning and move on. CLIM should not die from garbage passed in
   ;; here. -- gb 2003-03-14
+  (when (typep pane 'pointer-documentation-pane)
+    (format *debug-io*
+            "XXX [clim-core/../layout-prot/merge-user-spec-options]~55T~A~%~55T:sr hs ~A [~A..~A]~%~55T:pu hs ~A [~A..~A] ~%"
+            pane
+            (space-requirement-height sr) (space-requirement-min-height sr) (space-requirement-max-height sr)
+            (pane-user-height pane) (pane-user-min-height pane) (pane-user-max-height pane))
+    #+sbcl
+    (sb-debug:print-backtrace :count 5))
   (multiple-value-bind (width min-width max-width height min-height max-height)
       (space-requirement-components sr)
     (multiple-value-bind (new-width new-min-width new-max-width)
@@ -205,14 +230,19 @@
                             (pane-user-max-height pane)
                             min-height
                             max-height)
-        (make-space-requirement
-         :width      new-width
-         :min-width  new-min-width
-         :max-width  new-max-width
-         :height     new-height
-         :min-height new-min-height
-         :max-height new-max-height)))))
-
+        (let* ((space (make-space-requirement
+                       :width      new-width
+                       :min-width  new-min-width
+                       :max-width  new-max-width
+                       :height     new-height
+                       :min-height new-min-height
+                       :max-height new-max-height)))
+          (when (typep pane 'pointer-documentation-pane)
+            (format *debug-io*
+                    "XXX~55T=> hs ~A [~A..~A] ~%"
+                    (space-requirement-height space) (space-requirement-min-height space)
+                    (space-requirement-max-height space)))
+          space)))))
 
 (defmethod compose-space :around ((pane space-requirement-options-mixin)
                                   &key width height)
@@ -221,7 +251,8 @@
   (let ((sr (call-next-method)))
     (unless sr
       (warn "~S has no idea about its space-requirements." pane)
-      (setf sr (make-space-requirement :width 100 :height 100)))
+      ;; Don't use 100x100 as default--may be :character or :line units.
+      (setf sr (make-space-requirement :width 1 :height 1)))
     (merge-user-specified-options pane sr)))
 
 (defmethod change-space-requirements :before
@@ -232,6 +263,14 @@
        (align-x :nochange) (align-y :nochange)
        (x-spacing :nochange) (y-spacing :nochange)
      &allow-other-keys)
+
+  (when (typep pane 'pointer-documentation-pane)
+    (format *debug-io*
+            "XXX [layout-prorocol/change-space-req :before] hs ~A [~A..~A]~%"
+            height min-height max-height)
+    #+sbcl
+    (sb-debug:print-backtrace :count 5))
+
   (macrolet ((update (parameter slot-name)
                `(unless (eq ,parameter :nochange)
                   (setf (slot-value pane ',slot-name) ,parameter))))
@@ -285,7 +324,7 @@
 ;;; --GB 2003-03-16
 
 (defmethod compose-space :around ((pane layout-protocol-mixin) &key width height)
-  (declare (ignore width height))
+  (declare (ignorable width height))
   (or (pane-space-requirement pane)
       (setf (pane-space-requirement pane)
             (call-next-method))))
@@ -334,6 +373,14 @@ during the current execution of CHANGING-SPACE-REQUIREMENTS.")
 
 (defmethod change-space-requirements :after ((pane layout-protocol-mixin)
                                              &key resize-frame &allow-other-keys)
+  (when (typep pane 'pointer-documentation-pane)
+    (let* ((sr (pane-space-requirement pane)))
+      (format *debug-io*
+              "XXX [clim-core/../layout-prot/change-space-req :after]~55T~A :sr hs ~A [~A..~A]~%"
+              pane
+              (when sr (space-requirement-height sr)) (when sr (space-requirement-min-height sr))
+              (when sr (space-requirement-max-height sr)))))
+
   (when-let ((parent (sheet-parent pane)))
     (if resize-frame
         ;; From Spec 29.3.4: "If resize-frame is true, then
